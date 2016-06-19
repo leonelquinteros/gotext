@@ -6,10 +6,15 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type Po struct {
+    // Storage
 	translations map[string]string
+	
+	// Sync Mutex
+	sync.RWMutex
 }
 
 // ParseFile tries to read the file by its provided path (f) and parse its content as a .po file.
@@ -36,6 +41,9 @@ func (po *Po) ParseFile(f string) {
 
 // Parse loads the translations specified in the provided string (str)
 func (po *Po) Parse(str string) {
+    po.Lock()
+	defer po.Unlock()
+	
 	if po.translations == nil {
 		po.translations = make(map[string]string)
 	}
