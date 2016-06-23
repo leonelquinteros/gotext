@@ -53,20 +53,35 @@ func (l *Locale) AddDomain(dom string) {
 }
 
 // Get uses a domain "default" to return the corresponding translation of a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) Get(str string, vars ...interface{}) string {
 	return l.GetD("default", str, vars...)
 }
 
+// GetN retrieves the (N)th plural form translation for the given string in the "default" domain.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetN(str, plural string, n int, vars ...interface{}) string {
+	return l.GetND("default", str, plural, n, vars...)
+}
+
 // GetD returns the corresponding translation in the given domain for a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetD(dom, str string, vars ...interface{}) string {
+	return l.GetND(dom, str, str, 0, vars...)
+}
+
+// GetND retrieves the (N)th plural form translation in the given domain for a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) string {
 	if l.domains != nil {
 		if _, ok := l.domains[dom]; ok {
 			if l.domains[dom] != nil {
-				return l.domains[dom].Get(str, vars...)
+				return l.domains[dom].GetN(str, plural, n, vars...)
 			}
 		}
 	}
 
 	// Return the same we received by default
-	return fmt.Sprintf(str, vars...)
+	return fmt.Sprintf(plural, vars...)
 }

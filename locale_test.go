@@ -17,7 +17,10 @@ msgid "Another string"
 msgstr ""
 
 msgid "One with var: %s"
-msgstr "This one sets the var: %s"
+msgid_plural "Several with vars: %s"
+msgstr[0] "This one is the singular: %s"
+msgstr[1] "This one is the plural: %s"
+msgstr[2] "And this is the second plural form: %s"
 
     `
 
@@ -56,7 +59,13 @@ msgstr "This one sets the var: %s"
 
 	v := "Variable"
 	tr = l.GetD("my_domain", "One with var: %s", v)
-	if tr != "This one sets the var: Variable" {
-		t.Errorf("Expected 'This one sets the var: Variable' but got '%s'", tr)
+	if tr != "This one is the singular: Variable" {
+		t.Errorf("Expected 'This one is the singular: Variable' but got '%s'", tr)
+	}
+
+	// Test plural
+	tr = l.GetND("my_domain", "One with var: %s", "Several with vars: %s", 2, v)
+	if tr != "And this is the second plural form: Variable" {
+		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
 	}
 }

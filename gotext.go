@@ -79,15 +79,30 @@ func Configure(lib, lang, dom string) {
 }
 
 // Get uses the default domain globally set to return the corresponding translation of a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func Get(str string, vars ...interface{}) string {
 	return GetD(domain, str, vars...)
 }
 
+// GetN retrieves the (N)th plural form translation for the given string in the "default" domain.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetN(str, plural string, n int, vars ...interface{}) string {
+	return GetND("default", str, plural, n, vars...)
+}
+
 // GetD returns the corresponding translation in the given domain for a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetD(dom, str string, vars ...interface{}) string {
+	return GetND(dom, str, str, 0, vars...)
+}
+
+// GetND retrieves the (N)th plural form translation in the given domain for a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 	// Try to load default package Locale storage
 	loadStorage(false)
 
 	// Return translation
-	return storage.GetD(dom, str, vars...)
+	return storage.GetND(dom, str, plural, n, vars...)
 }
