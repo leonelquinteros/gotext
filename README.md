@@ -113,6 +113,39 @@ msgstr "This one sets the var: %s"
 ```
 
 
+## Use plural forms of translations
+
+PO format supports defining one or more plural forms for the same translation.
+
+```go
+import "github.com/leonelquinteros/gotext"
+
+func main() {
+    // Set PO content
+    str := `
+msgid "Translate this"
+msgstr "Translated text"
+
+msgid "Another string"
+msgstr ""
+
+msgid "One with var: %s"
+msgid_plural "Several with vars: %s"
+msgstr[0] "This one is the singular: %s"
+msgstr[1] "This one is the plural: %s"
+msgstr[2] "And this is the second plural form: %s"
+`
+    
+    // Create Po object
+    po := new(Po)
+    po.Parse(str)
+    
+    println(po.GetN("One with var: %s", "Several with vars: %s", 2, v))
+    // "And this is the second plural form: Variable"
+}
+```
+
+
 # Contribute 
 
 - Please, contribute.
