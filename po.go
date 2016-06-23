@@ -75,11 +75,10 @@ func (po *Po) ParseFile(f string) {
 
 // Parse loads the translations specified in the provided string (str)
 func (po *Po) Parse(str string) {
-	po.Lock()
-	defer po.Unlock()
-
 	if po.translations == nil {
+		po.Lock()
 		po.translations = make(map[string]*translation)
+		po.Unlock()
 	}
 
 	lines := strings.Split(str, "\n")
@@ -103,7 +102,9 @@ func (po *Po) Parse(str string) {
 		// Buffer msgid and continue
 		if strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") {
 			// Save current translation buffer.
+			po.Lock()
 			po.translations[tr.id] = tr
+			po.Unlock()
 
 			// Flush buffer
 			tr = newTranslation()
@@ -156,7 +157,9 @@ func (po *Po) Parse(str string) {
 
 	// Save last translation buffer.
 	if tr.id != "" {
+		po.Lock()
 		po.translations[tr.id] = tr
+		po.Unlock()
 	}
 }
 
