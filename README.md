@@ -2,10 +2,39 @@
 
 # Gotext
 
-GNU gettext utilities for Go 
+GNU gettext utilities for Go. 
+
+- Implements GNU gettext support in native Go. 
+- It works with UTF-8 encoding as it's the default for Go language. 
+- Supports pluralization rules.
+- Ready to use inside Go templates.
+- Language codes are automatically simplified from the form "en_UK" to "en" if the formed isn't available.
+- Unit tests available
 
 
-# Examples
+# Installation 
+
+```
+go get github.com/leonelquinteros/gotext
+```
+
+- There are no requirements or dependencies to use this package. 
+- No need to install GNU gettext utilities (unless specific needs of CLI tools).
+- No need for environment variables. Some naming conventions are applied but not needed.  
+
+
+# License
+
+[MIT license](LICENSE)
+
+
+# Documentation
+
+Refer to the Godoc package documentation at (https://godoc.org/github.com/leonelquinteros/gotext)
+
+
+
+# Usage examples
 
 ## Using package for single language/domain settings
 
