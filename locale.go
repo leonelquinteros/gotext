@@ -31,6 +31,7 @@ Example:
         // Translate text from domain
         println(l.GetD("extras", "Translate this"))
     }
+
 */
 type Locale struct {
 	// Path to locale files.
