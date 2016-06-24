@@ -4,7 +4,7 @@
 
 GNU gettext utilities for Go. 
 
-**Version: 0.9.0**
+Version: [0.9.0](https://github.com/leonelquinteros/gotext/releases/tag/v0.9.0)
 
 
 #Features
