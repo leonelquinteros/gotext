@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"sync"
 )
 
 /*
@@ -42,6 +43,9 @@ type Locale struct {
 
 	// List of available domains for this locale.
 	domains map[string]*Po
+
+	// Sync Mutex
+	sync.RWMutex
 }
 
 // NewLocale creates and initializes a new Locale object for a given language.
@@ -73,6 +77,9 @@ func (l *Locale) AddDomain(dom string) {
 	po.ParseFile(filename)
 
 	// Save new domain
+	l.Lock()
+	defer l.Unlock()
+
 	if l.domains == nil {
 		l.domains = make(map[string]*Po)
 	}
@@ -102,6 +109,10 @@ func (l *Locale) GetD(dom, str string, vars ...interface{}) string {
 // If n == 0, usually the singular form of the string is returned as defined in the PO file.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) string {
+	// Sync read
+	l.RLock()
+	defer l.RUnlock()
+
 	if l.domains != nil {
 		if _, ok := l.domains[dom]; ok {
 			if l.domains[dom] != nil {

@@ -59,3 +59,48 @@ msgstr[2] "And this is the second plural form: %s"
 		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
 	}
 }
+
+func TestPoRace(t *testing.T) {
+	// Set PO content
+	str := `# Some comment
+msgid "My text"
+msgstr "Translated text"
+
+# More comments
+msgid "Another string"
+msgstr ""
+
+msgid "One with var: %s"
+msgid_plural "Several with vars: %s"
+msgstr[0] "This one is the singular: %s"
+msgstr[1] "This one is the plural: %s"
+msgstr[2] "And this is the second plural form: %s"
+
+    `
+
+	// Create Po object
+	po := new(Po)
+
+	// Create sync channels
+	pc := make(chan bool)
+	rc := make(chan bool)
+
+	// Parse po content in a goroutine
+	go func(po *Po, done chan bool) {
+		po.Parse(str)
+		done <- true
+	}(po, pc)
+
+	// Read some translation on a goroutine
+	go func(po *Po, done chan bool) {
+		println(po.Get("My text"))
+		done <- true
+	}(po, rc)
+
+	// Read something at top level
+	println(po.Get("My text"))
+
+	// Wait for goroutines to finish
+	<-pc
+	<-rc
+}

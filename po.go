@@ -186,6 +186,10 @@ func (po *Po) Parse(str string) {
 // Get retrieves the corresponding translation for the given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (po *Po) Get(str string, vars ...interface{}) string {
+	// Sync read
+	po.RLock()
+	defer po.RUnlock()
+
 	if po.translations != nil {
 		if _, ok := po.translations[str]; ok {
 			return fmt.Sprintf(po.translations[str].get(), vars...)
@@ -200,6 +204,10 @@ func (po *Po) Get(str string, vars ...interface{}) string {
 // If n == 0, usually the singular form of the string is returned as defined in the PO file.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
+	// Sync read
+	po.RLock()
+	defer po.RUnlock()
+
 	if po.translations != nil {
 		if _, ok := po.translations[str]; ok {
 			return fmt.Sprintf(po.translations[str].getN(n), vars...)
