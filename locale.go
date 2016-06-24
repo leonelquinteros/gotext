@@ -6,6 +6,32 @@ import (
 	"path"
 )
 
+/*
+Locale wraps the entire i18n collection for a single language (locale)
+It's used by the package functions, but it can also be used independently to handle
+multiple languages at the same time by working with this object.
+
+Example:
+
+    import "github.com/leonelquinteros/gotext"
+
+    func main() {
+        // Create Locale with library path and language code
+        l := gotext.NewLocale("/path/to/i18n/dir", "en_US")
+
+        // Load domain '/path/to/i18n/dir/en_US/default.po'
+        l.AddDomain("default")
+
+        // Translate text from default domain
+        println(l.Get("Translate this"))
+
+        // Load different domain ('/path/to/i18n/dir/en_US/extras.po')
+        l.AddDomain("extras")
+
+        // Translate text from domain
+        println(l.GetD("extras", "Translate this"))
+    }
+*/
 type Locale struct {
 	// Path to locale files.
 	path string
@@ -72,6 +98,7 @@ func (l *Locale) GetD(dom, str string, vars ...interface{}) string {
 }
 
 // GetND retrieves the (N)th plural form translation in the given domain for a given string.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) string {
 	if l.domains != nil {

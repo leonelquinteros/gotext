@@ -42,7 +42,24 @@ func (t *translation) getN(n int) string {
 	return t.pluralId
 }
 
-// Po type handles the content of any PO file.
+/*
+Po parses the content of any PO file and provides all the translation functions needed.
+
+Example:
+
+	import "github.com/leonelquinteros/gotext"
+
+    func main() {
+    	// Create po object
+        po := new(Po)
+
+        // Parse .po file
+        po.ParseFile("/path/to/po/file/translations.po")
+
+        // Get translation
+        println(po.Get("Translate this"))
+    }
+*/
 type Po struct {
 	// Storage
 	translations map[string]*translation
