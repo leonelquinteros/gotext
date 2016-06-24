@@ -16,7 +16,7 @@ GNU gettext utilities for Go.
 - Language codes are automatically simplified from the form "en_UK" to "en" if the formed isn't available.
 - Ready to use inside Go templates.
 - Support for pluralization rules.
-- Support for variables inside translation strings using the Go's [fmt package syntax](https://golang.org/pkg/fmt/)
+- Support for variables inside translation strings using Go's [fmt package syntax](https://golang.org/pkg/fmt/)
 
 
 
