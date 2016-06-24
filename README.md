@@ -76,7 +76,7 @@ This is a normal Go compiler behaviour.
 
 ## Using package for single language/domain settings
 
-For quick/simple translations on a single file, you can use the package level functions directly.
+For quick/simple translations you can use the package level functions directly.
 
 ```go
 import "github.com/leonelquinteros/gotext"
