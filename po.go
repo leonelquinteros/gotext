@@ -44,8 +44,8 @@ func (t *translation) getN(n int) string {
 
 /*
 Po parses the content of any PO file and provides all the translation functions needed.
-It's the base object used by all packafe methods. 
-And it's safe for concurrent use by multiple goroutines by using the sync package for write locking. 
+It's the base object used by all packafe methods.
+And it's safe for concurrent use by multiple goroutines by using the sync package for write locking.
 
 Example:
 
