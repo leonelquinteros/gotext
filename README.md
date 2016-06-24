@@ -4,6 +4,11 @@
 
 GNU gettext utilities for Go. 
 
+**Version: 0.9.0**
+
+
+#Features
+
 - Implements GNU gettext support in native Go. 
 - It works with UTF-8 encoding as it's the default for Go language. 
 - Supports pluralization rules.
