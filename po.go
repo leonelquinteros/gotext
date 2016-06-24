@@ -47,10 +47,10 @@ Po parses the content of any PO file and provides all the translation functions 
 
 Example:
 
-	import "github.com/leonelquinteros/gotext"
+    import "github.com/leonelquinteros/gotext"
 
     func main() {
-    	// Create po object
+        // Create po object
         po := new(gotext.Po)
 
         // Parse .po file
