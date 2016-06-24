@@ -10,10 +10,10 @@ Version: [0.9.1](https://github.com/leonelquinteros/gotext/releases/tag/v0.9.1)
 #Features
 
 - Implements GNU gettext support in native Go.
-- Safe for concurrent use accross multiple goroutines. 
+- Safe for concurrent use across multiple goroutines. 
 - It works with UTF-8 encoding as it's the default for Go language.
 - Unit tests available 
-- Language codes are automatically simplified from the form "en_UK" to "en" if the formed isn't available.
+- Language codes are automatically simplified from the form "en_UK" to "en" if the first isn't available.
 - Ready to use inside Go templates.
 - Support for pluralization rules.
 - Support for variables inside translation strings using Go's [fmt package syntax](https://golang.org/pkg/fmt/)
@@ -43,7 +43,7 @@ Refer to the Godoc package documentation at (https://godoc.org/github.com/leonel
 
 # Locales directories structure
 
-The package will asume a directories structure starting with a base path that will be provided to the package configuration 
+The package will assume a directories structure starting with a base path that will be provided to the package configuration 
 or to object constructors depending on the use, but either will use the same convention to lookup inside the base path. 
 
 Inside the base directory where will be the language directories named using the language and country 2-letter codes (en_US, es_AR, ...). 
@@ -110,7 +110,7 @@ func _(str string, vars ...interface{}) string {
 This is valid and can be used within a package.
 
 In normal conditions the Go compiler will optimize the calls to _() by replacing its content in place of the function call to reduce the function calling overhead. 
-This is a normal Go compiler behaviour.  
+This is a normal Go compiler behavior.  
 
 
 
@@ -185,7 +185,7 @@ func main() {
 ```
 
 This is also helpful for using inside templates (from the "text/template" package), where you can pass the Locale object to the template.
-If you set the Locale object as "Loc" in the template, then the templace code would look like: 
+If you set the Locale object as "Loc" in the template, then the template code would look like: 
 
 ```
 {{ .Loc.Get "Translate this" }}
