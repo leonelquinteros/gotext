@@ -1,8 +1,6 @@
 /*
 Package gotext implements GNU gettext utilities.
 
-Version 0.9.0 (stable)
-
 For quick/simple translations you can use the package level functions directly.
 
     import "github.com/leonelquinteros/gotext"

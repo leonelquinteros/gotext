@@ -7,18 +7,18 @@ GNU gettext utilities for Go.
 Version: [1.0.0](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.0)
 
 
-#Features
+# Features
 
 - Implements GNU gettext support in native Go.
-- Safe for concurrent use across multiple goroutines. 
+- Complete support for [PO files](https://www.gnu.org/software/gettext/manual/html_node/PO-Files.html).
+- Support for [pluralization rules](https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html).
+- Support for [message context](https://www.gnu.org/software/gettext/manual/html_node/Contexts.html).
+- Support for variables inside translation strings using Go's [fmt package syntax](https://golang.org/pkg/fmt/).
+- Thread-safe: This package is safe for concurrent use across multiple goroutines. 
 - It works with UTF-8 encoding as it's the default for Go language.
 - Unit tests available.
 - Language codes are automatically simplified from the form "en_UK" to "en" if the first isn't available.
 - Ready to use inside Go templates.
-- Support for [pluralization rules](https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html).
-- Support for [message context](https://www.gnu.org/software/gettext/manual/html_node/Contexts.html).
-- Support for variables inside translation strings using Go's [fmt package syntax](https://golang.org/pkg/fmt/).
-
 
 
 # Installation 
