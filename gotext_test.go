@@ -7,26 +7,26 @@ import (
 )
 
 func TestGettersSetters(t *testing.T) {
-    SetDomain("test")
-    dom := GetDomain()
-    
-    if dom != "test" {
-        t.Errorf("Expected GetDomain to return 'test', but got '%s'", dom)
-    }
-    
-    SetLibrary("/tmp/test")
-    lib := GetLibrary()
-    
-    if lib != "/tmp/test" {
-        t.Errorf("Expected GetLibrary to return '/tmp/test', but got '%s'", lib)
-    }
-    
-    SetLanguage("es")
-    lang := GetLanguage()
-    
-    if lang != "es" {
-        t.Errorf("Expected GetLanguage to return 'es', but got '%s'", lang)
-    }
+	SetDomain("test")
+	dom := GetDomain()
+
+	if dom != "test" {
+		t.Errorf("Expected GetDomain to return 'test', but got '%s'", dom)
+	}
+
+	SetLibrary("/tmp/test")
+	lib := GetLibrary()
+
+	if lib != "/tmp/test" {
+		t.Errorf("Expected GetLibrary to return '/tmp/test', but got '%s'", lib)
+	}
+
+	SetLanguage("es")
+	lang := GetLanguage()
+
+	if lang != "es" {
+		t.Errorf("Expected GetLanguage to return 'es', but got '%s'", lang)
+	}
 }
 
 func TestPackageFunctions(t *testing.T) {
@@ -46,10 +46,10 @@ msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
 
     `
-    
-    // Set default configuration
-    Configure("/tmp", "en_US", "default")
-    
+
+	// Set default configuration
+	Configure("/tmp", "en_US", "default")
+
 	// Create Locales directory on default location
 	dirname := path.Clean(library + string(os.PathSeparator) + "en_US")
 	err := os.MkdirAll(dirname, os.ModePerm)

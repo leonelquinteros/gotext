@@ -45,10 +45,10 @@ msgstr[0] "Badly formatted string'
 
 	// Create po object
 	po := new(Po)
-	
+
 	// Try to parse a directory
 	po.ParseFile(path.Clean(os.TempDir()))
-	
+
 	// Parse file
 	po.ParseFile(filename)
 
@@ -69,27 +69,46 @@ msgstr[0] "Badly formatted string'
 	if tr != "And this is the second plural form: Variable" {
 		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
 	}
-	
+
 	// Test inexistent translations
 	tr = po.Get("This is a test")
 	if tr != "This is a test" {
 		t.Errorf("Expected 'This is a test' but got '%s'", tr)
 	}
-	
+
 	tr = po.GetN("This is a test", "This are tests", 1)
 	if tr != "This are tests" {
 		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
-	
+
 	// Test syntax error parsed translations
 	tr = po.Get("This one has invalid syntax translations")
 	if tr != "" {
 		t.Errorf("Expected '' but got '%s'", tr)
 	}
-	
+
 	tr = po.GetN("This one has invalid syntax translations", "This are tests", 1)
 	if tr != "Plural index" {
 		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+	}
+}
+
+func TestTranslationObject(t *testing.T) {
+	tr := newTranslation()
+	str := tr.get()
+
+	if str != "" {
+		t.Errorf("Expected '' but got '%s'", str)
+	}
+
+	// Set id
+	tr.id = "Text"
+
+	// Get again
+	str = tr.get()
+
+	if str != "Text" {
+		t.Errorf("Expected 'Text' but got '%s'", str)
 	}
 }
 

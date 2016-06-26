@@ -47,7 +47,7 @@ msgstr[2] "And this is the second plural form: %s"
 
 	// Create Locale with full language code
 	l := NewLocale("/tmp", "en_US")
-	
+
 	// Force nil domain storage
 	l.domains = nil
 
@@ -71,13 +71,13 @@ msgstr[2] "And this is the second plural form: %s"
 	if tr != "And this is the second plural form: Variable" {
 		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
 	}
-	
+
 	// Test non-existent "deafult" domain responses
 	tr = l.Get("My text")
 	if tr != "My text" {
 		t.Errorf("Expected 'My text' but got '%s'", tr)
 	}
-	
+
 	tr = l.GetN("One with var: %s", "Several with vars: %s", 2, v)
 	if tr != "Several with vars: Variable" {
 		t.Errorf("Expected 'Several with vars: Variable' but got '%s'", tr)
