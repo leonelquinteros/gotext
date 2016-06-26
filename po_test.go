@@ -28,7 +28,25 @@ msgstr[abc] "Wrong index"
 msgstr[1 "Forgot to close brackets"
 msgstr[0] "Badly formatted string'
 
+msgid "Invalid formatted id[] with no translations
+
+msgctxt "Ctx"
+msgid "One with var: %s"
+msgid_plural "Several with vars: %s"
+msgstr[0] "This one is the singular in a Ctx context: %s"
+msgstr[1] "This one is the plural in a Ctx context: %s"
+
+msgid "Some random"
+msgstr "Some random translation"
+
+msgctxt "Ctx"
+msgid "Some random in a context"
+msgstr "Some random translation in a context"
+
+msgid "More"
+msgstr "More translation"
     `
+
 	// Write PO content to file
 	filename := path.Clean(os.TempDir() + string(os.PathSeparator) + "default.po")
 
@@ -91,6 +109,26 @@ msgstr[0] "Badly formatted string'
 	if tr != "Plural index" {
 		t.Errorf("Expected 'Plural index' but got '%s'", tr)
 	}
+
+	// Test context translations
+	v = "Test"
+	tr = po.GetC("One with var: %s", "Ctx", v)
+	if tr != "This one is the singular in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is the singular in a Ctx context: Test' but got '%s'", tr)
+	}
+
+	// Test plural
+	tr = po.GetNC("One with var: %s", "Several with vars: %s", 1, "Ctx", v)
+	if tr != "This one is the plural in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is the plural in a Ctx context: Test' but got '%s'", tr)
+	}
+
+	// Test last translation
+	tr = po.Get("More")
+	if tr != "More translation" {
+		t.Errorf("Expected 'More translation' but got '%s'", tr)
+	}
+
 }
 
 func TestTranslationObject(t *testing.T) {

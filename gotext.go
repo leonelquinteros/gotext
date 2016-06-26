@@ -124,3 +124,32 @@ func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 	// Return translation
 	return storage.GetND(dom, str, plural, n, vars...)
 }
+
+// GetC uses the default domain globally set to return the corresponding translation of the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetC(str, ctx string, vars ...interface{}) string {
+	return GetDC(domain, str, ctx, vars...)
+}
+
+// GetNC retrieves the (N)th plural form translation for the given string in the given context in the "default" domain.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+	return GetNDC("default", str, plural, n, ctx, vars...)
+}
+
+// GetDC returns the corresponding translation in the given domain for the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetDC(dom, str, ctx string, vars ...interface{}) string {
+	return GetNDC(dom, str, str, 0, ctx, vars...)
+}
+
+// GetNDC retrieves the (N)th plural form translation in the given domain for a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) string {
+	// Try to load default package Locale storage
+	loadStorage(false)
+
+	// Return translation
+	return storage.GetNDC(dom, str, plural, n, ctx, vars...)
+}

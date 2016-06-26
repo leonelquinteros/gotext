@@ -66,6 +66,7 @@ Example:
 type Po struct {
 	// Storage
 	translations map[string]*translation
+	contexts     map[string]map[string]*translation
 
 	// Sync Mutex
 	sync.RWMutex
@@ -95,15 +96,22 @@ func (po *Po) ParseFile(f string) {
 
 // Parse loads the translations specified in the provided string (str)
 func (po *Po) Parse(str string) {
+	// Init storage
 	if po.translations == nil {
 		po.Lock()
 		po.translations = make(map[string]*translation)
+		po.contexts = make(map[string]map[string]*translation)
 		po.Unlock()
 	}
 
+	// Get lines
 	lines := strings.Split(str, "\n")
 
+	// Translation buffer
 	tr := newTranslation()
+
+	// Context buffer
+	ctx := ""
 
 	for _, l := range lines {
 		// Trim spaces
@@ -115,19 +123,59 @@ func (po *Po) Parse(str string) {
 		}
 
 		// Skip invalid lines
-		if !strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") && !strings.HasPrefix(l, "msgstr") {
+		if !strings.HasPrefix(l, "msgctxt") && !strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") && !strings.HasPrefix(l, "msgstr") {
+			continue
+		}
+
+		// Buffer context and continue
+		if strings.HasPrefix(l, "msgctxt") {
+			// Save current translation buffer.
+			po.Lock()
+			// No context
+			if ctx == "" {
+				po.translations[tr.id] = tr
+			} else {
+				// Save context
+				if _, ok := po.contexts[ctx]; !ok {
+					po.contexts[ctx] = make(map[string]*translation)
+				}
+				po.contexts[ctx][tr.id] = tr
+			}
+			po.Unlock()
+
+			// Flush buffer
+			tr = newTranslation()
+			ctx = ""
+
+			// Buffer context
+			ctx, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgctxt")))
+
+			// Loop
 			continue
 		}
 
 		// Buffer msgid and continue
 		if strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") {
-			// Save current translation buffer.
-			po.Lock()
-			po.translations[tr.id] = tr
-			po.Unlock()
+			// Save current translation buffer if not inside a context.
+			if ctx == "" {
+				po.Lock()
+				po.translations[tr.id] = tr
+				po.Unlock()
 
-			// Flush buffer
-			tr = newTranslation()
+				// Flush buffer
+				tr = newTranslation()
+				ctx = ""
+			} else if ctx != "" && tr.id != "" {
+				// Save current translation buffer inside a context
+				if _, ok := po.contexts[ctx]; !ok {
+					po.contexts[ctx] = make(map[string]*translation)
+				}
+				po.contexts[ctx][tr.id] = tr
+
+				// Flush buffer
+				tr = newTranslation()
+				ctx = ""
+			}
 
 			// Set id
 			tr.id, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid")))
@@ -178,7 +226,15 @@ func (po *Po) Parse(str string) {
 	// Save last translation buffer.
 	if tr.id != "" {
 		po.Lock()
-		po.translations[tr.id] = tr
+		if ctx == "" {
+			po.translations[tr.id] = tr
+		} else {
+			// Save context
+			if _, ok := po.contexts[ctx]; !ok {
+				po.contexts[ctx] = make(map[string]*translation)
+			}
+			po.contexts[ctx][tr.id] = tr
+		}
 		po.Unlock()
 	}
 }
@@ -211,6 +267,49 @@ func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 	if po.translations != nil {
 		if _, ok := po.translations[str]; ok {
 			return fmt.Sprintf(po.translations[str].getN(n), vars...)
+		}
+	}
+
+	// Return the plural string we received by default
+	return fmt.Sprintf(plural, vars...)
+}
+
+// GetC retrieves the corresponding translation for a given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
+	// Sync read
+	po.RLock()
+	defer po.RUnlock()
+
+	if po.contexts != nil {
+		if _, ok := po.contexts[ctx]; ok {
+			if po.contexts[ctx] != nil {
+				if _, ok := po.contexts[ctx][str]; ok {
+					return fmt.Sprintf(po.contexts[ctx][str].get(), vars...)
+				}
+			}
+		}
+	}
+
+	// Return the string we received by default
+	return fmt.Sprintf(str, vars...)
+}
+
+// GetNC retrieves the (N)th plural form translation for the given string in the given context.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+	// Sync read
+	po.RLock()
+	defer po.RUnlock()
+
+	if po.contexts != nil {
+		if _, ok := po.contexts[ctx]; ok {
+			if po.contexts[ctx] != nil {
+				if _, ok := po.contexts[ctx][str]; ok {
+					return fmt.Sprintf(po.contexts[ctx][str].getN(n), vars...)
+				}
+			}
 		}
 	}
 

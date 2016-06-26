@@ -99,13 +99,13 @@ func (l *Locale) GetN(str, plural string, n int, vars ...interface{}) string {
 	return l.GetND("default", str, plural, n, vars...)
 }
 
-// GetD returns the corresponding translation in the given domain for a given string.
+// GetD returns the corresponding translation in the given domain for the given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetD(dom, str string, vars ...interface{}) string {
 	return l.GetND(dom, str, str, 0, vars...)
 }
 
-// GetND retrieves the (N)th plural form translation in the given domain for a given string.
+// GetND retrieves the (N)th plural form translation in the given domain for the given string.
 // If n == 0, usually the singular form of the string is returned as defined in the PO file.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) string {
@@ -117,6 +117,45 @@ func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) stri
 		if _, ok := l.domains[dom]; ok {
 			if l.domains[dom] != nil {
 				return l.domains[dom].GetN(str, plural, n, vars...)
+			}
+		}
+	}
+
+	// Return the same we received by default
+	return fmt.Sprintf(plural, vars...)
+}
+
+// GetC uses a domain "default" to return the corresponding translation of the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetC(str, ctx string, vars ...interface{}) string {
+	return l.GetDC("default", str, ctx, vars...)
+}
+
+// GetNC retrieves the (N)th plural form translation for the given string in the given context in the "default" domain.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+	return l.GetNDC("default", str, plural, n, ctx, vars...)
+}
+
+// GetDC returns the corresponding translation in the given domain for the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetDC(dom, str, ctx string, vars ...interface{}) string {
+	return l.GetNDC(dom, str, str, 0, ctx, vars...)
+}
+
+// GetNDC retrieves the (N)th plural form translation in the given domain for the given string in the given context.
+// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) string {
+	// Sync read
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.domains != nil {
+		if _, ok := l.domains[dom]; ok {
+			if l.domains[dom] != nil {
+				return l.domains[dom].GetNC(str, plural, n, ctx, vars...)
 			}
 		}
 	}

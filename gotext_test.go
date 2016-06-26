@@ -45,20 +45,41 @@ msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
 
+msgid "This one has invalid syntax translations"
+msgid_plural "Plural index"
+msgstr[abc] "Wrong index"
+msgstr[1 "Forgot to close brackets"
+msgstr[0] "Badly formatted string'
+
+msgid "Invalid formatted id[] with no translations
+
+msgctxt "Ctx"
+msgid "One with var: %s"
+msgid_plural "Several with vars: %s"
+msgstr[0] "This one is the singular in a Ctx context: %s"
+msgstr[1] "This one is the plural in a Ctx context: %s"
+
+msgid "Some random"
+msgstr "Some random translation"
+
+msgctxt "Ctx"
+msgid "Some random in a context"
+msgstr "Some random translation in a context"
+
+msgid "More"
+msgstr "More translation"
+
     `
 
-	// Set default configuration
-	Configure("/tmp", "en_US", "default")
-
 	// Create Locales directory on default location
-	dirname := path.Clean(library + string(os.PathSeparator) + "en_US")
+	dirname := path.Clean("/tmp" + string(os.PathSeparator) + "en_US")
 	err := os.MkdirAll(dirname, os.ModePerm)
 	if err != nil {
 		t.Fatalf("Can't create test directory: %s", err.Error())
 	}
 
 	// Write PO content to default domain file
-	filename := path.Clean(dirname + string(os.PathSeparator) + domain + ".po")
+	filename := path.Clean(dirname + string(os.PathSeparator) + "default.po")
 
 	f, err := os.Create(filename)
 	if err != nil {
@@ -70,6 +91,9 @@ msgstr[2] "And this is the second plural form: %s"
 	if err != nil {
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
+
+	// Set package configuration
+	Configure("/tmp", "en_US", "default")
 
 	// Test translations
 	tr := Get("My text")
@@ -87,6 +111,23 @@ msgstr[2] "And this is the second plural form: %s"
 	tr = GetN("One with var: %s", "Several with vars: %s", 2, v)
 	if tr != "And this is the second plural form: Variable" {
 		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
+	}
+
+	// Test context translations
+	tr = GetC("Some random in a context", "Ctx")
+	if tr != "Some random translation in a context" {
+		t.Errorf("Expected 'Some random translation in a context' but got '%s'", tr)
+	}
+
+	v = "Variable"
+	tr = GetC("One with var: %s", "Ctx", v)
+	if tr != "This one is the singular in a Ctx context: Variable" {
+		t.Errorf("Expected 'This one is the singular in a Ctx context: Variable' but got '%s'", tr)
+	}
+
+	tr = GetNC("One with var: %s", "Several with vars: %s", 1, "Ctx", v)
+	if tr != "This one is the plural in a Ctx context: Variable" {
+		t.Errorf("Expected 'This one is the plural in a Ctx context: Variable' but got '%s'", tr)
 	}
 }
 
