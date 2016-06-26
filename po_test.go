@@ -22,6 +22,12 @@ msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
 
+msgid "This one has invalid syntax translations"
+msgid_plural "Plural index"
+msgstr[abc] "Wrong index"
+msgstr[1 "Forgot to close brackets"
+msgstr[0] "Badly formatted string'
+
     `
 	// Write PO content to file
 	filename := path.Clean(os.TempDir() + string(os.PathSeparator) + "default.po")
@@ -37,8 +43,13 @@ msgstr[2] "And this is the second plural form: %s"
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
 
-	// Parse po file
+	// Create po object
 	po := new(Po)
+	
+	// Try to parse a directory
+	po.ParseFile(path.Clean(os.TempDir()))
+	
+	// Parse file
 	po.ParseFile(filename)
 
 	// Test translations
@@ -57,6 +68,28 @@ msgstr[2] "And this is the second plural form: %s"
 	tr = po.GetN("One with var: %s", "Several with vars: %s", 2, v)
 	if tr != "And this is the second plural form: Variable" {
 		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
+	}
+	
+	// Test inexistent translations
+	tr = po.Get("This is a test")
+	if tr != "This is a test" {
+		t.Errorf("Expected 'This is a test' but got '%s'", tr)
+	}
+	
+	tr = po.GetN("This is a test", "This are tests", 1)
+	if tr != "This are tests" {
+		t.Errorf("Expected 'This are tests' but got '%s'", tr)
+	}
+	
+	// Test syntax error parsed translations
+	tr = po.Get("This one has invalid syntax translations")
+	if tr != "" {
+		t.Errorf("Expected '' but got '%s'", tr)
+	}
+	
+	tr = po.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "Plural index" {
+		t.Errorf("Expected 'Plural index' but got '%s'", tr)
 	}
 }
 
@@ -93,12 +126,12 @@ msgstr[2] "And this is the second plural form: %s"
 
 	// Read some translation on a goroutine
 	go func(po *Po, done chan bool) {
-		println(po.Get("My text"))
+		po.Get("My text")
 		done <- true
 	}(po, rc)
 
 	// Read something at top level
-	println(po.Get("My text"))
+	po.Get("My text")
 
 	// Wait for goroutines to finish
 	<-pc
