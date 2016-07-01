@@ -28,7 +28,7 @@ var (
 	language = "en_US"
 
 	// Path to library directory where all locale directories and translation files are.
-	library = "/tmp"
+	library = "/usr/local/share/locale"
 
 	// Storage for package level methods
 	storage *Locale
