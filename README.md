@@ -4,7 +4,7 @@
 
 GNU gettext utilities for Go. 
 
-Version: [1.0.0](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.0)
+Version: [1.0.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.1)
 
 
 # Features
@@ -17,7 +17,7 @@ Version: [1.0.0](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.0)
 - Thread-safe: This package is safe for concurrent use across multiple goroutines. 
 - It works with UTF-8 encoding as it's the default for Go language.
 - Unit tests available.
-- Language codes are automatically simplified from the form "en_UK" to "en" if the first isn't available.
+- Language codes are automatically simplified from the form `en_UK` to `en` if the first isn't available.
 - Ready to use inside Go templates.
 
 
@@ -49,25 +49,29 @@ or to object constructors depending on the use, but either will use the same con
 
 Inside the base directory where will be the language directories named using the language and country 2-letter codes (en_US, es_AR, ...). 
 All package functions can lookup after the simplified version for each language in case the full code isn't present but the more general language code exists. 
-So if the language set is "en_UK", but there is no directory named after that code and there is a directory named "en", 
+So if the language set is `en_UK`, but there is no directory named after that code and there is a directory named `en`, 
 all package functions will be able to resolve this generalization and provide translations for the more general library.  
 
 The language codes are assumed to be [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) codes (2-letter codes). 
-That said, most functions will work with any coding standard as long the directory name matches the language code set on the configuration. 
+That said, most functions will work with any coding standard as long the directory name matches the language code set on the configuration.
 
-A normal library directory structure may look like: 
+Then, there can be a `LC_MESSAGES` containing all PO files or the PO files themselves.  
+A library directory structure can look like: 
 
 ```
 /path/to/locales
 /path/to/locales/en_US
-/path/to/locales/en_US/default.po
-/path/to/locales/en_US/extras.po
+/path/to/locales/en_US/LC_MESSAGES
+/path/to/locales/en_US/LC_MESSAGES/default.po
+/path/to/locales/en_US/LC_MESSAGES/extras.po
 /path/to/locales/en_UK
-/path/to/locales/en_UK/default.po
-/path/to/locales/en_UK/extras.po
+/path/to/locales/en_UK/LC_MESSAGES
+/path/to/locales/en_UK/LC_MESSAGES/default.po
+/path/to/locales/en_UK/LC_MESSAGES/extras.po
 /path/to/locales/en_AU
-/path/to/locales/en_AU/default.po
-/path/to/locales/en_AU/extras.po
+/path/to/locales/en_AU/LC_MESSAGES
+/path/to/locales/en_AU/LC_MESSAGES/default.po
+/path/to/locales/en_AU/LC_MESSAGES/extras.po
 /path/to/locales/es
 /path/to/locales/es/default.po
 /path/to/locales/es/extras.po
@@ -85,9 +89,9 @@ And so on...
 
 # About translation function names
 
-The standard GNU gettext defines helper functions that maps to the gettext() function and it's widely adopted by most implementations. 
+The standard GNU gettext defines helper functions that maps to the `gettext()` function and it's widely adopted by most implementations. 
 
-The basic translation function is usually _() in the form: 
+The basic translation function is usually `_()` in the form: 
 
 ```
 _("Translate this")
@@ -110,7 +114,7 @@ func _(str string, vars ...interface{}) string {
 
 This is valid and can be used within a package.
 
-In normal conditions the Go compiler will optimize the calls to _() by replacing its content in place of the function call to reduce the function calling overhead. 
+In normal conditions the Go compiler will optimize the calls to `_()` by replacing its content in place of the function call to reduce the function calling overhead. 
 This is a normal Go compiler behavior.  
 
 

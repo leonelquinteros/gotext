@@ -20,13 +20,13 @@ Example:
         // Create Locale with library path and language code
         l := gotext.NewLocale("/path/to/i18n/dir", "en_US")
 
-        // Load domain '/path/to/i18n/dir/en_US/default.po'
+        // Load domain '/path/to/i18n/dir/en_US/LC_MESSAGES/default.po'
         l.AddDomain("default")
 
         // Translate text from default domain
         println(l.Get("Translate this"))
 
-        // Load different domain ('/path/to/i18n/dir/en_US/extras.po')
+        // Load different domain ('/path/to/i18n/dir/en_US/LC_MESSAGES/extras.po')
         l.AddDomain("extras")
 
         // Translate text from domain
@@ -64,14 +64,22 @@ func (l *Locale) findPO(dom string) string {
 		return filename
 	}
 
+	if len(l.lang) > 2 {
+		filename = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+".po")
+		if _, err := os.Stat(filename); err == nil {
+			return filename
+		}
+	}
+
 	filename = path.Join(l.path, l.lang, dom+".po")
 	if _, err := os.Stat(filename); err == nil {
 		return filename
 	}
 
-	if len(filename) > 2 {
+	if len(l.lang) > 2 {
 		filename = path.Join(l.path, l.lang[:2], dom+".po")
 	}
+
 	return filename
 }
 

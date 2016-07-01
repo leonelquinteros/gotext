@@ -49,14 +49,14 @@ msgstr "More translation"
     `
 
 	// Create Locales directory with simplified language code
-	dirname := path.Clean("/tmp" + string(os.PathSeparator) + "en")
+	dirname := path.Join("/tmp", "en", "LC_MESSAGES")
 	err := os.MkdirAll(dirname, os.ModePerm)
 	if err != nil {
 		t.Fatalf("Can't create test directory: %s", err.Error())
 	}
 
 	// Write PO content to file
-	filename := path.Clean(dirname + string(os.PathSeparator) + "my_domain.po")
+	filename := path.Join(dirname, "my_domain.po")
 
 	f, err := os.Create(filename)
 	if err != nil {
@@ -168,14 +168,14 @@ msgstr[2] "And this is the second plural form: %s"
     `
 
 	// Create Locales directory with simplified language code
-	dirname := path.Clean("/tmp" + string(os.PathSeparator) + "es")
+	dirname := path.Join("/tmp", "es")
 	err := os.MkdirAll(dirname, os.ModePerm)
 	if err != nil {
 		t.Fatalf("Can't create test directory: %s", err.Error())
 	}
 
 	// Write PO content to file
-	filename := path.Clean(dirname + string(os.PathSeparator) + "race.po")
+	filename := path.Join(dirname, "race.po")
 
 	f, err := os.Create(filename)
 	if err != nil {
