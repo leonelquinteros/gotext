@@ -4,7 +4,7 @@
 
 GNU gettext utilities for Go. 
 
-Version: [1.0.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.1)
+Version: [v1.0.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.1)
 
 
 # Features
@@ -21,6 +21,16 @@ Version: [1.0.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.1)
 - Ready to use inside Go templates.
 
 
+# License
+
+[MIT license](LICENSE)
+
+
+# Documentation
+
+Refer to the Godoc package documentation at (https://godoc.org/github.com/leonelquinteros/gotext)
+
+
 # Installation 
 
 ```
@@ -32,14 +42,30 @@ go get github.com/leonelquinteros/gotext
 - No need for environment variables. Some naming conventions are applied but not needed.  
 
 
-# License
+### Version vendoring
 
-[MIT license](LICENSE)
+Stable releases use [semantic versioning](http://semver.org/spec/v2.0.0.html) tagging on this repository.
+
+You can rely on this to use your preferred vendoring tool or to manually retrieve the corresponding release tag from the GitHub repository.
 
 
-# Documentation
+### Vendoring with [gopkg.in](http://labix.org/gopkg.in) (optional)
 
-Refer to the Godoc package documentation at (https://godoc.org/github.com/leonelquinteros/gotext)
+(http://gopkg.in/leonelquinteros/gotext.v1)
+
+To get the latest v1 package stable release, execute:
+
+```
+go get gopkg.in/leonelquinteros/gotext.v1
+```
+
+To import this package, add the following line to your code:
+
+```go
+import "gopkg.in/leonelquinteros/gotext.v1"
+```
+
+Refer to it as gotext.
 
 
 # Locales directories structure
