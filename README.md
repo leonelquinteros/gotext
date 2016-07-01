@@ -42,16 +42,16 @@ go get github.com/leonelquinteros/gotext
 - No need for environment variables. Some naming conventions are applied but not needed.  
 
 
-### Version vendoring
+#### Version vendoring
 
 Stable releases use [semantic versioning](http://semver.org/spec/v2.0.0.html) tagging on this repository.
 
 You can rely on this to use your preferred vendoring tool or to manually retrieve the corresponding release tag from the GitHub repository.
 
 
-### Vendoring with [gopkg.in](http://labix.org/gopkg.in) (optional)
+##### Vendoring with [gopkg.in](http://labix.org/gopkg.in)
 
-(http://gopkg.in/leonelquinteros/gotext.v1)
+[http://gopkg.in/leonelquinteros/gotext.v1](http://gopkg.in/leonelquinteros/gotext.v1)
 
 To get the latest v1 package stable release, execute:
 
