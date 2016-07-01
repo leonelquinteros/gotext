@@ -58,23 +58,30 @@ func NewLocale(p, l string) *Locale {
 	}
 }
 
+func (l *Locale) findPO(dom string) string {
+	filename := path.Join(l.path, l.lang, "LC_MESSAGES", dom+".po")
+	if _, err := os.Stat(filename); err == nil {
+		return filename
+	}
+
+	filename = path.Join(l.path, l.lang, dom+".po")
+	if _, err := os.Stat(filename); err == nil {
+		return filename
+	}
+
+	if len(filename) > 2 {
+		filename = path.Join(l.path, l.lang[:2], dom+".po")
+	}
+	return filename
+}
+
 // AddDomain creates a new domain for a given locale object and initializes the Po object.
 // If the domain exists, it gets reloaded.
 func (l *Locale) AddDomain(dom string) {
 	po := new(Po)
 
-	// Check for file.
-	filename := path.Clean(l.path + string(os.PathSeparator) + l.lang + string(os.PathSeparator) + dom + ".po")
-
-	// Try to use the generic language dir if the provided isn't available
-	if _, err := os.Stat(filename); err != nil {
-		if len(l.lang) > 2 {
-			filename = path.Clean(l.path + string(os.PathSeparator) + l.lang[:2] + string(os.PathSeparator) + dom + ".po")
-		}
-	}
-
 	// Parse file.
-	po.ParseFile(filename)
+	po.ParseFile(l.findPO(dom))
 
 	// Save new domain
 	l.Lock()
