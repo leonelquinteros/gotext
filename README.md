@@ -2,7 +2,7 @@
 
 # Gotext
 
-GNU gettext utilities for Go. 
+[GNU gettext utilities](https://www.gnu.org/software/gettext) for Go. 
 
 Version: [v1.0.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.1)
 
