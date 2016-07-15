@@ -3,7 +3,7 @@ package gotext
 import (
 	"bufio"
 	"fmt"
-	"github.com/mattn/anko/vm"
+	"github.com/leonelquinteros/anko/vm"
 	"io/ioutil"
 	"net/textproto"
 	"os"
@@ -112,12 +112,14 @@ func (po *Po) ParseFile(f string) {
 
 // Parse loads the translations specified in the provided string (str)
 func (po *Po) Parse(str string) {
+	// Lock while parsing
+	po.Lock()
+	defer po.Unlock()
+
 	// Init storage
 	if po.translations == nil {
-		po.Lock()
 		po.translations = make(map[string]*translation)
 		po.contexts = make(map[string]map[string]*translation)
-		po.Unlock()
 	}
 
 	// Get lines
@@ -146,7 +148,6 @@ func (po *Po) Parse(str string) {
 		// Buffer context and continue
 		if strings.HasPrefix(l, "msgctxt") {
 			// Save current translation buffer.
-			po.Lock()
 			// No context
 			if ctx == "" {
 				po.translations[tr.id] = tr
@@ -157,7 +158,6 @@ func (po *Po) Parse(str string) {
 				}
 				po.contexts[ctx][tr.id] = tr
 			}
-			po.Unlock()
 
 			// Flush buffer
 			tr = newTranslation()
@@ -174,9 +174,7 @@ func (po *Po) Parse(str string) {
 		if strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") {
 			// Save current translation buffer if not inside a context.
 			if ctx == "" {
-				po.Lock()
 				po.translations[tr.id] = tr
-				po.Unlock()
 
 				// Flush buffer
 				tr = newTranslation()
@@ -266,7 +264,6 @@ func (po *Po) Parse(str string) {
 
 	// Save last translation buffer.
 	if tr.id != "" {
-		po.Lock()
 		if ctx == "" {
 			po.translations[tr.id] = tr
 		} else {
@@ -276,11 +273,11 @@ func (po *Po) Parse(str string) {
 			}
 			po.contexts[ctx][tr.id] = tr
 		}
-		po.Unlock()
 	}
 
 	// Parse headers
 	po.RawHeaders += "\n\n"
+
 	reader := bufio.NewReader(strings.NewReader(po.RawHeaders))
 	tp := textproto.NewReader(reader)
 
@@ -321,6 +318,9 @@ func (po *Po) Parse(str string) {
 // pluralForm calculates the plural form index corresponding to n.
 // Returns 0 on error
 func (po *Po) pluralForm(n int) int {
+	po.RLock()
+	defer po.RUnlock()
+
 	// Failsafe
 	if po.nplurals < 1 {
 		return 0
@@ -330,10 +330,9 @@ func (po *Po) pluralForm(n int) int {
 	}
 
 	// Init compiler
-	var env = vm.NewEnv()
+	env := vm.NewEnv()
 	env.Define("n", n)
 
-	// Run script
 	plural, err := env.Execute(po.plural)
 	if err != nil {
 		return 0
