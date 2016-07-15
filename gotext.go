@@ -100,8 +100,7 @@ func Get(str string, vars ...interface{}) string {
 	return GetD(domain, str, vars...)
 }
 
-// GetN retrieves the (N)th plural form translation for the given string in the "default" domain.
-// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// GetN retrieves the (N)th plural form of translation for the given string in the "default" domain.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetN(str, plural string, n int, vars ...interface{}) string {
 	return GetND("default", str, plural, n, vars...)
@@ -110,10 +109,10 @@ func GetN(str, plural string, n int, vars ...interface{}) string {
 // GetD returns the corresponding translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetD(dom, str string, vars ...interface{}) string {
-	return GetND(dom, str, str, 0, vars...)
+	return GetND(dom, str, str, 1, vars...)
 }
 
-// GetND retrieves the (N)th plural form translation in the given domain for a given string.
+// GetND retrieves the (N)th plural form of translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 	// Try to load default package Locale storage
@@ -129,8 +128,7 @@ func GetC(str, ctx string, vars ...interface{}) string {
 	return GetDC(domain, str, ctx, vars...)
 }
 
-// GetNC retrieves the (N)th plural form translation for the given string in the given context in the "default" domain.
-// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// GetNC retrieves the (N)th plural form of translation for the given string in the given context in the "default" domain.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 	return GetNDC("default", str, plural, n, ctx, vars...)
@@ -139,10 +137,10 @@ func GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 // GetDC returns the corresponding translation in the given domain for the given string in the given context.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetDC(dom, str, ctx string, vars ...interface{}) string {
-	return GetNDC(dom, str, str, 0, ctx, vars...)
+	return GetNDC(dom, str, str, 1, ctx, vars...)
 }
 
-// GetNDC retrieves the (N)th plural form translation in the given domain for a given string.
+// GetNDC retrieves the (N)th plural form of translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) string {
 	// Try to load default package Locale storage

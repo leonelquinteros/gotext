@@ -31,7 +31,17 @@ func TestGettersSetters(t *testing.T) {
 
 func TestPackageFunctions(t *testing.T) {
 	// Set PO content
-	str := `# Some comment
+	str := `
+msgid ""
+msgstr ""
+# Initial comment
+# Headers below
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Some comment
 msgid "My text"
 msgstr "Translated text"
 
@@ -109,8 +119,8 @@ msgstr "More translation"
 
 	// Test plural
 	tr = GetN("One with var: %s", "Several with vars: %s", 2, v)
-	if tr != "And this is the second plural form: Variable" {
-		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
+	if tr != "This one is the plural: Variable" {
+		t.Errorf("Expected 'This one is the plural: Variable' but got '%s'", tr)
 	}
 
 	// Test context translations
@@ -125,7 +135,7 @@ msgstr "More translation"
 		t.Errorf("Expected 'This one is the singular in a Ctx context: Variable' but got '%s'", tr)
 	}
 
-	tr = GetNC("One with var: %s", "Several with vars: %s", 1, "Ctx", v)
+	tr = GetNC("One with var: %s", "Several with vars: %s", 19, "Ctx", v)
 	if tr != "This one is the plural in a Ctx context: Variable" {
 		t.Errorf("Expected 'This one is the plural in a Ctx context: Variable' but got '%s'", tr)
 	}

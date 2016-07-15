@@ -4,16 +4,17 @@
 
 [GNU gettext utilities](https://www.gnu.org/software/gettext) for Go. 
 
-Version: [v1.0.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.0.1)
+Version: [v1.1.0](https://github.com/leonelquinteros/gotext/releases/tag/v1.1.0)
 
 
 # Features
 
 - Implements GNU gettext support in native Go.
-- Complete support for [PO files](https://www.gnu.org/software/gettext/manual/html_node/PO-Files.html).
-- Support for [pluralization rules](https://www.gnu.org/software/gettext/manual/html_node/Plural-forms.html).
-- Support for [message context](https://www.gnu.org/software/gettext/manual/html_node/Contexts.html).
-- Support for variables inside translation strings using Go's [fmt package syntax](https://golang.org/pkg/fmt/).
+- Complete support for [PO files](https://www.gnu.org/software/gettext/manual/html_node/PO-Files.html) including:
+  - Support for multiline strings and headers.
+  - Support for variables inside translation strings using Go's [fmt syntax](https://golang.org/pkg/fmt/).
+  - Support for [pluralization rules](https://www.gnu.org/software/gettext/manual/html_node/Translating-plural-forms.html).
+  - Support for [message contexts](https://www.gnu.org/software/gettext/manual/html_node/Contexts.html).
 - Thread-safe: This package is safe for concurrent use across multiple goroutines. 
 - It works with UTF-8 encoding as it's the default for Go language.
 - Unit tests available.
@@ -256,6 +257,10 @@ msgstr "This one sets the var: %s"
 ## Use plural forms of translations
 
 PO format supports defining one or more plural forms for the same translation.
+Relying on the PO file headers, a Plural-Forms formula can be set on the translation file
+as defined in (https://www.gnu.org/savannah-checkouts/gnu/gettext/manual/html_node/Plural-forms.html)
+
+Plural formulas are parsed and evaluated using [Anko](https://github.com/mattn/anko)
 
 ```go
 import "github.com/leonelquinteros/gotext"
@@ -263,6 +268,12 @@ import "github.com/leonelquinteros/gotext"
 func main() {
     // Set PO content
     str := `
+msgid ""
+msgstr ""
+
+# Header below
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
 msgid "Translate this"
 msgstr "Translated text"
 
@@ -273,15 +284,14 @@ msgid "One with var: %s"
 msgid_plural "Several with vars: %s"
 msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
-msgstr[2] "And this is the second plural form: %s"
 `
     
     // Create Po object
     po := new(Po)
     po.Parse(str)
     
-    println(po.GetN("One with var: %s", "Several with vars: %s", 2, v))
-    // "And this is the second plural form: Variable"
+    println(po.GetN("One with var: %s", "Several with vars: %s", 54, v))
+    // "This one is the plural: Variable"
 }
 ```
 

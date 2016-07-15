@@ -1,8 +1,11 @@
 package gotext
 
 import (
+	"bufio"
 	"fmt"
+	"github.com/mattn/anko/vm"
 	"io/ioutil"
+	"net/textproto"
 	"os"
 	"strconv"
 	"strings"
@@ -44,8 +47,8 @@ func (t *translation) getN(n int) string {
 
 /*
 Po parses the content of any PO file and provides all the translation functions needed.
-It's the base object used by all packafe methods.
-And it's safe for concurrent use by multiple goroutines by using the sync package for write locking.
+It's the base object used by all package methods.
+And it's safe for concurrent use by multiple goroutines by using the sync package for locking.
 
 Example:
 
@@ -64,6 +67,19 @@ Example:
 
 */
 type Po struct {
+	// Headers
+	RawHeaders string
+
+	// Language header
+	Language string
+
+	// Plural-Forms header
+	PluralForms string
+
+	// Parsed Plural-Forms header values
+	nplurals int
+	plural   string
+
 	// Storage
 	translations map[string]*translation
 	contexts     map[string]map[string]*translation
@@ -123,7 +139,7 @@ func (po *Po) Parse(str string) {
 		}
 
 		// Skip invalid lines
-		if !strings.HasPrefix(l, "msgctxt") && !strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") && !strings.HasPrefix(l, "msgstr") {
+		if !strings.HasPrefix(l, "\"") && !strings.HasPrefix(l, "msgctxt") && !strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") && !strings.HasPrefix(l, "msgstr") {
 			continue
 		}
 
@@ -198,21 +214,21 @@ func (po *Po) Parse(str string) {
 
 			// Check for indexed translation forms
 			if strings.HasPrefix(l, "[") {
-				in := strings.Index(l, "]")
-				if in == -1 {
+				idx := strings.Index(l, "]")
+				if idx == -1 {
 					// Skip wrong index formatting
 					continue
 				}
 
 				// Parse index
-				i, err := strconv.Atoi(l[1:in])
+				i, err := strconv.Atoi(l[1:idx])
 				if err != nil {
 					// Skip wrong index formatting
 					continue
 				}
 
 				// Parse translation string
-				tr.trs[i], _ = strconv.Unquote(strings.TrimSpace(l[in+1:]))
+				tr.trs[i], _ = strconv.Unquote(strings.TrimSpace(l[idx+1:]))
 
 				// Loop
 				continue
@@ -220,6 +236,31 @@ func (po *Po) Parse(str string) {
 
 			// Save single translation form under 0 index
 			tr.trs[0], _ = strconv.Unquote(l)
+
+			// Loop
+			continue
+		}
+
+		// Multi line strings and headers
+		if strings.HasPrefix(l, "\"") && strings.HasSuffix(l, "\"") {
+			// Check for multiline from previously set msgid
+			if tr.id != "" {
+				// Append to last translation found
+				uq, _ := strconv.Unquote(l)
+				tr.trs[len(tr.trs)-1] += uq
+
+				// Loop
+				continue
+			}
+
+			// Otherwise is a header
+			h, err := strconv.Unquote(strings.TrimSpace(l))
+			if err != nil {
+				continue
+			}
+
+			po.RawHeaders += h
+			continue
 		}
 	}
 
@@ -237,6 +278,79 @@ func (po *Po) Parse(str string) {
 		}
 		po.Unlock()
 	}
+
+	// Parse headers
+	po.RawHeaders += "\n\n"
+	reader := bufio.NewReader(strings.NewReader(po.RawHeaders))
+	tp := textproto.NewReader(reader)
+
+	mimeHeader, err := tp.ReadMIMEHeader()
+	if err != nil {
+		return
+	}
+
+	// Get/save needed headers
+	po.Language = mimeHeader.Get("Language")
+	po.PluralForms = mimeHeader.Get("Plural-Forms")
+
+	// Parse Plural-Forms formula
+	if po.PluralForms == "" {
+		return
+	}
+
+	// Split plural form header value
+	pfs := strings.Split(po.PluralForms, ";")
+
+	// Parse values
+	for _, i := range pfs {
+		vs := strings.SplitN(i, "=", 2)
+		if len(vs) != 2 {
+			continue
+		}
+
+		switch strings.TrimSpace(vs[0]) {
+		case "nplurals":
+			po.nplurals, _ = strconv.Atoi(vs[1])
+
+		case "plural":
+			po.plural = vs[1]
+		}
+	}
+}
+
+// pluralForm calculates the plural form index corresponding to n.
+// Returns 0 on error
+func (po *Po) pluralForm(n int) int {
+	// Failsafe
+	if po.nplurals < 1 {
+		return 0
+	}
+	if po.plural == "" {
+		return 0
+	}
+
+	// Init compiler
+	var env = vm.NewEnv()
+	env.Define("n", n)
+
+	// Run script
+	plural, err := env.Execute(po.plural)
+	if err != nil {
+		return 0
+	}
+	if plural.Type().Name() == "bool" {
+		if plural.Bool() {
+			return 1
+		} else {
+			return 0
+		}
+	}
+
+	if int(plural.Int()) > po.nplurals {
+		return 0
+	}
+
+	return int(plural.Int())
 }
 
 // Get retrieves the corresponding translation for the given string.
@@ -256,8 +370,7 @@ func (po *Po) Get(str string, vars ...interface{}) string {
 	return fmt.Sprintf(str, vars...)
 }
 
-// GetN retrieves the (N)th plural form translation for the given string.
-// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// GetN retrieves the (N)th plural form of translation for the given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 	// Sync read
@@ -266,7 +379,7 @@ func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 
 	if po.translations != nil {
 		if _, ok := po.translations[str]; ok {
-			return fmt.Sprintf(po.translations[str].getN(n), vars...)
+			return fmt.Sprintf(po.translations[str].getN(po.pluralForm(n)), vars...)
 		}
 	}
 
@@ -295,8 +408,7 @@ func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
 	return fmt.Sprintf(str, vars...)
 }
 
-// GetNC retrieves the (N)th plural form translation for the given string in the given context.
-// If n == 0, usually the singular form of the string is returned as defined in the PO file.
+// GetNC retrieves the (N)th plural form of translation for the given string in the given context.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 	// Sync read
@@ -307,7 +419,7 @@ func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 		if _, ok := po.contexts[ctx]; ok {
 			if po.contexts[ctx] != nil {
 				if _, ok := po.contexts[ctx][str]; ok {
-					return fmt.Sprintf(po.contexts[ctx][str].getN(n), vars...)
+					return fmt.Sprintf(po.contexts[ctx][str].getN(po.pluralForm(n)), vars...)
 				}
 			}
 		}

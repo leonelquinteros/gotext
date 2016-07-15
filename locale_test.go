@@ -8,7 +8,17 @@ import (
 
 func TestLocale(t *testing.T) {
 	// Set PO content
-	str := `# Some comment
+	str := `
+msgid ""
+msgstr ""
+# Initial comment
+# Headers below
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Some comment
 msgid "My text"
 msgstr "Translated text"
 
@@ -91,9 +101,9 @@ msgstr "More translation"
 	}
 
 	// Test plural
-	tr = l.GetND("my_domain", "One with var: %s", "Several with vars: %s", 2, v)
-	if tr != "And this is the second plural form: Variable" {
-		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
+	tr = l.GetND("my_domain", "One with var: %s", "Several with vars: %s", 7, v)
+	if tr != "This one is the plural: Variable" {
+		t.Errorf("Expected 'This one is the plural: Variable' but got '%s'", tr)
 	}
 
 	// Test non-existent "deafult" domain responses
@@ -137,7 +147,7 @@ msgstr "More translation"
 	}
 
 	// Test plural
-	tr = l.GetNDC("my_domain", "One with var: %s", "Several with vars: %s", 1, "Ctx", v)
+	tr = l.GetNDC("my_domain", "One with var: %s", "Several with vars: %s", 3, "Ctx", v)
 	if tr != "This one is the plural in a Ctx context: Test" {
 		t.Errorf("Expected 'This one is the plural in a Ctx context: Test' but got '%s'", tr)
 	}

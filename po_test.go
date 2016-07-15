@@ -8,13 +8,28 @@ import (
 
 func TestPo(t *testing.T) {
 	// Set PO content
-	str := `# Some comment
+	str := `
+msgid ""
+msgstr ""
+# Initial comment
+# Headers below
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Some comment
 msgid "My text"
 msgstr "Translated text"
 
 # More comments
 msgid "Another string"
 msgstr ""
+
+#Multi-line string
+msgid "Multi-line"
+msgstr "Multi "
+"line"
 
 msgid "One with var: %s"
 msgid_plural "Several with vars: %s"
@@ -82,10 +97,16 @@ msgstr "More translation"
 		t.Errorf("Expected 'This one is the singular: Variable' but got '%s'", tr)
 	}
 
+	// Test multi-line
+	tr = po.Get("Multi-line")
+	if tr != "Multi line" {
+		t.Errorf("Expected 'Multi line' but got '%s'", tr)
+	}
+
 	// Test plural
 	tr = po.GetN("One with var: %s", "Several with vars: %s", 2, v)
-	if tr != "And this is the second plural form: Variable" {
-		t.Errorf("Expected 'And this is the second plural form: Variable' but got '%s'", tr)
+	if tr != "This one is the plural: Variable" {
+		t.Errorf("Expected 'This one is the plural: Variable' but got '%s'", tr)
 	}
 
 	// Test inexistent translations
@@ -94,7 +115,7 @@ msgstr "More translation"
 		t.Errorf("Expected 'This is a test' but got '%s'", tr)
 	}
 
-	tr = po.GetN("This is a test", "This are tests", 1)
+	tr = po.GetN("This is a test", "This are tests", 100)
 	if tr != "This are tests" {
 		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
@@ -105,7 +126,7 @@ msgstr "More translation"
 		t.Errorf("Expected '' but got '%s'", tr)
 	}
 
-	tr = po.GetN("This one has invalid syntax translations", "This are tests", 1)
+	tr = po.GetN("This one has invalid syntax translations", "This are tests", 4)
 	if tr != "Plural index" {
 		t.Errorf("Expected 'Plural index' but got '%s'", tr)
 	}
@@ -118,7 +139,7 @@ msgstr "More translation"
 	}
 
 	// Test plural
-	tr = po.GetNC("One with var: %s", "Several with vars: %s", 1, "Ctx", v)
+	tr = po.GetNC("One with var: %s", "Several with vars: %s", 17, "Ctx", v)
 	if tr != "This one is the plural in a Ctx context: Test" {
 		t.Errorf("Expected 'This one is the plural in a Ctx context: Test' but got '%s'", tr)
 	}
@@ -129,6 +150,210 @@ msgstr "More translation"
 		t.Errorf("Expected 'More translation' but got '%s'", tr)
 	}
 
+}
+
+func TestPoHeaders(t *testing.T) {
+	// Set PO content
+	str := `
+msgid ""
+msgstr ""
+# Initial comment
+# Headers below
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Some comment
+msgid "Example"
+msgstr "Translated example"
+    `
+
+	// Create po object
+	po := new(Po)
+
+	// Parse
+	po.Parse(str)
+
+	// Check headers expected
+	if po.Language != "en" {
+		t.Errorf("Expected 'Language: en' but got '%s'", po.Language)
+	}
+
+	// Check headers expected
+	if po.PluralForms != "nplurals=2; plural=(n != 1);" {
+		t.Errorf("Expected 'Plural-Forms: nplurals=2; plural=(n != 1);' but got '%s'", po.PluralForms)
+	}
+}
+
+func TestPluralForms(t *testing.T) {
+	// Single form
+	str := `
+"Plural-Forms: nplurals=1; plural=0;"
+
+# Some comment
+msgid "Singular"
+msgid_plural "Plural"
+msgstr[0] "Singular form"
+msgstr[1] "Plural form 1"
+msgstr[2] "Plural form 2"
+msgstr[3] "Plural form 3"
+    `
+
+	// Create po object
+	po := new(Po)
+
+	// Parse
+	po.Parse(str)
+
+	// Check plural form
+	n := po.pluralForm(0)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(0), got %d", n)
+	}
+	n = po.pluralForm(1)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
+	}
+	n = po.pluralForm(2)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(2), got %d", n)
+	}
+	n = po.pluralForm(3)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(3), got %d", n)
+	}
+	n = po.pluralForm(50)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(50), got %d", n)
+	}
+
+	// ------------------------------------------------------------------------
+	// 2 forms
+	str = `
+"Plural-Forms: nplurals=2; plural=n != 1;"
+
+# Some comment
+msgid "Singular"
+msgid_plural "Plural"
+msgstr[0] "Singular form"
+msgstr[1] "Plural form 1"
+msgstr[2] "Plural form 2"
+msgstr[3] "Plural form 3"
+    `
+
+	// Create po object
+	po = new(Po)
+
+	// Parse
+	po.Parse(str)
+
+	// Check plural form
+	n = po.pluralForm(0)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(0), got %d", n)
+	}
+	n = po.pluralForm(1)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
+	}
+	n = po.pluralForm(2)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(2), got %d", n)
+	}
+	n = po.pluralForm(3)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
+	}
+
+	// ------------------------------------------------------------------------
+	// 3 forms
+	str = `
+"Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2;"
+
+# Some comment
+msgid "Singular"
+msgid_plural "Plural"
+msgstr[0] "Singular form"
+msgstr[1] "Plural form 1"
+msgstr[2] "Plural form 2"
+msgstr[3] "Plural form 3"
+    `
+
+	// Create po object
+	po = new(Po)
+
+	// Parse
+	po.Parse(str)
+
+	// Check plural form
+	n = po.pluralForm(0)
+	if n != 2 {
+		t.Errorf("Expected 2 for pluralForm(0), got %d", n)
+	}
+	n = po.pluralForm(1)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
+	}
+	n = po.pluralForm(2)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(2), got %d", n)
+	}
+	n = po.pluralForm(3)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
+	}
+	n = po.pluralForm(100)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(100), got %d", n)
+	}
+	n = po.pluralForm(49)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
+	}
+
+	// ------------------------------------------------------------------------
+	// 3 forms special
+	str = `
+"Plural-Forms: nplurals=3;"
+"plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;"
+
+# Some comment
+msgid "Singular"
+msgid_plural "Plural"
+msgstr[0] "Singular form"
+msgstr[1] "Plural form 1"
+msgstr[2] "Plural form 2"
+msgstr[3] "Plural form 3"
+    `
+
+	// Create po object
+	po = new(Po)
+
+	// Parse
+	po.Parse(str)
+
+	// Check plural form
+	n = po.pluralForm(1)
+	if n != 0 {
+		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
+	}
+	n = po.pluralForm(2)
+	if n != 1 {
+		t.Errorf("Expected 1 for pluralForm(2), got %d", n)
+	}
+	n = po.pluralForm(4)
+	if n != 1 {
+		t.Errorf("Expected 4 for pluralForm(4), got %d", n)
+	}
+	n = po.pluralForm(0)
+	if n != 2 {
+		t.Errorf("Expected 2 for pluralForm(2), got %d", n)
+	}
+	n = po.pluralForm(1000)
+	if n != 2 {
+		t.Errorf("Expected 2 for pluralForm(1000), got %d", n)
+	}
 }
 
 func TestTranslationObject(t *testing.T) {
