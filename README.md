@@ -1,4 +1,5 @@
 [![GoDoc](https://godoc.org/github.com/leonelquinteros/gotext?status.svg)](https://godoc.org/github.com/leonelquinteros/gotext)
+[![Build Status](https://travis-ci.org/leonelquinteros/gotext.svg?branch=master)](https://travis-ci.org/leonelquinteros/gotext)
 
 # Gotext
 
