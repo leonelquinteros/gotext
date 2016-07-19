@@ -3,7 +3,7 @@ package gotext
 import (
 	"bufio"
 	"fmt"
-	"github.com/leonelquinteros/anko/vm"
+	"github.com/mattn/anko/vm"
 	"io/ioutil"
 	"net/textproto"
 	"os"
