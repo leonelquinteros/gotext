@@ -18,7 +18,7 @@ Version: [v1.1.0](https://github.com/leonelquinteros/gotext/releases/tag/v1.1.0)
   - Support for [message contexts](https://www.gnu.org/software/gettext/manual/html_node/Contexts.html).
 - Thread-safe: This package is safe for concurrent use across multiple goroutines. 
 - It works with UTF-8 encoding as it's the default for Go language.
-- Unit tests available. See coverage: (https://gocover.io/github.com/leonelquinteros/gotext)
+- Unit tests available. See coverage: https://gocover.io/github.com/leonelquinteros/gotext
 - Language codes are automatically simplified from the form `en_UK` to `en` if the first isn't available.
 - Ready to use inside Go templates.
 
