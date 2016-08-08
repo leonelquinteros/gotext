@@ -14,7 +14,7 @@ import (
 
 type translation struct {
 	id       string
-	pluralId string
+	pluralID string
 	trs      map[int]string
 }
 
@@ -42,7 +42,7 @@ func (t *translation) getN(n int) string {
 	}
 
 	// Return unstranlated plural by default
-	return t.pluralId
+	return t.pluralID
 }
 
 /*
@@ -200,7 +200,7 @@ func (po *Po) Parse(str string) {
 
 		// Check for plural form
 		if strings.HasPrefix(l, "msgid_plural") {
-			tr.pluralId, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
+			tr.pluralID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
 
 			// Loop
 			continue
@@ -340,9 +340,9 @@ func (po *Po) pluralForm(n int) int {
 	if plural.Type().Name() == "bool" {
 		if plural.Bool() {
 			return 1
-		} else {
-			return 0
-		}
+		} 
+		// Else
+		return 0
 	}
 
 	if int(plural.Int()) > po.nplurals {
