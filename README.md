@@ -6,7 +6,7 @@
 
 [GNU gettext utilities](https://www.gnu.org/software/gettext) for Go. 
 
-Version: [v1.1.0](https://github.com/leonelquinteros/gotext/releases/tag/v1.1.0)
+Version: [v1.1.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.1.1)
 
 
 # Features
