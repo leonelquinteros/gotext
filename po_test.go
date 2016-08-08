@@ -186,7 +186,7 @@ msgstr "Translated example"
 	}
 }
 
-func TestPluralForms(t *testing.T) {
+func TestPluralFormsSingle(t *testing.T) {
 	// Single form
 	str := `
 "Plural-Forms: nplurals=1; plural=0;"
@@ -227,10 +227,11 @@ msgstr[3] "Plural form 3"
 	if n != 0 {
 		t.Errorf("Expected 0 for pluralForm(50), got %d", n)
 	}
+}
 
-	// ------------------------------------------------------------------------
+func TestPluralForms2(t *testing.T) {
 	// 2 forms
-	str = `
+	str := `
 "Plural-Forms: nplurals=2; plural=n != 1;"
 
 # Some comment
@@ -243,13 +244,13 @@ msgstr[3] "Plural form 3"
     `
 
 	// Create po object
-	po = new(Po)
+	po := new(Po)
 
 	// Parse
 	po.Parse(str)
 
 	// Check plural form
-	n = po.pluralForm(0)
+	n := po.pluralForm(0)
 	if n != 1 {
 		t.Errorf("Expected 1 for pluralForm(0), got %d", n)
 	}
@@ -265,10 +266,11 @@ msgstr[3] "Plural form 3"
 	if n != 1 {
 		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
 	}
+}
 
-	// ------------------------------------------------------------------------
+func TestPluralForms3(t *testing.T) {
 	// 3 forms
-	str = `
+	str := `
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2;"
 
 # Some comment
@@ -281,13 +283,13 @@ msgstr[3] "Plural form 3"
     `
 
 	// Create po object
-	po = new(Po)
+	po := new(Po)
 
 	// Parse
 	po.Parse(str)
 
 	// Check plural form
-	n = po.pluralForm(0)
+	n := po.pluralForm(0)
 	if n != 2 {
 		t.Errorf("Expected 2 for pluralForm(0), got %d", n)
 	}
@@ -311,10 +313,11 @@ msgstr[3] "Plural form 3"
 	if n != 1 {
 		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
 	}
+}
 
-	// ------------------------------------------------------------------------
+func TestPluralFormsSpecial(t *testing.T) {
 	// 3 forms special
-	str = `
+	str := `
 "Plural-Forms: nplurals=3;"
 "plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;"
 
@@ -328,13 +331,13 @@ msgstr[3] "Plural form 3"
     `
 
 	// Create po object
-	po = new(Po)
+	po := new(Po)
 
 	// Parse
 	po.Parse(str)
 
 	// Check plural form
-	n = po.pluralForm(1)
+	n := po.pluralForm(1)
 	if n != 0 {
 		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
 	}

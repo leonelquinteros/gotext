@@ -86,6 +86,10 @@ type Po struct {
 
 	// Sync Mutex
 	sync.RWMutex
+
+	// Parsing buffers
+	trBuffer  *translation
+	ctxBuffer string
 }
 
 // ParseFile tries to read the file by its provided path (f) and parse its content as a .po file.
@@ -125,159 +129,176 @@ func (po *Po) Parse(str string) {
 	// Get lines
 	lines := strings.Split(str, "\n")
 
-	// Translation buffer
-	tr := newTranslation()
-
-	// Context buffer
-	ctx := ""
+	// Init buffer
+	po.trBuffer = newTranslation()
+	po.ctxBuffer = ""
 
 	for _, l := range lines {
 		// Trim spaces
 		l = strings.TrimSpace(l)
 
-		// Skip empty lines
-		if l == "" {
-			continue
-		}
-
 		// Skip invalid lines
-		if !strings.HasPrefix(l, "\"") && !strings.HasPrefix(l, "msgctxt") && !strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") && !strings.HasPrefix(l, "msgstr") {
+		if !po.isValidLine(l) {
 			continue
 		}
 
 		// Buffer context and continue
 		if strings.HasPrefix(l, "msgctxt") {
-			// Save current translation buffer.
-			// No context
-			if ctx == "" {
-				po.translations[tr.id] = tr
-			} else {
-				// Save context
-				if _, ok := po.contexts[ctx]; !ok {
-					po.contexts[ctx] = make(map[string]*translation)
-				}
-				po.contexts[ctx][tr.id] = tr
-			}
-
-			// Flush buffer
-			tr = newTranslation()
-			ctx = ""
-
-			// Buffer context
-			ctx, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgctxt")))
-
-			// Loop
+			po.parseContext(l)
 			continue
 		}
 
 		// Buffer msgid and continue
 		if strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") {
-			// Save current translation buffer if not inside a context.
-			if ctx == "" {
-				po.translations[tr.id] = tr
-
-				// Flush buffer
-				tr = newTranslation()
-				ctx = ""
-			} else if ctx != "" && tr.id != "" {
-				// Save current translation buffer inside a context
-				if _, ok := po.contexts[ctx]; !ok {
-					po.contexts[ctx] = make(map[string]*translation)
-				}
-				po.contexts[ctx][tr.id] = tr
-
-				// Flush buffer
-				tr = newTranslation()
-				ctx = ""
-			}
-
-			// Set id
-			tr.id, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid")))
-
-			// Loop
+			po.parseID(l)
 			continue
 		}
 
 		// Check for plural form
 		if strings.HasPrefix(l, "msgid_plural") {
-			tr.pluralID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
-
-			// Loop
+			po.parsePluralID(l)
 			continue
 		}
 
 		// Save translation
 		if strings.HasPrefix(l, "msgstr") {
-			l = strings.TrimSpace(strings.TrimPrefix(l, "msgstr"))
-
-			// Check for indexed translation forms
-			if strings.HasPrefix(l, "[") {
-				idx := strings.Index(l, "]")
-				if idx == -1 {
-					// Skip wrong index formatting
-					continue
-				}
-
-				// Parse index
-				i, err := strconv.Atoi(l[1:idx])
-				if err != nil {
-					// Skip wrong index formatting
-					continue
-				}
-
-				// Parse translation string
-				tr.trs[i], _ = strconv.Unquote(strings.TrimSpace(l[idx+1:]))
-
-				// Loop
-				continue
-			}
-
-			// Save single translation form under 0 index
-			tr.trs[0], _ = strconv.Unquote(l)
-
-			// Loop
+			po.parseMessage(l)
 			continue
 		}
 
 		// Multi line strings and headers
 		if strings.HasPrefix(l, "\"") && strings.HasSuffix(l, "\"") {
-			// Check for multiline from previously set msgid
-			if tr.id != "" {
-				// Append to last translation found
-				uq, _ := strconv.Unquote(l)
-				tr.trs[len(tr.trs)-1] += uq
-
-				// Loop
-				continue
-			}
-
-			// Otherwise is a header
-			h, err := strconv.Unquote(strings.TrimSpace(l))
-			if err != nil {
-				continue
-			}
-
-			po.RawHeaders += h
+			po.parseString(l)
 			continue
 		}
 	}
 
 	// Save last translation buffer.
-	if tr.id != "" {
-		if ctx == "" {
-			po.translations[tr.id] = tr
-		} else {
-			// Save context
-			if _, ok := po.contexts[ctx]; !ok {
-				po.contexts[ctx] = make(map[string]*translation)
-			}
-			po.contexts[ctx][tr.id] = tr
-		}
-	}
+	po.saveBuffer()
 
 	// Parse headers
+	po.parseHeaders()
+}
+
+// saveBuffer takes the context and translation buffers
+// and saves it on the translations collection
+func (po *Po) saveBuffer() {
+	// If we have something to save...
+	if po.trBuffer.id != "" {
+		// With no context...
+		if po.ctxBuffer == "" {
+			po.translations[po.trBuffer.id] = po.trBuffer
+		} else {
+			// With context...
+			if _, ok := po.contexts[po.ctxBuffer]; !ok {
+				po.contexts[po.ctxBuffer] = make(map[string]*translation)
+			}
+			po.contexts[po.ctxBuffer][po.trBuffer.id] = po.trBuffer
+		}
+
+		// Flush buffer
+		po.trBuffer = newTranslation()
+		po.ctxBuffer = ""
+	}
+}
+
+// parseContext takes a line starting with "msgctxt",
+// saves the current translation buffer and creates a new context.
+func (po *Po) parseContext(l string) {
+	// Save current translation buffer.
+	po.saveBuffer()
+
+	// Buffer context
+	po.ctxBuffer, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgctxt")))
+}
+
+// parseID takes a line starting with "msgid",
+// saves the current translation and creates a new msgid buffer.
+func (po *Po) parseID(l string) {
+	// Save current translation buffer.
+	po.saveBuffer()
+
+	// Set id
+	po.trBuffer.id, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid")))
+}
+
+// parsePluralID saves the plural id buffer from a line starting with "msgid_plural"
+func (po *Po) parsePluralID(l string) {
+	po.trBuffer.pluralID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
+}
+
+// parseMessage takes a line starting with "msgstr" and saves it into the current buffer.
+func (po *Po) parseMessage(l string) {
+	l = strings.TrimSpace(strings.TrimPrefix(l, "msgstr"))
+
+	// Check for indexed translation forms
+	if strings.HasPrefix(l, "[") {
+		idx := strings.Index(l, "]")
+		if idx == -1 {
+			// Skip wrong index formatting
+			return
+		}
+
+		// Parse index
+		i, err := strconv.Atoi(l[1:idx])
+		if err != nil {
+			// Skip wrong index formatting
+			return
+		}
+
+		// Parse translation string
+		po.trBuffer.trs[i], _ = strconv.Unquote(strings.TrimSpace(l[idx+1:]))
+
+		// Loop
+		return
+	}
+
+	// Save single translation form under 0 index
+	po.trBuffer.trs[0], _ = strconv.Unquote(l)
+}
+
+// parseString takes a well formatted string without prefix
+// and creates headers or attach multi-line strings when corresponding
+func (po *Po) parseString(l string) {
+	// Check for multiline from previously set msgid
+	if po.trBuffer.id != "" {
+		// Append to last translation found
+		uq, _ := strconv.Unquote(l)
+		po.trBuffer.trs[len(po.trBuffer.trs)-1] += uq
+
+		return
+	}
+
+	// Otherwise is a header
+	h, err := strconv.Unquote(strings.TrimSpace(l))
+	if err != nil {
+		return
+	}
+
+	po.RawHeaders += h
+}
+
+// isValidLine checks for line prefixes to detect valid syntax.
+func (po *Po) isValidLine(l string) bool {
+	// Skip empty lines
+	if l == "" {
+		return false
+	}
+
+	// Check prefix
+	if !strings.HasPrefix(l, "\"") && !strings.HasPrefix(l, "msgctxt") && !strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") && !strings.HasPrefix(l, "msgstr") {
+		return false
+	}
+
+	return true
+}
+
+// parseHeaders retrieves data from previously parsed headers
+func (po *Po) parseHeaders() {
+	// Make sure we end with 2 carriage returns.
 	po.RawHeaders += "\n\n"
 
+	// Read
 	reader := bufio.NewReader(strings.NewReader(po.RawHeaders))
 	tp := textproto.NewReader(reader)
 
@@ -340,7 +361,7 @@ func (po *Po) pluralForm(n int) int {
 	if plural.Type().Name() == "bool" {
 		if plural.Bool() {
 			return 1
-		} 
+		}
 		// Else
 		return 0
 	}
