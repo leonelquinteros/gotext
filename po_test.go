@@ -172,8 +172,6 @@ msgstr "More translation"
 	if tr != "More translation" {
 		t.Errorf("Expected 'More translation' but got '%s'", tr)
 	}
-
-	t.Log(po.contexts)
 }
 
 func TestPoHeaders(t *testing.T) {
