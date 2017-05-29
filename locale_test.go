@@ -9,8 +9,8 @@ import (
 func TestLocale(t *testing.T) {
 	// Set PO content
 	str := `
-msgid ""
-msgstr ""
+# msgid ""
+# msgstr ""
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -56,7 +56,7 @@ msgstr "Some random translation in a context"
 msgid "More"
 msgstr "More translation"
 
-    `
+	`
 
 	// Create Locales directory with simplified language code
 	dirname := path.Join("/tmp", "en", "LC_MESSAGES")
@@ -176,7 +176,7 @@ msgstr "Some random translation in a context"
 msgid "More"
 msgstr "More translation"
 
-    `
+	`
 
 	// Create Locales directory with simplified language code
 	dirname := path.Join("/tmp", "en", "LC_MESSAGES")
@@ -259,7 +259,7 @@ msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
 
-    `
+	`
 
 	// Create Locales directory with simplified language code
 	dirname := path.Join("/tmp", "es")

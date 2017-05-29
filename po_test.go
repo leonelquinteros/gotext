@@ -9,8 +9,6 @@ import (
 func TestPo(t *testing.T) {
 	// Set PO content
 	str := `
-msgid ""
-msgstr ""
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -25,6 +23,19 @@ msgstr "Translated text"
 # More comments
 msgid "Another string"
 msgstr ""
+
+# Multi-line msgid
+msgid "multi"
+"line"
+"id"
+msgstr "id with multiline content"
+
+# Multi-line msgid_plural
+msgid "multi"
+"line"
+"plural"
+"id"
+msgstr "plural id with multiline content"
 
 #Multi-line string
 msgid "Multi-line"
@@ -60,7 +71,7 @@ msgstr "Some random translation in a context"
 
 msgid "More"
 msgstr "More translation"
-    `
+	`
 
 	// Write PO content to file
 	filename := path.Clean(os.TempDir() + string(os.PathSeparator) + "default.po")
@@ -95,6 +106,18 @@ msgstr "More translation"
 	tr = po.Get("One with var: %s", v)
 	if tr != "This one is the singular: Variable" {
 		t.Errorf("Expected 'This one is the singular: Variable' but got '%s'", tr)
+	}
+
+	// Test multi-line id
+	tr = po.Get("multilineid")
+	if tr != "id with multiline content" {
+		t.Errorf("Expected 'id with multiline content' but got '%s'", tr)
+	}
+
+	// Test multi-line plural id
+	tr = po.Get("multilinepluralid")
+	if tr != "plural id with multiline content" {
+		t.Errorf("Expected 'plural id with multiline content' but got '%s'", tr)
 	}
 
 	// Test multi-line
@@ -150,13 +173,12 @@ msgstr "More translation"
 		t.Errorf("Expected 'More translation' but got '%s'", tr)
 	}
 
+	t.Log(po.contexts)
 }
 
 func TestPoHeaders(t *testing.T) {
 	// Set PO content
 	str := `
-msgid ""
-msgstr ""
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -167,7 +189,7 @@ msgstr ""
 # Some comment
 msgid "Example"
 msgstr "Translated example"
-    `
+	`
 
 	// Create po object
 	po := new(Po)
@@ -198,7 +220,7 @@ msgstr[0] "Singular form"
 msgstr[1] "Plural form 1"
 msgstr[2] "Plural form 2"
 msgstr[3] "Plural form 3"
-    `
+	`
 
 	// Create po object
 	po := new(Po)
@@ -241,7 +263,7 @@ msgstr[0] "Singular form"
 msgstr[1] "Plural form 1"
 msgstr[2] "Plural form 2"
 msgstr[3] "Plural form 3"
-    `
+	`
 
 	// Create po object
 	po := new(Po)
@@ -280,7 +302,7 @@ msgstr[0] "Singular form"
 msgstr[1] "Plural form 1"
 msgstr[2] "Plural form 2"
 msgstr[3] "Plural form 3"
-    `
+	`
 
 	// Create po object
 	po := new(Po)
@@ -328,7 +350,7 @@ msgstr[0] "Singular form"
 msgstr[1] "Plural form 1"
 msgstr[2] "Plural form 2"
 msgstr[3] "Plural form 3"
-    `
+	`
 
 	// Create po object
 	po := new(Po)
@@ -394,7 +416,7 @@ msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
 
-    `
+	`
 
 	// Create Po object
 	po := new(Po)
