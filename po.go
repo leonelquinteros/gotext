@@ -52,18 +52,18 @@ And it's safe for concurrent use by multiple goroutines by using the sync packag
 
 Example:
 
-    import "github.com/leonelquinteros/gotext"
+	import "github.com/leonelquinteros/gotext"
 
-    func main() {
-        // Create po object
-        po := new(gotext.Po)
+	func main() {
+		// Create po object
+		po := new(gotext.Po)
 
-        // Parse .po file
-        po.ParseFile("/path/to/po/file/translations.po")
+		// Parse .po file
+		po.ParseFile("/path/to/po/file/translations.po")
 
-        // Get translation
-        println(po.Get("Translate this"))
-    }
+		// Get translation
+		println(po.Get("Translate this"))
+	}
 
 */
 type Po struct {
@@ -91,6 +91,16 @@ type Po struct {
 	trBuffer  *translation
 	ctxBuffer string
 }
+
+type parseState int
+
+const (
+	head parseState = iota
+	msgCtxt
+	msgID
+	msgIDPlural
+	msgStr
+)
 
 // ParseFile tries to read the file by its provided path (f) and parse its content as a .po file.
 func (po *Po) ParseFile(f string) {
@@ -133,6 +143,7 @@ func (po *Po) Parse(str string) {
 	po.trBuffer = newTranslation()
 	po.ctxBuffer = ""
 
+	state := head
 	for _, l := range lines {
 		// Trim spaces
 		l = strings.TrimSpace(l)
@@ -145,30 +156,34 @@ func (po *Po) Parse(str string) {
 		// Buffer context and continue
 		if strings.HasPrefix(l, "msgctxt") {
 			po.parseContext(l)
+			state = msgCtxt
 			continue
 		}
 
 		// Buffer msgid and continue
 		if strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") {
 			po.parseID(l)
+			state = msgID
 			continue
 		}
 
 		// Check for plural form
 		if strings.HasPrefix(l, "msgid_plural") {
 			po.parsePluralID(l)
+			state = msgIDPlural
 			continue
 		}
 
 		// Save translation
 		if strings.HasPrefix(l, "msgstr") {
 			po.parseMessage(l)
+			state = msgStr
 			continue
 		}
 
 		// Multi line strings and headers
 		if strings.HasPrefix(l, "\"") && strings.HasSuffix(l, "\"") {
-			po.parseString(l)
+			state = po.parseString(l, state)
 			continue
 		}
 	}
@@ -259,23 +274,36 @@ func (po *Po) parseMessage(l string) {
 
 // parseString takes a well formatted string without prefix
 // and creates headers or attach multi-line strings when corresponding
-func (po *Po) parseString(l string) {
-	// Check for multiline from previously set msgid
-	if po.trBuffer.id != "" {
-		// Append to last translation found
+func (po *Po) parseString(l string, state parseState) parseState {
+	switch state {
+	case msgStr:
+		// Check for multiline from previously set msgid
+		if po.trBuffer.id != "" {
+			// Append to last translation found
+			uq, _ := strconv.Unquote(l)
+			po.trBuffer.trs[len(po.trBuffer.trs)-1] += uq
+
+		}
+	case msgID:
+		// Multiline msgid - Append to current id
 		uq, _ := strconv.Unquote(l)
-		po.trBuffer.trs[len(po.trBuffer.trs)-1] += uq
-
-		return
+		po.trBuffer.id += uq
+	case msgIDPlural:
+		// Multiline msgid - Append to current id
+		uq, _ := strconv.Unquote(l)
+		po.trBuffer.pluralID += uq
+	case msgCtxt:
+		// Multiline context - Append to current context
+		ctxt, _ := strconv.Unquote(l)
+		po.ctxBuffer += ctxt
+	default:
+		// Otherwise is a header
+		h, _ := strconv.Unquote(strings.TrimSpace(l))
+		po.RawHeaders += h
+		return head
 	}
 
-	// Otherwise is a header
-	h, err := strconv.Unquote(strings.TrimSpace(l))
-	if err != nil {
-		return
-	}
-
-	po.RawHeaders += h
+	return state
 }
 
 // isValidLine checks for line prefixes to detect valid syntax.
