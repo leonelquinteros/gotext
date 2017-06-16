@@ -265,7 +265,7 @@ PO format supports defining one or more plural forms for the same translation.
 Relying on the PO file headers, a Plural-Forms formula can be set on the translation file
 as defined in (https://www.gnu.org/savannah-checkouts/gnu/gettext/manual/html_node/Plural-forms.html)
 
-Plural formulas are parsed and evaluated using [Anko](https://github.com/mattn/anko)
+Plural formulas are parsed and evaluated using [Kinako](https://github.com/mattn/kinako)
 
 ```go
 import "github.com/leonelquinteros/gotext"
