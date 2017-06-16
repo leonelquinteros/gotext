@@ -3,13 +3,14 @@ package gotext
 import (
 	"bufio"
 	"fmt"
-	"github.com/mattn/anko/vm"
 	"io/ioutil"
 	"net/textproto"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/mattn/kinako/vm"
 )
 
 type translation struct {

@@ -1,22 +1,18 @@
 {
 	"ImportPath": "github.com/leonelquinteros/gotext",
-	"GoVersion": "go1.6",
-	"GodepVersion": "v74",
-	"Packages": [
-		"./..."
-	],
+	"GoVersion": "devel +be9d7f6d87 Fri Jun 16 00:31:25 2017 +0000",
 	"Deps": [
 		{
-			"ImportPath": "github.com/mattn/anko/ast",
-			"Rev": "a8c68fa2983e7dd5d3472992b1fbe2f7c44261f0"
+			"ImportPath": "github.com/mattn/kinako/ast",
+			"Rev": "fbc18625ec69b28ae03b4eea4c349f215840ee09"
 		},
 		{
-			"ImportPath": "github.com/mattn/anko/parser",
-			"Rev": "a8c68fa2983e7dd5d3472992b1fbe2f7c44261f0"
+			"ImportPath": "github.com/mattn/kinako/parser",
+			"Rev": "fbc18625ec69b28ae03b4eea4c349f215840ee09"
 		},
 		{
-			"ImportPath": "github.com/mattn/anko/vm",
-			"Rev": "a8c68fa2983e7dd5d3472992b1fbe2f7c44261f0"
+			"ImportPath": "github.com/mattn/kinako/vm",
+			"Rev": "fbc18625ec69b28ae03b4eea4c349f215840ee09"
 		}
 	]
 }
