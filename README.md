@@ -1,5 +1,5 @@
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub version](https://badge.fury.io/gh/leonelquinteros%2Fgotext.svg)](https://badge.fury.io/gh/leonelquinteros%2Fgotext)
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GoDoc](https://godoc.org/github.com/leonelquinteros/gotext?status.svg)](https://godoc.org/github.com/leonelquinteros/gotext)
 [![Build Status](https://travis-ci.org/leonelquinteros/gotext.svg?branch=master)](https://travis-ci.org/leonelquinteros/gotext)
 [![codecov](https://codecov.io/gh/leonelquinteros/gotext/branch/master/graph/badge.svg)](https://codecov.io/gh/leonelquinteros/gotext)
@@ -8,8 +8,6 @@
 # Gotext
 
 [GNU gettext utilities](https://www.gnu.org/software/gettext) for Go. 
-
-Version: [v1.1.1](https://github.com/leonelquinteros/gotext/releases/tag/v1.1.1)
 
 
 # Features
