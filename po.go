@@ -432,7 +432,9 @@ func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 		}
 	}
 
-	// Return the plural string we received by default
+	if n == 1 {
+		return fmt.Sprintf(str, vars...)
+	}
 	return fmt.Sprintf(plural, vars...)
 }
 
@@ -474,6 +476,8 @@ func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 		}
 	}
 
-	// Return the plural string we received by default
+	if n == 1 {
+		return fmt.Sprintf(str, vars...)
+	}
 	return fmt.Sprintf(plural, vars...)
 }

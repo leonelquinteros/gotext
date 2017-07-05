@@ -167,6 +167,16 @@ msgstr "More translation"
 		t.Errorf("Expected 'This one is the plural in a Ctx context: Test' but got '%s'", tr)
 	}
 
+	// Test default plural vs singular return responses
+	tr = po.GetN("Original", "Original plural", 4)
+	if tr != "Original plural" {
+		t.Errorf("Expected 'Original plural' but got '%s'", tr)
+	}
+	tr = po.GetN("Original", "Original plural", 1)
+	if tr != "Original" {
+		t.Errorf("Expected 'Original' but got '%s'", tr)
+	}
+
 	// Test last translation
 	tr = po.Get("More")
 	if tr != "More translation" {
