@@ -69,8 +69,17 @@ msgctxt "Ctx"
 msgid "Some random in a context"
 msgstr "Some random translation in a context"
 
+msgid "Empty translation"
+msgstr ""
+
+msgid "Empty plural form singular"
+msgid_plural "Empty plural form"
+msgstr[0] "Singular translated"
+msgstr[1] "
+
 msgid "More"
 msgstr "More translation"
+"
 	`
 
 	// Write PO content to file
@@ -145,8 +154,8 @@ msgstr "More translation"
 
 	// Test syntax error parsed translations
 	tr = po.Get("This one has invalid syntax translations")
-	if tr != "" {
-		t.Errorf("Expected '' but got '%s'", tr)
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
 	}
 
 	tr = po.GetN("This one has invalid syntax translations", "This are tests", 4)
@@ -175,6 +184,27 @@ msgstr "More translation"
 	tr = po.GetN("Original", "Original plural", 1)
 	if tr != "Original" {
 		t.Errorf("Expected 'Original' but got '%s'", tr)
+	}
+
+	// Test empty translation strings
+	tr = po.Get("Empty translation")
+	if tr != "Empty translation" {
+		t.Errorf("Expected 'Empty translation' but got '%s'", tr)
+	}
+
+	tr = po.Get("Empty plural form singular")
+	if tr != "Singular translated" {
+		t.Errorf("Expected 'Singular translated' but got '%s'", tr)
+	}
+
+	tr = po.GetN("Empty plural form singular", "Empty plural form", 1)
+	if tr != "Singular translated" {
+		t.Errorf("Expected 'Singular translated' but got '%s'", tr)
+	}
+
+	tr = po.GetN("Empty plural form singular", "Empty plural form", 2)
+	if tr != "Empty plural form" {
+		t.Errorf("Expected 'Empty plural form' but got '%s'", tr)
 	}
 
 	// Test last translation

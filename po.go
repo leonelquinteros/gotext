@@ -29,7 +29,9 @@ func newTranslation() *translation {
 func (t *translation) get() string {
 	// Look for translation index 0
 	if _, ok := t.trs[0]; ok {
-		return t.trs[0]
+		if t.trs[0] != "" {
+			return t.trs[0]
+		}
 	}
 
 	// Return unstranlated id by default
@@ -39,7 +41,9 @@ func (t *translation) get() string {
 func (t *translation) getN(n int) string {
 	// Look for translation index
 	if _, ok := t.trs[n]; ok {
-		return t.trs[n]
+		if t.trs[n] != "" {
+			return t.trs[n]
+		}
 	}
 
 	// Return unstranlated plural by default
