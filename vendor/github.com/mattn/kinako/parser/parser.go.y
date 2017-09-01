@@ -11,12 +11,14 @@ import (
 %type<stmts> stmts
 %type<stmt> stmt
 %type<expr> expr
+%type<exprs> exprs
 
 %union{
 	compstmt               []ast.Stmt
 	stmts                  []ast.Stmt
 	stmt                   ast.Stmt
 	expr                   ast.Expr
+	exprs                  []ast.Expr
 	tok                    ast.Token
 	term                   ast.Token
 	terms                  ast.Token
@@ -168,6 +170,23 @@ expr :
 	| expr ANDAND expr
 	{
 		$$ = &ast.BinOpExpr{Lhs: $1, Operator: "&&", Rhs: $3}
+	}
+	| IDENT '(' exprs ')'
+	{
+		$$ = &ast.CallExpr{Name: $1.Lit, SubExprs: $3}
+	}
+
+exprs :
+	{
+		$$ = nil
+	}
+	| expr 
+	{
+		$$ = []ast.Expr{$1}
+	}
+	| exprs ',' expr
+	{
+		$$ = append($1, $3)
 	}
 
 opt_terms : /* none */
