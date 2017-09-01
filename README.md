@@ -116,39 +116,6 @@ A library directory structure can look like:
 And so on...
 
 
-
-# About translation function names
-
-The standard GNU gettext defines helper functions that maps to the `gettext()` function and it's widely adopted by most implementations. 
-
-The basic translation function is usually `_()` in the form: 
-
-```
-_("Translate this")
-``` 
-
-In Go, this can't be implemented by a reusable package as the function name has to start with a capital letter in order to be exported. 
-
-Each implementation of this package can declare this helper functions inside their own packages if this function naming are desired/needed: 
-
-```go
-package main
-
-import "github.com/leonelquinteros/gotext"
-
-func _(str string, vars ...interface{}) string {
-    return gotext.Get(str, vars...)
-}
-
-``` 
-
-This is valid and can be used within a package.
-
-In normal conditions the Go compiler will optimize the calls to `_()` by replacing its content in place of the function call to reduce the function calling overhead. 
-This is a normal Go compiler behavior.  
-
-
-
 # Usage examples
 
 ## Using package for single language/domain settings
@@ -261,7 +228,7 @@ msgstr "This one sets the var: %s"
 `
     
     // Create Po object
-    po := new(Po)
+    po := new(gotext.Po)
     po.Parse(str)
     
     fmt.Println(po.Get("Translate this"))
@@ -305,7 +272,7 @@ msgstr[1] "This one is the plural: %s"
 `
     
     // Create Po object
-    po := new(Po)
+    po := new(gotext.Po)
     po.Parse(str)
     
     fmt.Println(po.GetN("One with var: %s", "Several with vars: %s", 54, v))
