@@ -79,6 +79,11 @@ msgstr "Some random translation in a context"
 msgid "More"
 msgstr "More translation"
 
+msgid "Untranslated"
+msgid_plural "Several untranslated"
+msgstr[0] ""
+msgstr[1] ""
+
 	`
 
 	// Create Locales directory on default location
@@ -141,6 +146,79 @@ msgstr "More translation"
 	}
 }
 
+func TestUntranslated(t *testing.T) {
+	// Set PO content
+	str := `
+# msgid ""
+# msgstr ""
+# Initial comment
+# Headers below
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Untranslated"
+msgid_plural "Several untranslated"
+msgstr[0] ""
+msgstr[1] ""
+
+	`
+
+	// Create Locales directory on default location
+	dirname := path.Clean("/tmp" + string(os.PathSeparator) + "en_US")
+	err := os.MkdirAll(dirname, os.ModePerm)
+	if err != nil {
+		t.Fatalf("Can't create test directory: %s", err.Error())
+	}
+
+	// Write PO content to default domain file
+	filename := path.Clean(dirname + string(os.PathSeparator) + "default.po")
+
+	f, err := os.Create(filename)
+	if err != nil {
+		t.Fatalf("Can't create test file: %s", err.Error())
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(str)
+	if err != nil {
+		t.Fatalf("Can't write to test file: %s", err.Error())
+	}
+
+	// Set package configuration
+	Configure("/tmp", "en_US", "default")
+
+	// Test untranslated
+	tr := Get("Untranslated")
+	if tr != "Untranslated" {
+		t.Errorf("Expected 'Untranslated' but got '%s'", tr)
+	}
+	tr = GetN("Untranslated", "Several untranslated", 1)
+	if tr != "Untranslated" {
+		t.Errorf("Expected 'Untranslated' but got '%s'", tr)
+	}
+
+	tr = GetN("Untranslated", "Several untranslated", 2)
+	if tr != "Several untranslated" {
+		t.Errorf("Expected 'Several untranslated' but got '%s'", tr)
+	}
+
+	tr = GetD("default", "Untranslated")
+	if tr != "Untranslated" {
+		t.Errorf("Expected 'Untranslated' but got '%s'", tr)
+	}
+	tr = GetND("default", "Untranslated", "Several untranslated", 1)
+	if tr != "Untranslated" {
+		t.Errorf("Expected 'Untranslated' but got '%s'", tr)
+	}
+
+	tr = GetND("default", "Untranslated", "Several untranslated", 2)
+	if tr != "Several untranslated" {
+		t.Errorf("Expected 'Several untranslated' but got '%s'", tr)
+	}
+}
+
 func TestPackageRace(t *testing.T) {
 	// Set PO content
 	str := `# Some comment
@@ -184,16 +262,18 @@ msgstr[2] "And this is the second plural form: %s"
 	c1 := make(chan bool)
 	c2 := make(chan bool)
 
-	// Test translations
-	go func(done chan bool) {
-		Get("My text")
-		done <- true
-	}(c1)
+	for i := 0; i < 100; i++ {
+		// Test translations
+		go func(done chan bool) {
+			Get("My text")
+			done <- true
+		}(c1)
 
-	go func(done chan bool) {
-		Get("My text")
-		done <- true
-	}(c2)
+		go func(done chan bool) {
+			Get("My text")
+			done <- true
+		}(c2)
 
-	Get("My text")
+		Get("My text")
+	}
 }

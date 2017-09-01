@@ -156,17 +156,20 @@ This is a normal Go compiler behavior.
 For quick/simple translations you can use the package level functions directly.
 
 ```go
-import "github.com/leonelquinteros/gotext"
+import (
+    "fmt"
+    "github.com/leonelquinteros/gotext"
+)
 
 func main() {
     // Configure package
     gotext.Configure("/path/to/locales/root/dir", "en_UK", "domain-name")
     
     // Translate text from default domain
-    println(gotext.Get("My text on 'domain-name' domain"))
+    fmt.Println(gotext.Get("My text on 'domain-name' domain"))
     
     // Translate text from a different domain without reconfigure
-    println(gotext.GetD("domain2", "Another text on a different domain"))
+    fmt.Println(gotext.GetD("domain2", "Another text on a different domain"))
 }
 
 ```
@@ -177,7 +180,10 @@ All translation strings support dynamic variables to be inserted without transla
 Use the fmt.Printf syntax (from Go's "fmt" package) to specify how to print the non-translated variable inside the translation string. 
 
 ```go
-import "github.com/leonelquinteros/gotext"
+import (
+    "fmt"
+    "github.com/leonelquinteros/gotext"
+)
 
 func main() {
     // Configure package
@@ -187,7 +193,7 @@ func main() {
     name := "John"
     
     // Translate text with variables
-    println(gotext.Get("Hi, my name is %s", name))
+    fmt.Println(gotext.Get("Hi, my name is %s", name))
 }
 
 ```
@@ -199,7 +205,10 @@ When having multiple languages/domains/libraries at the same time, you can creat
 so you can handle each settings on their own.
 
 ```go
-import "github.com/leonelquinteros/gotext"
+import (
+    "fmt"
+    "github.com/leonelquinteros/gotext"
+)
 
 func main() {
     // Create Locale with library path and language code
@@ -209,13 +218,13 @@ func main() {
     l.AddDomain("default")
     
     // Translate text from default domain
-    println(l.Get("Translate this"))
+    fmt.Println(l.Get("Translate this"))
     
     // Load different domain
     l.AddDomain("translations")
     
     // Translate text from domain
-    println(l.GetD("translations", "Translate this"))
+    fmt.Println(l.GetD("translations", "Translate this"))
 }
 ```
 
@@ -233,7 +242,10 @@ For when you need to work with PO files and strings,
 you can directly use the Po object to parse it and access the translations in there in the same way.
 
 ```go
-import "github.com/leonelquinteros/gotext"
+import (
+    "fmt"
+    "github.com/leonelquinteros/gotext"
+)
 
 func main() {
     // Set PO content
@@ -252,7 +264,7 @@ msgstr "This one sets the var: %s"
     po := new(Po)
     po.Parse(str)
     
-    println(po.Get("Translate this"))
+    fmt.Println(po.Get("Translate this"))
 }
 ```
 
@@ -266,7 +278,10 @@ as defined in (https://www.gnu.org/savannah-checkouts/gnu/gettext/manual/html_no
 Plural formulas are parsed and evaluated using [Kinako](https://github.com/mattn/kinako)
 
 ```go
-import "github.com/leonelquinteros/gotext"
+import (
+    "fmt"
+    "github.com/leonelquinteros/gotext"
+)
 
 func main() {
     // Set PO content
@@ -293,7 +308,7 @@ msgstr[1] "This one is the plural: %s"
     po := new(Po)
     po.Parse(str)
     
-    println(po.GetN("One with var: %s", "Several with vars: %s", 54, v))
+    fmt.Println(po.GetN("One with var: %s", "Several with vars: %s", 54, v))
     // "This one is the plural: Variable"
 }
 ```

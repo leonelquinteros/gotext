@@ -3,14 +3,13 @@ package gotext
 import (
 	"bufio"
 	"fmt"
+	"github.com/mattn/kinako/vm"
 	"io/ioutil"
 	"net/textproto"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
-
-	"github.com/mattn/kinako/vm"
 )
 
 type translation struct {
@@ -46,7 +45,12 @@ func (t *translation) getN(n int) string {
 		}
 	}
 
-	// Return unstranlated plural by default
+	// Return unstranlated singular if corresponding
+	if n == 0 {
+		return t.id
+	}
+
+	// Return untranslated plural by default
 	return t.pluralID
 }
 
@@ -57,7 +61,10 @@ And it's safe for concurrent use by multiple goroutines by using the sync packag
 
 Example:
 
-	import "github.com/leonelquinteros/gotext"
+	import (
+		"fmt"
+		"github.com/leonelquinteros/gotext"
+	)
 
 	func main() {
 		// Create po object
@@ -67,7 +74,7 @@ Example:
 		po.ParseFile("/path/to/po/file/translations.po")
 
 		// Get translation
-		println(po.Get("Translate this"))
+		fmt.Println(po.Get("Translate this"))
 	}
 
 */
@@ -439,6 +446,7 @@ func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 	if n == 1 {
 		return fmt.Sprintf(str, vars...)
 	}
+
 	return fmt.Sprintf(plural, vars...)
 }
 
