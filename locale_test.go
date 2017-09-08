@@ -9,8 +9,8 @@ import (
 func TestLocale(t *testing.T) {
 	// Set PO content
 	str := `
-# msgid ""
-# msgstr ""
+msgid ""
+msgstr ""
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -37,8 +37,6 @@ msgid_plural "Plural index"
 msgstr[abc] "Wrong index"
 msgstr[1 "Forgot to close brackets"
 msgstr[0] "Badly formatted string'
-
-msgid "Invalid formatted id[] with no translations
 
 msgctxt "Ctx"
 msgid "One with var: %s"

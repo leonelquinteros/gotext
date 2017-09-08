@@ -9,6 +9,9 @@ import (
 func TestPo(t *testing.T) {
 	// Set PO content
 	str := `
+msgid   ""
+msgstr  ""
+
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -48,14 +51,6 @@ msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
 
-msgid "This one has invalid syntax translations"
-msgid_plural "Plural index"
-msgstr[abc] "Wrong index"
-msgstr[1 "Forgot to close brackets"
-msgstr[0] "Badly formatted string'
-
-msgid "Invalid formatted id[] with no translations
-
 msgctxt "Ctx"
 msgid "One with var: %s"
 msgid_plural "Several with vars: %s"
@@ -75,11 +70,11 @@ msgstr ""
 msgid "Empty plural form singular"
 msgid_plural "Empty plural form"
 msgstr[0] "Singular translated"
-msgstr[1] "
+msgstr[1] ""
 
 msgid "More"
 msgstr "More translation"
-"
+
 	`
 
 	// Write PO content to file
@@ -152,17 +147,6 @@ msgstr "More translation"
 		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 
-	// Test syntax error parsed translations
-	tr = po.Get("This one has invalid syntax translations")
-	if tr != "This one has invalid syntax translations" {
-		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
-	}
-
-	tr = po.GetN("This one has invalid syntax translations", "This are tests", 4)
-	if tr != "Plural index" {
-		t.Errorf("Expected 'Plural index' but got '%s'", tr)
-	}
-
 	// Test context translations
 	v = "Test"
 	tr = po.GetC("One with var: %s", "Ctx", v)
@@ -214,9 +198,42 @@ msgstr "More translation"
 	}
 }
 
+func TestPlural(t *testing.T) {
+	// Set PO content
+	str := `
+msgid   ""
+msgstr  ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Singular: %s"
+msgid_plural "Plural: %s"
+msgstr[0] "TR Singular: %s"
+msgstr[1] "TR Plural: %s"
+msgstr[2] "TR Plural 2: %s"
+
+	
+`
+	// Create po object
+	po := new(Po)
+	po.Parse(str)
+
+	v := "Var"
+	tr := po.GetN("Singular: %s", "Plural: %s", 2, v)
+	if tr != "TR Plural: Var" {
+		t.Errorf("Expected 'TR Plural: Var' but got '%s'", tr)
+	}
+
+	tr = po.GetN("Singular: %s", "Plural: %s", 1, v)
+	if tr != "TR Singular: Var" {
+		t.Errorf("Expected 'TR Singular: Var' but got '%s'", tr)
+	}
+}
+
 func TestPoHeaders(t *testing.T) {
 	// Set PO content
 	str := `
+msgid   ""
+msgstr  ""
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -246,9 +263,30 @@ msgstr "Translated example"
 	}
 }
 
+func TestMissingPoHeadersSupport(t *testing.T) {
+	// Set PO content
+	str := `
+msgid "Example"
+msgstr "Translated example"
+	`
+
+	// Create po object
+	po := new(Po)
+
+	// Parse
+	po.Parse(str)
+
+	// Check translation expected
+	if po.Get("Example") != "Translated example" {
+		t.Errorf("Expected 'Translated example' but got '%s'", po.Get("Example"))
+	}
+}
+
 func TestPluralFormsSingle(t *testing.T) {
 	// Single form
 	str := `
+msgid   ""
+msgstr  ""
 "Plural-Forms: nplurals=1; plural=0;"
 
 # Some comment
@@ -292,6 +330,8 @@ msgstr[3] "Plural form 3"
 func TestPluralForms2(t *testing.T) {
 	// 2 forms
 	str := `
+msgid   ""
+msgstr  ""
 "Plural-Forms: nplurals=2; plural=n != 1;"
 
 # Some comment
@@ -331,6 +371,8 @@ msgstr[3] "Plural form 3"
 func TestPluralForms3(t *testing.T) {
 	// 3 forms
 	str := `
+msgid   ""
+msgstr  ""
 "Plural-Forms: nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : 2;"
 
 # Some comment
@@ -378,6 +420,8 @@ msgstr[3] "Plural form 3"
 func TestPluralFormsSpecial(t *testing.T) {
 	// 3 forms special
 	str := `
+msgid   ""
+msgstr  ""
 "Plural-Forms: nplurals=3;"
 "plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;"
 

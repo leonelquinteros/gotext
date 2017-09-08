@@ -3,6 +3,7 @@ package gotext
 import (
 	"os"
 	"path"
+	"sync"
 	"testing"
 )
 
@@ -32,10 +33,12 @@ func TestGettersSetters(t *testing.T) {
 func TestPackageFunctions(t *testing.T) {
 	// Set PO content
 	str := `
-# msgid ""
-# msgstr ""
+msgid   ""
+msgstr  "Project-Id-Version: %s\n"
+        "Report-Msgid-Bugs-To: %s\n"
+        
 # Initial comment
-# Headers below
+# More Headers below
 "Language: en\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -54,14 +57,6 @@ msgid_plural "Several with vars: %s"
 msgstr[0] "This one is the singular: %s"
 msgstr[1] "This one is the plural: %s"
 msgstr[2] "And this is the second plural form: %s"
-
-msgid "This one has invalid syntax translations"
-msgid_plural "Plural index"
-msgstr[abc] "Wrong index"
-msgstr[1 "Forgot to close brackets"
-msgstr[0] "Badly formatted string'
-
-msgid "Invalid formatted id[] with no translations
 
 msgctxt "Ctx"
 msgid "One with var: %s"
@@ -149,8 +144,8 @@ msgstr[1] ""
 func TestUntranslated(t *testing.T) {
 	// Set PO content
 	str := `
-# msgid ""
-# msgstr ""
+msgid ""
+msgstr ""
 # Initial comment
 # Headers below
 "Language: en\n"
@@ -258,22 +253,29 @@ msgstr[2] "And this is the second plural form: %s"
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
 
-	// Init sync channels
-	c1 := make(chan bool)
-	c2 := make(chan bool)
+	var wg sync.WaitGroup
 
 	for i := 0; i < 100; i++ {
+		wg.Add(1)
 		// Test translations
-		go func(done chan bool) {
-			Get("My text")
-			done <- true
-		}(c1)
+		go func() {
+			defer wg.Done()
 
-		go func(done chan bool) {
 			Get("My text")
-			done <- true
-		}(c2)
+			GetN("One with var: %s", "Several with vars: %s", 0, "test")
+		}()
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			Get("My text")
+			GetN("One with var: %s", "Several with vars: %s", 1, "test")
+		}()
 
 		Get("My text")
+		GetN("One with var: %s", "Several with vars: %s", 2, "test")
 	}
+
+	wg.Wait()
 }
