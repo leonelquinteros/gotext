@@ -138,7 +138,10 @@ func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) stri
 	}
 
 	// Return the same we received by default
-	return fmt.Sprintf(plural, vars...)
+	if len(vars) > 0 {
+		return fmt.Sprintf(plural, vars...)
+	}
+	return plural
 }
 
 // GetC uses a domain "default" to return the corresponding translation of the given string in the given context.
@@ -175,5 +178,8 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...inte
 	}
 
 	// Return the same we received by default
-	return fmt.Sprintf(plural, vars...)
+	if len(vars) > 0 {
+		return fmt.Sprintf(plural, vars...)
+	}
+	return plural
 }
