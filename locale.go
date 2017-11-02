@@ -1,7 +1,6 @@
 package gotext
 
 import (
-	"fmt"
 	"os"
 	"path"
 	"sync"
@@ -138,7 +137,7 @@ func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) stri
 	}
 
 	// Return the same we received by default
-	return fmt.Sprintf(plural, vars...)
+	return printf(plural, vars...)
 }
 
 // GetC uses a domain "default" to return the corresponding translation of the given string in the given context.
@@ -175,5 +174,5 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...inte
 	}
 
 	// Return the same we received by default
-	return fmt.Sprintf(plural, vars...)
+	return printf(plural, vars...)
 }

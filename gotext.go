@@ -22,6 +22,8 @@ For quick/simple translations you can use the package level functions directly.
 */
 package gotext
 
+import "fmt"
+
 // Global environment variables
 var (
 	// Default domain to look at when no domain is specified. Used by package level functions.
@@ -151,4 +153,13 @@ func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) str
 
 	// Return translation
 	return storage.GetNDC(dom, str, plural, n, ctx, vars...)
+}
+
+// printf applies text formatting only when needed to parse variables.
+func printf(str string, vars ...interface{}) string {
+	if len(vars) > 0 {
+		return fmt.Sprintf(str, vars...)
+	}
+
+	return str
 }
