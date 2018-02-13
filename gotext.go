@@ -108,7 +108,7 @@ func Get(str string, vars ...interface{}) string {
 // GetN retrieves the (N)th plural form of translation for the given string in the "default" domain.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetN(str, plural string, n int, vars ...interface{}) string {
-	return GetND("default", str, plural, n, vars...)
+	return GetND(domain, str, plural, n, vars...)
 }
 
 // GetD returns the corresponding translation in the given domain for a given string.
