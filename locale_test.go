@@ -86,6 +86,9 @@ msgstr "More translation"
 	// Add domain
 	l.AddDomain("my_domain")
 
+	// Set global domain
+	SetDomain("my_domain")
+
 	// Test translations
 	tr := l.GetD("my_domain", "My text")
 	if tr != "Translated text" {
@@ -105,7 +108,17 @@ msgstr "More translation"
 	}
 
 	// Test context translations
+	tr = l.GetC("Some random in a context", "Ctx")
+	if tr != "Some random translation in a context" {
+		t.Errorf("Expected 'Some random translation in a context'. Got '%s'", tr)
+	}
+
 	v = "Test"
+	tr = l.GetNC("One with var: %s", "Several with vars: %s", 23, "Ctx", v)
+	if tr != "This one is the plural in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is the plural in a Ctx context: Test'. Got '%s'", tr)
+	}
+
 	tr = l.GetDC("my_domain", "One with var: %s", "Ctx", v)
 	if tr != "This one is the singular in a Ctx context: Test" {
 		t.Errorf("Expected 'This one is the singular in a Ctx context: Test' but got '%s'", tr)
@@ -205,6 +218,9 @@ msgstr "More translation"
 
 	// Add domain
 	l.AddDomain("my_domain")
+
+	// Set default domain to make it fail
+	SetDomain("default")
 
 	// Test non-existent "deafult" domain responses
 	tr := l.Get("My text")
