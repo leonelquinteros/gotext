@@ -136,7 +136,7 @@ msgstr "More translation"
 		t.Errorf("Expected 'This one is the plural: Variable' but got '%s'", tr)
 	}
 
-	// Test inexistent translations
+	// Test not existent translations
 	tr = po.Get("This is a test")
 	if tr != "This is a test" {
 		t.Errorf("Expected 'This is a test' but got '%s'", tr)
@@ -204,6 +204,37 @@ func TestPlural(t *testing.T) {
 msgid   ""
 msgstr  ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Singular: %s"
+msgid_plural "Plural: %s"
+msgstr[0] "TR Singular: %s"
+msgstr[1] "TR Plural: %s"
+msgstr[2] "TR Plural 2: %s"
+
+	
+`
+	// Create po object
+	po := new(Po)
+	po.Parse(str)
+
+	v := "Var"
+	tr := po.GetN("Singular: %s", "Plural: %s", 2, v)
+	if tr != "TR Plural: Var" {
+		t.Errorf("Expected 'TR Plural: Var' but got '%s'", tr)
+	}
+
+	tr = po.GetN("Singular: %s", "Plural: %s", 1, v)
+	if tr != "TR Singular: Var" {
+		t.Errorf("Expected 'TR Singular: Var' but got '%s'", tr)
+	}
+}
+
+
+func TestPluralNoHeaderInformation(t *testing.T) {
+	// Set PO content
+	str := `
+msgid   ""
+msgstr  ""
 
 msgid "Singular: %s"
 msgid_plural "Plural: %s"
