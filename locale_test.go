@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2018 DeineAgentur UG https://www.deineagentur.com. All rights reserved.
+ * Licensed under the MIT License. See LICENSE file in the project root for full license information.
+ */
+
 package gotext
 
 import (
@@ -45,14 +50,14 @@ msgstr[0] "This one is the singular in a Ctx context: %s"
 msgstr[1] "This one is the plural in a Ctx context: %s"
 
 msgid "Some random"
-msgstr "Some random translation"
+msgstr "Some random Translation"
 
 msgctxt "Ctx"
 msgid "Some random in a context"
-msgstr "Some random translation in a context"
+msgstr "Some random Translation in a context"
 
 msgid "More"
-msgstr "More translation"
+msgstr "More Translation"
 
 	`
 
@@ -81,13 +86,10 @@ msgstr "More translation"
 	l := NewLocale("/tmp", "en_US")
 
 	// Force nil domain storage
-	l.domains = nil
+	l.Domains = nil
 
 	// Add domain
 	l.AddDomain("my_domain")
-
-	// Set global domain
-	SetDomain("my_domain")
 
 	// Test translations
 	tr := l.GetD("my_domain", "My text")
@@ -109,8 +111,8 @@ msgstr "More translation"
 
 	// Test context translations
 	tr = l.GetC("Some random in a context", "Ctx")
-	if tr != "Some random translation in a context" {
-		t.Errorf("Expected 'Some random translation in a context'. Got '%s'", tr)
+	if tr != "Some random Translation in a context" {
+		t.Errorf("Expected 'Some random Translation in a context'. Got '%s'", tr)
 	}
 
 	v = "Test"
@@ -130,10 +132,10 @@ msgstr "More translation"
 		t.Errorf("Expected 'This one is the plural in a Ctx context: Test' but got '%s'", tr)
 	}
 
-	// Test last translation
+	// Test last Translation
 	tr = l.GetD("my_domain", "More")
-	if tr != "More translation" {
-		t.Errorf("Expected 'More translation' but got '%s'", tr)
+	if tr != "More Translation" {
+		t.Errorf("Expected 'More Translation' but got '%s'", tr)
 	}
 }
 
@@ -178,14 +180,14 @@ msgstr[0] "This one is the singular in a Ctx context: %s"
 msgstr[1] "This one is the plural in a Ctx context: %s"
 
 msgid "Some random"
-msgstr "Some random translation"
+msgstr "Some random Translation"
 
 msgctxt "Ctx"
 msgid "Some random in a context"
-msgstr "Some random translation in a context"
+msgstr "Some random Translation in a context"
 
 msgid "More"
-msgstr "More translation"
+msgstr "More Translation"
 
 	`
 
@@ -214,16 +216,28 @@ msgstr "More translation"
 	l := NewLocale("/tmp", "en_US")
 
 	// Force nil domain storage
-	l.domains = nil
+	l.Domains = nil
 
 	// Add domain
 	l.AddDomain("my_domain")
 
-	// Set default domain to make it fail
-	SetDomain("default")
+	// Test non-existent "default" domain responses
+	tr := l.GetDomain()
+	if tr != "my_domain" {
+		t.Errorf("Expected 'my_domain' but got '%s'", tr)
+	}
 
-	// Test non-existent "deafult" domain responses
-	tr := l.Get("My text")
+	// Set default domain to make it fail
+	l.SetDomain("default")
+
+	// Test non-existent "default" domain responses
+	tr = l.GetDomain()
+	if tr != "default" {
+		t.Errorf("Expected 'default' but got '%s'", tr)
+	}
+
+	// Test non-existent "default" domain responses
+	tr = l.Get("My text")
 	if tr != "My text" {
 		t.Errorf("Expected 'My text' but got '%s'", tr)
 	}
@@ -249,6 +263,121 @@ msgstr "More translation"
 	tr = l.Get("This one has invalid syntax translations")
 	if tr != "This one has invalid syntax translations" {
 		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This are tests" {
+		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+	}
+
+
+
+	// Create Locale with full language code
+	l = NewLocale("/tmp", "golem")
+
+	// Force nil domain storage
+	l.Domains = nil
+
+	// Add domain
+	l.SetDomain("my_domain")
+
+	// Test non-existent "default" domain responses
+	tr = l.GetDomain()
+	if tr != "my_domain" {
+		t.Errorf("Expected 'my_domain' but got '%s'", tr)
+	}
+
+	// Test syntax error parsed translations
+	tr = l.Get("This one has invalid syntax translations")
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This are tests" {
+		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+	}
+
+
+
+	// Create Locale with full language code
+	l = NewLocale("fixtures/", "fr_FR")
+
+	// Force nil domain storage
+	l.Domains = nil
+
+	// Add domain
+	l.SetDomain("default")
+
+	// Test non-existent "default" domain responses
+	tr = l.GetDomain()
+	if tr != "default" {
+		t.Errorf("Expected 'my_domain' but got '%s'", tr)
+	}
+
+	// Test syntax error parsed translations
+	tr = l.Get("This one has invalid syntax translations")
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This are tests" {
+		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+	}
+
+	// Create Locale with full language code
+	l = NewLocale("fixtures/", "de_DE")
+
+	// Force nil domain storage
+	l.Domains = nil
+
+	// Add domain
+	l.SetDomain("default")
+
+	// Test non-existent "default" domain responses
+	tr = l.GetDomain()
+	if tr != "default" {
+		t.Errorf("Expected 'my_domain' but got '%s'", tr)
+	}
+
+	// Test syntax error parsed translations
+	tr = l.Get("This one has invalid syntax translations")
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This are tests" {
+		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+	}
+
+
+	// Create Locale with full language code
+	l = NewLocale("fixtures/", "de_AT")
+
+	// Force nil domain storage
+	l.Domains = nil
+
+	// Add domain
+	l.SetDomain("default")
+
+	// Test non-existent "default" domain responses
+	tr = l.GetDomain()
+	if tr != "default" {
+		t.Errorf("Expected 'my_domain' but got '%s'", tr)
+	}
+
+	// Test syntax error parsed translations
+	tr = l.Get("This one has invalid syntax translations")
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+
+	// Test syntax error parsed translations
+	tr = l.GetNDC("mega", "This one has invalid syntax translations","plural",2,"ctx")
+	if tr != "plural" {
+		t.Errorf("Expected 'plural' but got '%s'", tr)
 	}
 
 	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
