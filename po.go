@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mattn/kinako/vm"
+	"github.com/leonelquinteros/gotext/plurals"
 )
 
 type translation struct {
@@ -33,7 +33,7 @@ func (t *translation) get() string {
 		}
 	}
 
-	// Return unstranlated id by default
+	// Return untranslated id by default
 	return t.id
 }
 
@@ -45,7 +45,7 @@ func (t *translation) getN(n int) string {
 		}
 	}
 
-	// Return unstranlated singular if corresponding
+	// Return untranslated singular if corresponding
 	if n == 0 {
 		return t.id
 	}
@@ -89,8 +89,9 @@ type Po struct {
 	PluralForms string
 
 	// Parsed Plural-Forms header values
-	nplurals int
-	plural   string
+	nplurals    int
+	plural      string
+	pluralforms plurals.Expression
 
 	// Storage
 	translations map[string]*translation
@@ -107,7 +108,7 @@ type Po struct {
 type parseState int
 
 const (
-	head parseState = iota
+	head        parseState = iota
 	msgCtxt
 	msgID
 	msgIDPlural
@@ -377,6 +378,11 @@ func (po *Po) parseHeaders() {
 
 		case "plural":
 			po.plural = vs[1]
+
+			if expr, err := plurals.Compile(po.plural); err == nil {
+				po.pluralforms = expr
+			}
+
 		}
 	}
 }
@@ -387,35 +393,16 @@ func (po *Po) pluralForm(n int) int {
 	po.RLock()
 	defer po.RUnlock()
 
-	// Failsafe
-	if po.nplurals < 1 {
-		return 0
-	}
-	if po.plural == "" {
-		return 0
-	}
-
-	// Init compiler
-	env := vm.NewEnv()
-	env.Define("n", n)
-
-	plural, err := env.Execute(po.plural)
-	if err != nil {
-		return 0
-	}
-	if plural.Type().Name() == "bool" {
-		if plural.Bool() {
+	// Failure fallback
+	if po.pluralforms == nil {
+		/* Use the Germanic plural rule.  */
+		if n == 1 {
+			return 0
+		} else {
 			return 1
 		}
-		// Else
-		return 0
 	}
-
-	if int(plural.Int()) > po.nplurals {
-		return 0
-	}
-
-	return int(plural.Int())
+	return po.pluralforms.Eval(uint32(n))
 }
 
 // Get retrieves the corresponding translation for the given string.
