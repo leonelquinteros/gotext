@@ -20,12 +20,13 @@ import (
 )
 
 const (
-	MoMagicLittleEndian = 0x950412de
-	MoMagicBigEndian    = 0xde120495
+	MoMagicLittleEndian = 0x950412de // MoMagicLittleEndian encoding
+	MoMagicBigEndian    = 0xde120495 // MoMagicBigEndian encoding
 
 	EotSeparator = "\x04" // msgctxt and msgid separator
 	NulSeparator = "\x00" // msgid and msgstr separator
 )
+
 /*
 Mo parses the content of any MO file and provides all the Translation functions needed.
 It's the base object used by all package methods.
@@ -77,6 +78,7 @@ type Mo struct {
 	ctxBuffer string
 }
 
+// NewMoTranslator creates a new Mo object with the Translator interface
 func NewMoTranslator() Translator {
 	return new(Mo)
 }
@@ -135,8 +137,8 @@ func (mo *Mo) Parse(buf []byte) {
 	var header struct {
 		MajorVersion uint16
 		MinorVersion uint16
-		MsgIdCount   uint32
-		MsgIdOffset  uint32
+		MsgIDCount   uint32
+		MsgIDOffset  uint32
 		MsgStrOffset uint32
 		HashSize     uint32
 		HashOffset   uint32
@@ -154,30 +156,30 @@ func (mo *Mo) Parse(buf []byte) {
 		// return fmt.Errorf("gettext: %v", "invalid version number")
 	}
 
-	msgIdStart := make([]uint32, header.MsgIdCount)
-	msgIdLen := make([]uint32, header.MsgIdCount)
-	if _, err := r.Seek(int64(header.MsgIdOffset), 0); err != nil {
+	msgIDStart := make([]uint32, header.MsgIDCount)
+	msgIDLen := make([]uint32, header.MsgIDCount)
+	if _, err := r.Seek(int64(header.MsgIDOffset), 0); err != nil {
 		return
 		// return fmt.Errorf("gettext: %v", err)
 	}
-	for i := 0; i < int(header.MsgIdCount); i++ {
-		if err := binary.Read(r, bo, &msgIdLen[i]); err != nil {
+	for i := 0; i < int(header.MsgIDCount); i++ {
+		if err := binary.Read(r, bo, &msgIDLen[i]); err != nil {
 			return
 			// return fmt.Errorf("gettext: %v", err)
 		}
-		if err := binary.Read(r, bo, &msgIdStart[i]); err != nil {
+		if err := binary.Read(r, bo, &msgIDStart[i]); err != nil {
 			return
 			// return fmt.Errorf("gettext: %v", err)
 		}
 	}
 
-	msgStrStart := make([]int32, header.MsgIdCount)
-	msgStrLen := make([]int32, header.MsgIdCount)
+	msgStrStart := make([]int32, header.MsgIDCount)
+	msgStrLen := make([]int32, header.MsgIDCount)
 	if _, err := r.Seek(int64(header.MsgStrOffset), 0); err != nil {
 		return
 		// return fmt.Errorf("gettext: %v", err)
 	}
-	for i := 0; i < int(header.MsgIdCount); i++ {
+	for i := 0; i < int(header.MsgIDCount); i++ {
 		if err := binary.Read(r, bo, &msgStrLen[i]); err != nil {
 			return
 			// return fmt.Errorf("gettext: %v", err)
@@ -188,12 +190,12 @@ func (mo *Mo) Parse(buf []byte) {
 		}
 	}
 
-	for i := 0; i < int(header.MsgIdCount); i++ {
-		if _, err := r.Seek(int64(msgIdStart[i]), 0); err != nil {
+	for i := 0; i < int(header.MsgIDCount); i++ {
+		if _, err := r.Seek(int64(msgIDStart[i]), 0); err != nil {
 			return
 			// return fmt.Errorf("gettext: %v", err)
 		}
-		msgIdData := make([]byte, msgIdLen[i])
+		msgIdData := make([]byte, msgIDLen[i])
 		if _, err := r.Read(msgIdData); err != nil {
 			return
 			// return fmt.Errorf("gettext: %v", err)
@@ -333,9 +335,9 @@ func (mo *Mo) pluralForm(n int) int {
 		/* Use the Germanic plural rule.  */
 		if n == 1 {
 			return 0
-		} else {
-			return 1
 		}
+		return 1
+
 	}
 	return mo.pluralforms.Eval(uint32(n))
 }

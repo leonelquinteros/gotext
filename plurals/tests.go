@@ -42,9 +42,8 @@ type lt struct {
 func (e lt) test(n uint32) bool {
 	if e.flipped {
 		return e.value < n
-	} else {
-		return n < e.value
 	}
+	return n < e.value
 }
 
 type gte struct {
@@ -55,9 +54,8 @@ type gte struct {
 func (e gte) test(n uint32) bool {
 	if e.flipped {
 		return e.value >= n
-	} else {
-		return n >= e.value
 	}
+	return n >= e.value
 }
 
 type lte struct {
@@ -68,9 +66,8 @@ type lte struct {
 func (e lte) test(n uint32) bool {
 	if e.flipped {
 		return e.value <= n
-	} else {
-		return n <= e.value
 	}
+	return n <= e.value
 }
 
 type and struct {
@@ -81,9 +78,8 @@ type and struct {
 func (e and) test(n uint32) bool {
 	if !e.left.test(n) {
 		return false
-	} else {
-		return e.right.test(n)
 	}
+	return e.right.test(n)
 }
 
 type or struct {
@@ -94,9 +90,8 @@ type or struct {
 func (e or) test(n uint32) bool {
 	if e.left.test(n) {
 		return true
-	} else {
-		return e.right.test(n)
 	}
+	return e.right.test(n)
 }
 
 type pipe struct {

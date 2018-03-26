@@ -5,12 +5,14 @@
 
 package gotext
 
+// Translation is the struct for the Translations parsed via Po or Mo files and all coming parsers
 type Translation struct {
 	ID       string
 	PluralID string
 	Trs      map[int]string
 }
 
+// NewTranslation returns the Translation object and initialized it.
 func NewTranslation() *Translation {
 	tr := new(Translation)
 	tr.Trs = make(map[int]string)
@@ -18,6 +20,7 @@ func NewTranslation() *Translation {
 	return tr
 }
 
+// Get returns the string of the translation
 func (t *Translation) Get() string {
 	// Look for Translation index 0
 	if _, ok := t.Trs[0]; ok {
@@ -30,6 +33,7 @@ func (t *Translation) Get() string {
 	return t.ID
 }
 
+// Get returns the string of the plural translation
 func (t *Translation) GetN(n int) string {
 	// Look for Translation index
 	if _, ok := t.Trs[n]; ok {

@@ -11,8 +11,9 @@ import (
 	"strings"
 )
 
-var re = regexp.MustCompile(`%\(([a-zA-Z0-9_]+)\)[.0-9]*[xsvTtbcdoqXxUeEfFgGp]`)
+var re = regexp.MustCompile(`%\(([a-zA-Z0-9_]+)\)[.0-9]*[svTtbcdoqXxUeEfFgGp]`)
 
+// SimplifiedLocale simplified locale like " en_US"/"de_DE "/en_US.UTF-8/zh_CN/zh_TW/el_GR@euro/... to en_US, de_DE, zh_CN, el_GR...
 func SimplifiedLocale(lang string) string {
 	// en_US/en_US.UTF-8/zh_CN/zh_TW/el_GR@euro/...
 	if idx := strings.Index(lang, ":"); idx != -1 {
@@ -27,7 +28,7 @@ func SimplifiedLocale(lang string) string {
 	return strings.TrimSpace(lang)
 }
 
-// printf applies text formatting only when needed to parse variables.
+// Printf applies text formatting only when needed to parse variables.
 func Printf(str string, vars ...interface{}) string {
 	if len(vars) > 0 {
 		return fmt.Sprintf(str, vars...)
@@ -36,8 +37,8 @@ func Printf(str string, vars ...interface{}) string {
 	return str
 }
 
-
 // NPrintf support named format
+// NPrintf("%(name)s is Type %(type)s", map[string]interface{}{"name": "Gotext", "type": "struct"})
 func NPrintf(format string, params map[string]interface{}) {
 	f, p := parseSprintf(format, params)
 	fmt.Printf(f, p...)

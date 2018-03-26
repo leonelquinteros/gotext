@@ -2,6 +2,10 @@
  * Copyright (c) 2018 DeineAgentur UG https://www.deineagentur.com. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for full license information.
  */
+
+/*
+ Package plurals is the pluralform compiler to get the correct translation id of the plural string
+*/
 package plurals
 
 import (
@@ -18,10 +22,6 @@ type match struct {
 }
 
 var pat = regexp.MustCompile(`(\?|:|\|\||&&|==|!=|>=|>|<=|<|%|\d+|n)`)
-
-type exprToken interface {
-	compile(tokens []string) (expr Expression, err error)
-}
 
 type testToken interface {
 	compile(tokens []string) (test test, err error)
@@ -47,18 +47,18 @@ func (ternaryStruct) compile(tokens []string) (expr Expression, err error) {
 	if err != nil {
 		return expr, err
 	}
-	true_action, err := compileExpression(strings.Join(actions.Left, ""))
+	trueAction, err := compileExpression(strings.Join(actions.Left, ""))
 	if err != nil {
 		return expr, err
 	}
-	false_action, err := compileExpression(strings.Join(actions.Right, ""))
+	falseAction, err := compileExpression(strings.Join(actions.Right, ""))
 	if err != nil {
 		return expr, nil
 	}
 	return ternary{
 		test:      test,
-		trueExpr:  true_action,
-		falseExpr: false_action,
+		trueExpr:  trueAction,
+		falseExpr: falseAction,
 	}, nil
 }
 
@@ -180,9 +180,9 @@ func compileEquality(tokens []string, sep string, builder cmpTestBuilder) (test 
 		return builder(i, true), nil
 	} else if contains(split.Left, "n") && contains(split.Left, "%") {
 		return subPipe(split.Left, split.Right, builder, false)
-	} else {
-		return test, errors.New("equality test must have 'n' as one of the two tests")
 	}
+	return test, errors.New("equality test must have 'n' as one of the two tests")
+
 }
 
 var eqToken eqStruct
@@ -325,7 +325,7 @@ func scan(s string) <-chan match {
 }
 
 // Split the string into tokens
-func split(s string) <- chan string {
+func split(s string) <-chan string {
 	ch := make(chan string)
 	go func() {
 		s = strings.Replace(s, " ", "", -1)
@@ -405,9 +405,8 @@ func compileExpression(s string) (expr Expression, err error) {
 	tokens := tokenize(s)
 	if contains(tokens, "?") {
 		return ternaryToken.compile(tokens)
-	} else {
-		return constToken.compile(tokens)
 	}
+	return constToken.compile(tokens)
 }
 
 // Compiles a test (comparison)
@@ -425,7 +424,6 @@ func parseUint32(s string) (ui uint32, err error) {
 	i, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
 		return ui, err
-	} else {
-		return uint32(i), nil
 	}
+	return uint32(i), nil
 }

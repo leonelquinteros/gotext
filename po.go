@@ -71,13 +71,14 @@ type Po struct {
 type parseState int
 
 const (
-	head        parseState = iota
+	head parseState = iota
 	msgCtxt
 	msgID
 	msgIDPlural
 	msgStr
 )
 
+// NewPoTranslator creates a new Po object with the Translator interface
 func NewPoTranslator() Translator {
 	return new(Po)
 }
