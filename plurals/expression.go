@@ -35,10 +35,9 @@ func (t ternary) Eval(n uint32) int {
 			return -1
 		}
 		return t.trueExpr.Eval(n)
-	} else {
-		if t.falseExpr == nil {
-			return -1
-		}
-		return t.falseExpr.Eval(n)
 	}
+	if t.falseExpr == nil {
+		return -1
+	}
+	return t.falseExpr.Eval(n)
 }

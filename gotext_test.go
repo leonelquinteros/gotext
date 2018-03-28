@@ -3,6 +3,7 @@ package gotext
 import (
 	"os"
 	"path"
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -65,14 +66,14 @@ msgstr[0] "This one is the singular in a Ctx context: %s"
 msgstr[1] "This one is the plural in a Ctx context: %s"
 
 msgid "Some random"
-msgstr "Some random translation"
+msgstr "Some random Translation"
 
 msgctxt "Ctx"
 msgid "Some random in a context"
-msgstr "Some random translation in a context"
+msgstr "Some random Translation in a context"
 
 msgid "More"
-msgstr "More translation"
+msgstr "More Translation"
 
 msgid "Untranslated"
 msgid_plural "Several untranslated"
@@ -95,12 +96,14 @@ msgstr[1] ""
 	if err != nil {
 		t.Fatalf("Can't create test file: %s", err.Error())
 	}
-	defer f.Close()
 
 	_, err = f.WriteString(str)
 	if err != nil {
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
+
+	// Move file close to write the file, so we can use it in the next step
+	f.Close()
 
 	// Set package configuration
 	Configure("/tmp", "en_US", "default")
@@ -125,8 +128,8 @@ msgstr[1] ""
 
 	// Test context translations
 	tr = GetC("Some random in a context", "Ctx")
-	if tr != "Some random translation in a context" {
-		t.Errorf("Expected 'Some random translation in a context' but got '%s'", tr)
+	if tr != "Some random Translation in a context" {
+		t.Errorf("Expected 'Some random Translation in a context' but got '%s'", tr)
 	}
 
 	v = "Variable"
@@ -214,6 +217,38 @@ msgstr[1] ""
 	}
 }
 
+func TestMoAndPoTranslator(t *testing.T) {
+
+	fixPath, _ := filepath.Abs("./fixtures/")
+
+	Configure(fixPath, "en_GB", "default")
+
+	// Check default domain Translation
+	SetDomain("default")
+	tr := Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text'. Got '%s'", tr)
+	}
+	tr = Get("language")
+	if tr != "en_GB" {
+		t.Errorf("Expected 'en_GB'. Got '%s'", tr)
+	}
+
+	// Change Language (locale)
+	SetLanguage("en_AU")
+
+	// Check default domain Translation
+	SetDomain("default")
+	tr = Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text'. Got '%s'", tr)
+	}
+	tr = Get("language")
+	if tr != "en_AU" {
+		t.Errorf("Expected 'en_AU'. Got '%s'", tr)
+	}
+}
+
 func TestDomains(t *testing.T) {
 	// Set PO content
 	strDefault := `
@@ -222,13 +257,13 @@ msgstr "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 msgid "Default text"
 msgid_plural "Default texts"
-msgstr[0] "Default translation"
+msgstr[0] "Default Translation"
 msgstr[1] "Default translations"
 
 msgctxt "Ctx"
 msgid "Default context"
 msgid_plural "Default contexts"
-msgstr[0] "Default ctx translation"
+msgstr[0] "Default ctx Translation"
 msgstr[1] "Default ctx translations"
 	`
 
@@ -238,13 +273,13 @@ msgstr "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 msgid "Custom text"
 msgid_plural "Custom texts"
-msgstr[0] "Custom translation"
+msgstr[0] "Custom Translation"
 msgstr[1] "Custom translations"
 
 msgctxt "Ctx"
 msgid "Custom context"
 msgid_plural "Custom contexts"
-msgstr[0] "Custom ctx translation"
+msgstr[0] "Custom ctx Translation"
 msgstr[1] "Custom ctx translations"
 	`
 
@@ -278,19 +313,19 @@ msgstr[1] "Custom ctx translations"
 
 	Configure("/tmp", "en_US", "default")
 
-	// Check default domain translation
+	// Check default domain Translation
 	SetDomain("default")
 	tr := Get("Default text")
-	if tr != "Default translation" {
-		t.Errorf("Expected 'Default translation'. Got '%s'", tr)
+	if tr != "Default Translation" {
+		t.Errorf("Expected 'Default Translation'. Got '%s'", tr)
 	}
 	tr = GetN("Default text", "Default texts", 23)
 	if tr != "Default translations" {
 		t.Errorf("Expected 'Default translations'. Got '%s'", tr)
 	}
 	tr = GetC("Default context", "Ctx")
-	if tr != "Default ctx translation" {
-		t.Errorf("Expected 'Default ctx translation'. Got '%s'", tr)
+	if tr != "Default ctx Translation" {
+		t.Errorf("Expected 'Default ctx Translation'. Got '%s'", tr)
 	}
 	tr = GetNC("Default context", "Default contexts", 23, "Ctx")
 	if tr != "Default ctx translations" {
@@ -299,16 +334,16 @@ msgstr[1] "Custom ctx translations"
 
 	SetDomain("custom")
 	tr = Get("Custom text")
-	if tr != "Custom translation" {
-		t.Errorf("Expected 'Custom translation'. Got '%s'", tr)
+	if tr != "Custom Translation" {
+		t.Errorf("Expected 'Custom Translation'. Got '%s'", tr)
 	}
 	tr = GetN("Custom text", "Custom texts", 23)
 	if tr != "Custom translations" {
 		t.Errorf("Expected 'Custom translations'. Got '%s'", tr)
 	}
 	tr = GetC("Custom context", "Ctx")
-	if tr != "Custom ctx translation" {
-		t.Errorf("Expected 'Custom ctx translation'. Got '%s'", tr)
+	if tr != "Custom ctx Translation" {
+		t.Errorf("Expected 'Custom ctx Translation'. Got '%s'", tr)
 	}
 	tr = GetNC("Custom context", "Custom contexts", 23, "Ctx")
 	if tr != "Custom ctx translations" {
@@ -334,7 +369,7 @@ msgstr[2] "And this is the second plural form: %s"
 
 msgctxt "Ctx"
 msgid "Some random in a context"
-msgstr "Some random translation in a context"
+msgstr "Some random Translation in a context"
 
 	`
 
