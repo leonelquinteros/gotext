@@ -67,6 +67,7 @@ func loadStorage(force bool) {
 	if _, ok := globalConfig.storage.Domains[globalConfig.domain]; !ok || force {
 		globalConfig.storage.AddDomain(globalConfig.domain)
 	}
+	globalConfig.storage.SetDomain(globalConfig.domain)
 
 	globalConfig.Unlock()
 }
@@ -143,12 +144,9 @@ func SetLibrary(lib string) {
 // as using each setter will introduce a I/O overhead because the Translation file will be loaded after each set.
 func Configure(lib, lang, dom string) {
 	globalConfig.Lock()
-
 	globalConfig.library = lib
 	globalConfig.language = SimplifiedLocale(lang)
 	globalConfig.domain = dom
-	globalConfig.storage.SetDomain(dom)
-
 	globalConfig.Unlock()
 
 	loadStorage(true)
