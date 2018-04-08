@@ -18,6 +18,7 @@
   - Support for variables inside translation strings using Go's [fmt syntax](https://golang.org/pkg/fmt/).
   - Support for [pluralization rules](https://www.gnu.org/software/gettext/manual/html_node/Translating-plural-forms.html).
   - Support for [message contexts](https://www.gnu.org/software/gettext/manual/html_node/Contexts.html).
+- Support for MO files. 
 - Thread-safe: This package is safe for concurrent use across multiple goroutines. 
 - It works with UTF-8 encoding as it's the default for Go language.
 - Unit tests available.
@@ -46,14 +47,29 @@ go get github.com/leonelquinteros/gotext
 - No need for environment variables. Some naming conventions are applied but not needed.  
 
 
-#### Version vendoring
+### Version vendoring
 
 Stable releases use [semantic versioning](http://semver.org/spec/v2.0.0.html) tagging on this repository.
 
 You can rely on this to use your preferred vendoring tool or to manually retrieve the corresponding release tag from the GitHub repository.
 
 
-##### Vendoring with [gopkg.in](http://labix.org/gopkg.in)
+#### Vendoring with [dep](https://golang.github.io/dep/)
+
+To use last stable version (v1.3.1 at the moment of writing)
+
+```
+dep ensure -add github.com/leonelquinteros/gotext@v1.3.1
+```
+
+Import as
+
+```go
+import "github.com/leonelquinteros/gotext"
+```
+
+
+#### Vendoring with [gopkg.in](http://labix.org/gopkg.in)
 
 [http://gopkg.in/leonelquinteros/gotext.v1](http://gopkg.in/leonelquinteros/gotext.v1)
 
@@ -63,7 +79,7 @@ To get the latest v1 package stable release, execute:
 go get gopkg.in/leonelquinteros/gotext.v1
 ```
 
-To import this package, add the following line to your code:
+Import as
 
 ```go
 import "gopkg.in/leonelquinteros/gotext.v1"
