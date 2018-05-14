@@ -6,26 +6,18 @@
 - For changes and improvements, new tests have to be provided to cover the new features.
 
 
+## Is this a fix, improvement or something else?
+
+...
+
+
 ## What does this change implement/fix?
 
-... *answer here*
+... 
 
-## Is this a fix or an improvement?
 
-- [ ] Fix
-- [ ] Improvement
+## I have ...
 
-## Have discussed this change in an issue?
-
-- [ ] Yes
-- [ ] No
-
-## Was some test failing because of this issue or change needed?
-
-- [ ] Yes
-- [ ] No
-
-## Are you including tests to cover this change?
-
-- [ ] Yes
-- [ ] No
+- [ ] answered the 2 questions above,
+- [ ] discussed this change in an issue,
+- [ ] included tests to cover this changes.
