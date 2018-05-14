@@ -1,25 +1,14 @@
 # Please describe your issue
 
-## Is this a bug, an improvement, a proposal or something else? 
+### Is this a bug, an improvement, a proposal or something else? Describe it.
 
 ...
 
 
-## Briefly explain your issue
-
-...
-
-
-## What's the expected behaviour? 
+### What's the expected behaviour, the current behaviour and the steps to reproduce it?
 
 ... 
 
 
-## What's the actual behaviour and the steps to reproduce it?
-
-...
-
-
-
-## Comments
+### Comments
 
