@@ -20,11 +20,15 @@ import (
 )
 
 const (
-	MoMagicLittleEndian = 0x950412de // MoMagicLittleEndian encoding
-	MoMagicBigEndian    = 0xde120495 // MoMagicBigEndian encoding
+	// MoMagicLittleEndian encoding
+	MoMagicLittleEndian = 0x950412de
+	// MoMagicBigEndian encoding
+	MoMagicBigEndian = 0xde120495
 
-	EotSeparator = "\x04" // msgctxt and msgid separator
-	NulSeparator = "\x00" // msgid and msgstr separator
+	// EotSeparator msgctxt and msgid separator
+	EotSeparator = "\x04"
+	// NulSeparator msgid and msgstr separator
+	NulSeparator = "\x00"
 )
 
 /*
@@ -195,8 +199,8 @@ func (mo *Mo) Parse(buf []byte) {
 			return
 			// return fmt.Errorf("gettext: %v", err)
 		}
-		msgIdData := make([]byte, msgIDLen[i])
-		if _, err := r.Read(msgIdData); err != nil {
+		msgIDData := make([]byte, msgIDLen[i])
+		if _, err := r.Read(msgIDData); err != nil {
 			return
 			// return fmt.Errorf("gettext: %v", err)
 		}
@@ -211,10 +215,10 @@ func (mo *Mo) Parse(buf []byte) {
 			// return fmt.Errorf("gettext: %v", err)
 		}
 
-		if len(msgIdData) == 0 {
-			mo.addTranslation(msgIdData, msgStrData)
+		if len(msgIDData) == 0 {
+			mo.addTranslation(msgIDData, msgStrData)
 		} else {
-			mo.addTranslation(msgIdData, msgStrData)
+			mo.addTranslation(msgIDData, msgStrData)
 		}
 	}
 

@@ -33,7 +33,7 @@ func (t *Translation) Get() string {
 	return t.ID
 }
 
-// Get returns the string of the plural translation
+// GetN returns the string of the plural translation
 func (t *Translation) GetN(n int) string {
 	// Look for Translation index
 	if _, ok := t.Trs[n]; ok {

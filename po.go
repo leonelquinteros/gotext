@@ -366,9 +366,8 @@ func (po *Po) pluralForm(n int) int {
 		/* Use the Germanic plural rule.  */
 		if n == 1 {
 			return 0
-		} else {
-			return 1
 		}
+		return 1
 	}
 	return po.pluralforms.Eval(uint32(n))
 }
