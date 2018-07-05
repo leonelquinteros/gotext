@@ -270,8 +270,6 @@ msgstr "More Translation"
 		t.Errorf("Expected 'Plural index' but got '%s'", tr)
 	}
 
-
-
 	// Create Locale with full language code
 	l = NewLocale("/tmp", "golem")
 
@@ -297,8 +295,6 @@ msgstr "More Translation"
 	if tr != "This are tests" {
 		t.Errorf("Expected 'Plural index' but got '%s'", tr)
 	}
-
-
 
 	// Create Locale with full language code
 	l = NewLocale("fixtures/", "fr_FR")
@@ -352,7 +348,6 @@ msgstr "More Translation"
 		t.Errorf("Expected 'Plural index' but got '%s'", tr)
 	}
 
-
 	// Create Locale with full language code
 	l = NewLocale("fixtures/", "de_AT")
 
@@ -375,7 +370,7 @@ msgstr "More Translation"
 	}
 
 	// Test syntax error parsed translations
-	tr = l.GetNDC("mega", "This one has invalid syntax translations","plural",2,"ctx")
+	tr = l.GetNDC("mega", "This one has invalid syntax translations", "plural", 2, "ctx")
 	if tr != "plural" {
 		t.Errorf("Expected 'plural' but got '%s'", tr)
 	}
@@ -425,7 +420,7 @@ msgstr[2] "And this is the second plural form: %s"
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
 
-	// Create Locale with full language code
+	// Create Locale
 	l := NewLocale("/tmp", "es")
 
 	// Init sync channels
@@ -450,4 +445,29 @@ msgstr[2] "And this is the second plural form: %s"
 	// Wait for goroutines to finish
 	<-ac
 	<-rc
+}
+
+func TestAddTranslator(t *testing.T) {
+	// Create po object
+	po := new(Po)
+
+	// Parse file
+	po.ParseFile("fixtures/en_US/default.po")
+
+	// Create Locale
+	l := NewLocale("", "en")
+
+	// Add PO Translator to Locale object
+	l.AddTranslator("default", po)
+
+	// Test translations
+	tr := l.Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	}
+	// Test translations
+	tr = l.Get("language")
+	if tr != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	}
 }

@@ -59,7 +59,7 @@ type Locale struct {
 }
 
 // NewLocale creates and initializes a new Locale object for a given language.
-// It receives a path for the i18n files directory (p) and a language code to use (l).
+// It receives a path for the i18n .po/.mo files directory (p) and a language code to use (l).
 func NewLocale(p, l string) *Locale {
 	return &Locale{
 		path:    p,
@@ -133,6 +133,21 @@ func (l *Locale) AddDomain(dom string) {
 	l.Unlock()
 }
 
+// AddTranslator takes a domain name and a Translator object to make it available in the Locale object.
+func (l *Locale) AddTranslator(dom string, tr Translator) {
+	l.Lock()
+
+	if l.Domains == nil {
+		l.Domains = make(map[string]Translator)
+	}
+	if l.defaultDomain == "" {
+		l.defaultDomain = dom
+	}
+	l.Domains[dom] = tr
+
+	l.Unlock()
+}
+
 // GetDomain is the domain getter for the package configuration
 func (l *Locale) GetDomain() string {
 	l.RLock()
@@ -141,8 +156,7 @@ func (l *Locale) GetDomain() string {
 	return dom
 }
 
-// SetDomain sets the name for the domain to be used at package level.
-// It reloads the corresponding Translation file.
+// SetDomain sets the name for the domain to be used.
 func (l *Locale) SetDomain(dom string) {
 	l.Lock()
 	l.defaultDomain = dom
