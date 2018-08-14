@@ -471,3 +471,17 @@ func TestAddTranslator(t *testing.T) {
 		t.Errorf("Expected 'en_US' but got '%s'", tr)
 	}
 }
+
+func TestArabicTranslation(t *testing.T) {
+	// Create Locale
+	l := NewLocale("fixtures/", "ar")
+
+	// Add domain
+	l.AddDomain("categories")
+
+	// Get translation
+	tr := l.GetD("categories", "Alcohol & Tobacco")
+	if tr != "الكحول والتبغ" {
+		t.Errorf("Expected to get 'الكحول والتبغ', but got '%s'", tr)
+	}
+}

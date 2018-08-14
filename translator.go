@@ -5,7 +5,8 @@
 
 package gotext
 
-// Translator interface is used by Locale and Po objects
+// Translator interface is used by Locale and Po objects.Translator
+// It contains all methods needed to parse translation sources and obtain corresponding translations.
 type Translator interface {
 	ParseFile(f string)
 	Parse(buf []byte)
