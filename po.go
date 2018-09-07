@@ -7,6 +7,8 @@ package gotext
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/gob"
 	"io/ioutil"
 	"net/textproto"
 	"os"
@@ -450,4 +452,48 @@ func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler interface
+func (po *Po) MarshalBinary() ([]byte, error) {
+	obj := new(TranslatorEncoding)
+	obj.Headers = po.Headers
+	obj.Language = po.Language
+	obj.PluralForms = po.PluralForms
+	obj.Nplurals = po.nplurals
+	obj.Plural = po.plural
+	obj.Translations = po.translations
+	obj.Contexts = po.contexts
+
+	var buff bytes.Buffer
+	encoder := gob.NewEncoder(&buff)
+	err := encoder.Encode(obj)
+
+	return buff.Bytes(), err
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
+func (po *Po) UnmarshalBinary(data []byte) error {
+	buff := bytes.NewBuffer(data)
+	obj := new(TranslatorEncoding)
+
+	decoder := gob.NewDecoder(buff)
+	err := decoder.Decode(obj)
+	if err != nil {
+		return err
+	}
+
+	po.Headers = obj.Headers
+	po.Language = obj.Language
+	po.PluralForms = obj.PluralForms
+	po.nplurals = obj.Nplurals
+	po.plural = obj.Plural
+	po.translations = obj.Translations
+	po.contexts = obj.Contexts
+
+	if expr, err := plurals.Compile(po.plural); err == nil {
+		po.pluralforms = expr
+	}
+
+	return nil
 }

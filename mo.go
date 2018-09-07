@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"io/ioutil"
 	"net/textproto"
 	"os"
@@ -424,4 +425,48 @@ func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)
+}
+
+// MarshalBinary implements encoding.BinaryMarshaler interface
+func (mo *Mo) MarshalBinary() ([]byte, error) {
+	obj := new(TranslatorEncoding)
+	obj.Headers = mo.Headers
+	obj.Language = mo.Language
+	obj.PluralForms = mo.PluralForms
+	obj.Nplurals = mo.nplurals
+	obj.Plural = mo.plural
+	obj.Translations = mo.translations
+	obj.Contexts = mo.contexts
+
+	var buff bytes.Buffer
+	encoder := gob.NewEncoder(&buff)
+	err := encoder.Encode(obj)
+
+	return buff.Bytes(), err
+}
+
+// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
+func (mo *Mo) UnmarshalBinary(data []byte) error {
+	buff := bytes.NewBuffer(data)
+	obj := new(TranslatorEncoding)
+
+	decoder := gob.NewDecoder(buff)
+	err := decoder.Decode(obj)
+	if err != nil {
+		return err
+	}
+
+	mo.Headers = obj.Headers
+	mo.Language = obj.Language
+	mo.PluralForms = obj.PluralForms
+	mo.nplurals = obj.Nplurals
+	mo.plural = obj.Plural
+	mo.translations = obj.Translations
+	mo.contexts = obj.Contexts
+
+	if expr, err := plurals.Compile(mo.plural); err == nil {
+		mo.pluralforms = expr
+	}
+
+	return nil
 }

@@ -23,6 +23,7 @@ For quick/simple translations you can use the package level functions directly.
 package gotext
 
 import (
+	"encoding/gob"
 	"sync"
 )
 
@@ -45,14 +46,17 @@ type config struct {
 
 var globalConfig *config
 
-// Init default configuration
 func init() {
+	// Init default configuration
 	globalConfig = &config{
 		domain:   "default",
 		language: "en_US",
 		library:  "/usr/local/share/locale",
 		storage:  nil,
 	}
+
+	// Register Translator types for gob encoding
+	gob.Register(TranslatorEncoding{})
 }
 
 // loadStorage creates a new Locale object at package level based on the Global variables settings.

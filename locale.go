@@ -6,6 +6,8 @@
 package gotext
 
 import (
+	"bytes"
+	"encoding/gob"
 	"os"
 	"path"
 	"sync"
@@ -19,6 +21,8 @@ multiple languages at the same time by working with this object.
 Example:
 
     import (
+	"encoding/gob"
+	"bytes"
 	    "fmt"
 	    "github.com/leonelquinteros/gotext"
     )
@@ -235,4 +239,66 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...inte
 
 	// Return the same we received by default
 	return Printf(plural, vars...)
+}
+
+// LocaleEncoding is used as intermediary storage to encode Locale objects to Gob.
+type LocaleEncoding struct {
+	Path          string
+	Lang          string
+	Domains       map[string][]byte
+	DefaultDomain string
+}
+
+// MarshalBinary implements encoding BinaryMarshaler interface
+func (l *Locale) MarshalBinary() ([]byte, error) {
+	obj := new(LocaleEncoding)
+	obj.DefaultDomain = l.defaultDomain
+	obj.Domains = make(map[string][]byte)
+	for k, v := range l.Domains {
+		var err error
+		obj.Domains[k], err = v.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+	}
+	obj.Lang = l.lang
+	obj.Path = l.path
+
+	var buff bytes.Buffer
+	encoder := gob.NewEncoder(&buff)
+	err := encoder.Encode(obj)
+
+	return buff.Bytes(), err
+}
+
+// UnmarshalBinary implements encoding BinaryUnmarshaler interface
+func (l *Locale) UnmarshalBinary(data []byte) error {
+	buff := bytes.NewBuffer(data)
+	obj := new(LocaleEncoding)
+
+	decoder := gob.NewDecoder(buff)
+	err := decoder.Decode(obj)
+	if err != nil {
+		return err
+	}
+
+	l.defaultDomain = obj.DefaultDomain
+	l.lang = obj.Lang
+	l.path = obj.Path
+
+	// Decode Domains
+	l.Domains = make(map[string]Translator)
+	for k, v := range obj.Domains {
+		var tr TranslatorEncoding
+		buff := bytes.NewBuffer(v)
+		trDecoder := gob.NewDecoder(buff)
+		err := trDecoder.Decode(&tr)
+		if err != nil {
+			return err
+		}
+
+		l.Domains[k] = tr.GetTranslator()
+	}
+
+	return nil
 }

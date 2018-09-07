@@ -202,3 +202,33 @@ func TestNewMoTranslatorRace(t *testing.T) {
 	<-pc
 	<-rc
 }
+
+func TestMoBinaryEncoding(t *testing.T) {
+	// Create mo objects
+	mo := new(Mo)
+	mo2 := new(Mo)
+
+	// Parse file
+	mo.ParseFile("fixtures/en_US/default.mo")
+
+	buff, err := mo.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = mo2.UnmarshalBinary(buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test translations
+	tr := mo2.Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	}
+	// Test translations
+	tr = mo2.Get("language")
+	if tr != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	}
+}

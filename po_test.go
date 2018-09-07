@@ -9,11 +9,9 @@ import (
 	"os"
 	"path"
 	"testing"
-
 )
 
 func TestPo_Get(t *testing.T) {
-
 	// Create po object
 	po := new(Po)
 
@@ -589,7 +587,6 @@ msgstr[2] "And this is the second plural form: %s"
 }
 
 func TestNewPoTranslatorRace(t *testing.T) {
-
 	// Create Po object
 	mo := NewPoTranslator()
 
@@ -616,4 +613,34 @@ func TestNewPoTranslatorRace(t *testing.T) {
 	// Wait for goroutines to finish
 	<-pc
 	<-rc
+}
+
+func TestPoBinaryEncoding(t *testing.T) {
+	// Create po objects
+	po := new(Po)
+	po2 := new(Po)
+
+	// Parse file
+	po.ParseFile("fixtures/en_US/default.po")
+
+	buff, err := po.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = po2.UnmarshalBinary(buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test translations
+	tr := po2.Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	}
+	// Test translations
+	tr = po2.Get("language")
+	if tr != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	}
 }

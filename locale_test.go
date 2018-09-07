@@ -485,3 +485,42 @@ func TestArabicTranslation(t *testing.T) {
 		t.Errorf("Expected to get 'الكحول والتبغ', but got '%s'", tr)
 	}
 }
+
+func TestLocaleBinaryEncoding(t *testing.T) {
+	// Create Locale
+	l := NewLocale("fixtures/", "en_US")
+	l.AddDomain("default")
+
+	buff, err := l.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l2 := new(Locale)
+	err = l2.UnmarshalBinary(buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Check object properties
+	if l.path != l2.path {
+		t.Fatalf("path doesn't match: '%s' vs '%s'", l.path, l2.path)
+	}
+	if l.lang != l2.lang {
+		t.Fatalf("lang doesn't match: '%s' vs '%s'", l.lang, l2.lang)
+	}
+	if l.defaultDomain != l2.defaultDomain {
+		t.Fatalf("defaultDomain doesn't match: '%s' vs '%s'", l.defaultDomain, l2.defaultDomain)
+	}
+
+	// Check translations
+	if l.Get("My text") != l2.Get("My text") {
+		t.Errorf("'%s' is different from '%s", l.Get("My text"), l2.Get("My text"))
+	}
+	if l.Get("More") != l2.Get("More") {
+		t.Errorf("'%s' is different from '%s", l.Get("More"), l2.Get("More"))
+	}
+	if l.GetN("One with var: %s", "Several with vars: %s", 3, "VALUE") != l2.GetN("One with var: %s", "Several with vars: %s", 3, "VALUE") {
+		t.Errorf("'%s' is different from '%s", l.GetN("One with var: %s", "Several with vars: %s", 3, "VALUE"), l2.GetN("One with var: %s", "Several with vars: %s", 3, "VALUE"))
+	}
+}
