@@ -24,6 +24,7 @@
 - Unit tests available.
 - Language codes are automatically simplified from the form `en_UK` to `en` if the first isn't available.
 - Ready to use inside Go templates.
+- Objects are serializable to []byte to store them in cache.
 
 
 # License
