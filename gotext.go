@@ -63,6 +63,7 @@ func init() {
 // It's called automatically when trying to use Get or GetD methods.
 func loadStorage(force bool) {
 	globalConfig.Lock()
+	defer globalConfig.Unlock()
 
 	if globalConfig.storage == nil || force {
 		globalConfig.storage = NewLocale(globalConfig.library, globalConfig.language)
@@ -73,20 +74,19 @@ func loadStorage(force bool) {
 	}
 	globalConfig.storage.SetDomain(globalConfig.domain)
 
-	globalConfig.Unlock()
 }
 
 // GetDomain is the domain getter for the package configuration
 func GetDomain() string {
 	var dom string
 	globalConfig.RLock()
+	defer globalConfig.RUnlock()
 	if globalConfig.storage != nil {
 		dom = globalConfig.storage.GetDomain()
 	}
 	if dom == "" {
 		dom = globalConfig.domain
 	}
-	globalConfig.RUnlock()
 
 	return dom
 }
@@ -95,11 +95,11 @@ func GetDomain() string {
 // It reloads the corresponding Translation file.
 func SetDomain(dom string) {
 	globalConfig.Lock()
+	defer globalConfig.Unlock()
 	globalConfig.domain = dom
 	if globalConfig.storage != nil {
 		globalConfig.storage.SetDomain(dom)
 	}
-	globalConfig.Unlock()
 
 	loadStorage(true)
 }
@@ -107,18 +107,16 @@ func SetDomain(dom string) {
 // GetLanguage is the language getter for the package configuration
 func GetLanguage() string {
 	globalConfig.RLock()
-	lang := globalConfig.language
-	globalConfig.RUnlock()
-
-	return lang
+	defer globalConfig.RUnlock()
+	return globalConfig.language
 }
 
 // SetLanguage sets the language code to be used at package level.
 // It reloads the corresponding Translation file.
 func SetLanguage(lang string) {
 	globalConfig.Lock()
+	defer globalConfig.Unlock()
 	globalConfig.language = SimplifiedLocale(lang)
-	globalConfig.Unlock()
 
 	loadStorage(true)
 }
@@ -126,18 +124,16 @@ func SetLanguage(lang string) {
 // GetLibrary is the library getter for the package configuration
 func GetLibrary() string {
 	globalConfig.RLock()
-	lib := globalConfig.library
-	globalConfig.RUnlock()
-
-	return lib
+	defer globalConfig.RUnlock()
+	return globalConfig.library
 }
 
 // SetLibrary sets the root path for the loale directories and files to be used at package level.
 // It reloads the corresponding Translation file.
 func SetLibrary(lib string) {
 	globalConfig.Lock()
+	defer globalConfig.Unlock()
 	globalConfig.library = lib
-	globalConfig.Unlock()
 
 	loadStorage(true)
 }
@@ -148,10 +144,10 @@ func SetLibrary(lib string) {
 // as using each setter will introduce a I/O overhead because the Translation file will be loaded after each set.
 func Configure(lib, lang, dom string) {
 	globalConfig.Lock()
+	defer globalConfig.Unlock()
 	globalConfig.library = lib
 	globalConfig.language = SimplifiedLocale(lang)
 	globalConfig.domain = dom
-	globalConfig.Unlock()
 
 	loadStorage(true)
 }
@@ -182,8 +178,8 @@ func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 
 	// Return Translation
 	globalConfig.RLock()
+	defer globalConfig.RUnlock()
 	tr := globalConfig.storage.GetND(dom, str, plural, n, vars...)
-	globalConfig.RUnlock()
 
 	return tr
 }
@@ -214,8 +210,8 @@ func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) str
 
 	// Return Translation
 	globalConfig.RLock()
+	defer globalConfig.RUnlock()
 	tr := globalConfig.storage.GetNDC(dom, str, plural, n, ctx, vars...)
-	globalConfig.RUnlock()
 
 	return tr
 }
