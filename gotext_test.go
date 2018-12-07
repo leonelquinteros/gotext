@@ -82,6 +82,22 @@ msgstr[1] ""
 
 	`
 
+	anotherStr := `
+msgid   ""
+msgstr  "Project-Id-Version: %s\n"
+        "Report-Msgid-Bugs-To: %s\n"
+
+# Initial comment
+# More Headers below
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Another text on a different domain"
+msgstr "Another text on another domain"
+  `
+
 	// Create Locales directory on default location
 	dirname := path.Join("/tmp", "en_US")
 	err := os.MkdirAll(dirname, os.ModePerm)
@@ -102,8 +118,21 @@ msgstr[1] ""
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
 
+	anotherFilename := path.Join(dirname, "another.po")
+
+	af, err := os.Create(anotherFilename)
+	if err != nil {
+		t.Fatalf("Can't create test file: %s", err.Error())
+	}
+
+	_, err = af.WriteString(anotherStr)
+	if err != nil {
+		t.Fatalf("Can't write to test file: %s", err.Error())
+	}
+
 	// Move file close to write the file, so we can use it in the next step
 	f.Close()
+	af.Close()
 
 	// Set package configuration
 	Configure("/tmp", "en_US", "default")
@@ -141,6 +170,11 @@ msgstr[1] ""
 	tr = GetNC("One with var: %s", "Several with vars: %s", 19, "Ctx", v)
 	if tr != "This one is the plural in a Ctx context: Variable" {
 		t.Errorf("Expected 'This one is the plural in a Ctx context: Variable' but got '%s'", tr)
+	}
+
+	tr = GetD("another", "Another text on a different domain")
+	if tr != "Another text on another domain" {
+		t.Errorf("Expected 'Another text on another domain' but got '%s'", tr)
 	}
 }
 
