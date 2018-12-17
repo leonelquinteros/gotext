@@ -182,6 +182,11 @@ func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 
 	// Return Translation
 	globalConfig.RLock()
+
+	if _, ok := globalConfig.storage.Domains[dom]; !ok {
+		globalConfig.storage.AddDomain(dom)
+	}
+
 	tr := globalConfig.storage.GetND(dom, str, plural, n, vars...)
 	globalConfig.RUnlock()
 
