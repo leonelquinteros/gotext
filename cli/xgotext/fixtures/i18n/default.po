@@ -1,0 +1,28 @@
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: \n"
+"X-Generator: xgotext\n"
+
+	
+#: fixtures/main.go:23
+#. gotext.Get
+msgid "My text on 'domain-name' domain"
+msgstr ""
+
+#: fixtures/main.go:38
+#. l.GetN
+msgid "Singular"
+msgid_plural "Plural"
+msgstr[0] ""
+msgstr[1] ""
+
+#: fixtures/main.go:40
+#. l.GetN
+msgid "SingularVar"
+msgid_plural "PluralVar"
+msgstr[0] ""
+msgstr[1] ""

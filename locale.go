@@ -152,7 +152,7 @@ func (l *Locale) AddTranslator(dom string, tr Translator) {
 	l.Unlock()
 }
 
-// GetDomain is the domain getter for the package configuration
+// GetDomain is the domain getter for Locale configuration
 func (l *Locale) GetDomain() string {
 	l.RLock()
 	dom := l.defaultDomain
