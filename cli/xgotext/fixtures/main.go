@@ -29,7 +29,8 @@ func main() {
 	l := gotext.NewLocale("/path/to/locales/root/dir", "es_UY")
 
 	// Load domain '/path/to/locales/root/dir/es_UY/default.po'
-	l.AddDomain("default")
+	l.AddDomain("translations")
+	l.SetDomain("translations")
 
 	// Translate text from domain
 	fmt.Println(l.GetD("translations", "Translate this"))
@@ -39,7 +40,7 @@ func main() {
 	num := 17
 	l.GetN("SingularVar", "PluralVar", num)
 
-	l.GetDC("domain", "string", "ctx")
+	l.GetDC("domain2", "string", "ctx")
 	l.GetNDC("translations", "ndc", "ndcs", 7, "NDC-CTX")
 
 	f := Fake{}

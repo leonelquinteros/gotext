@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -12,8 +13,9 @@ import (
 )
 
 var (
-	dirName       string
-	outputDir     string
+	debug         = flag.Bool("debug", false, "enable debug mode and print AST")
+	dirName       = flag.String("in", "", "input dir: /path/to/go/pkg")
+	outputDir     = flag.String("out", "", "output dir: /path/to/i18n/files")
 	fset          *token.FileSet
 	domainFiles   map[string]*os.File
 	currentDomain = "default"
@@ -21,33 +23,26 @@ var (
 )
 
 func main() {
+	flag.Parse()
+
 	// Init logger
 	log.SetFlags(0)
 
 	// Init domain files
 	domainFiles = make(map[string]*os.File)
 
-	// Validate args
-	if len(os.Args) < 2 {
-		log.Println("Usage: ")
-		log.Fatal("$ xgotext /path/to/package [ /path/to/output/dir ]")
-	}
-	if len(os.Args) > 2 {
-		outputDir = os.Args[2]
-	}
-
 	// Check if dir name parameter is valid
-	dirName = os.Args[1]
-	f, err := os.Stat(dirName)
+	log.Println(*dirName)
+	f, err := os.Stat(*dirName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Process file or dir
 	if f.IsDir() {
-		parseDir(dirName)
+		parseDir(*dirName)
 	} else {
-		parseFile(dirName)
+		parseFile(*dirName)
 	}
 }
 
@@ -58,7 +53,7 @@ func getDomainFile(domain string) *os.File {
 	}
 
 	// If the file doesn't exist, create it.
-	filePath := path.Join(outputDir, domain+".po")
+	filePath := path.Join(*outputDir, domain+".po")
 	f, err := os.OpenFile(filePath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal(err)
@@ -138,8 +133,10 @@ func parseFile(fileName string) error {
 		return err
 	}
 
-	// Debug
-	//ast.Print(fset, node)
+	// Debug mode
+	if *debug {
+		ast.Print(fset, node)
+	}
 
 	ast.Inspect(node, inspectFile)
 
@@ -182,12 +179,14 @@ func inspectCallExpr(n *ast.CallExpr) {
 		case "GetNDC":
 			parseGetNDC(n)
 
+		case "SetDomain":
+			parseSetDomain(n)
+
 		}
 	}
 }
 
 func parseGet(call *ast.CallExpr) {
-	// Expect first param to be string
 	if call.Args != nil && len(call.Args) > 0 {
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok {
 			if lit.Kind == token.STRING {
@@ -202,7 +201,6 @@ func parseGet(call *ast.CallExpr) {
 }
 
 func parseGetN(call *ast.CallExpr) {
-	// Expect at least 3 params, first 2 strings, third int
 	if call.Args == nil || len(call.Args) < 3 {
 		return
 	}
@@ -234,7 +232,6 @@ func parseGetN(call *ast.CallExpr) {
 }
 
 func parseGetD(call *ast.CallExpr) {
-	// Expect first 2 params to be string
 	if call.Args != nil && len(call.Args) > 1 {
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok {
 			if lit1, ok := call.Args[1].(*ast.BasicLit); ok {
@@ -255,7 +252,6 @@ func parseGetD(call *ast.CallExpr) {
 }
 
 func parseGetND(call *ast.CallExpr) {
-	// Expect first 3 params to be string
 	if call.Args != nil && len(call.Args) > 2 {
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok {
 			if lit1, ok := call.Args[1].(*ast.BasicLit); ok {
@@ -278,7 +274,6 @@ func parseGetND(call *ast.CallExpr) {
 }
 
 func parseGetC(call *ast.CallExpr) {
-	// Expect first 2 params to be string
 	if call.Args != nil && len(call.Args) > 1 {
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok {
 			if lit1, ok := call.Args[1].(*ast.BasicLit); ok {
@@ -296,7 +291,6 @@ func parseGetC(call *ast.CallExpr) {
 }
 
 func parseGetNC(call *ast.CallExpr) {
-	// Expect at least 4 params. 1, 2, and 3 as string
 	if call.Args != nil && len(call.Args) > 3 {
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok {
 			if lit1, ok := call.Args[1].(*ast.BasicLit); ok {
@@ -357,6 +351,19 @@ func parseGetNDC(call *ast.CallExpr) {
 							writePlural(dom, lit1.Value, lit2.Value)
 						}
 					}
+				}
+			}
+		}
+	}
+}
+
+func parseSetDomain(call *ast.CallExpr) {
+	if call.Args != nil && len(call.Args) == 1 {
+		if lit, ok := call.Args[0].(*ast.BasicLit); ok {
+			if lit.Kind == token.STRING {
+				cd, err := strconv.Unquote(lit.Value)
+				if err == nil {
+					currentDomain = cd
 				}
 			}
 		}
