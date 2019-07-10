@@ -2,7 +2,6 @@
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GoDoc](https://godoc.org/github.com/leonelquinteros/gotext?status.svg)](https://godoc.org/github.com/leonelquinteros/gotext)
 [![Build Status](https://travis-ci.org/leonelquinteros/gotext.svg?branch=master)](https://travis-ci.org/leonelquinteros/gotext)
-[![codecov](https://codecov.io/gh/leonelquinteros/gotext/branch/master/graph/badge.svg)](https://codecov.io/gh/leonelquinteros/gotext)
 [![Go Report Card](https://goreportcard.com/badge/github.com/leonelquinteros/gotext)](https://goreportcard.com/report/github.com/leonelquinteros/gotext)
 
 # Gotext
