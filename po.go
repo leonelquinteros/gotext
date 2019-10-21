@@ -365,7 +365,7 @@ func (po *Po) pluralForm(n int) int {
 
 	// Failure fallback
 	if po.pluralforms == nil {
-		/* Use the Germanic plural rule.  */
+		/* Use Western plural rule.  */
 		if n == 1 {
 			return 0
 		}
@@ -404,7 +404,8 @@ func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 		}
 	}
 
-	if n == 1 {
+	// Parse plural forms to distinguish between plural and singular
+	if po.pluralForm(n) == 0 {
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)
@@ -448,7 +449,8 @@ func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 		}
 	}
 
-	if n == 1 {
+	// Parse plural forms to distinguish between plural and singular
+	if po.pluralForm(n) == 0 {
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)

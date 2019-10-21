@@ -255,6 +255,11 @@ msgstr "More Translation"
 	}
 
 	tr = l.GetN("This is a test", "This are tests", 1)
+	if tr != "This is a test" {
+		t.Errorf("Expected 'This is a test' but got '%s'", tr)
+	}
+
+	tr = l.GetN("This is a test", "This are tests", 7)
 	if tr != "This are tests" {
 		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
@@ -266,8 +271,12 @@ msgstr "More Translation"
 	}
 
 	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 2)
 	if tr != "This are tests" {
-		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 
 	// Create Locale with full language code
@@ -292,8 +301,12 @@ msgstr "More Translation"
 	}
 
 	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 111)
 	if tr != "This are tests" {
-		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 
 	// Create Locale with full language code
@@ -318,8 +331,12 @@ msgstr "More Translation"
 	}
 
 	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 21)
 	if tr != "This are tests" {
-		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 
 	// Create Locale with full language code
@@ -344,8 +361,12 @@ msgstr "More Translation"
 	}
 
 	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 2)
 	if tr != "This are tests" {
-		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 
 	// Create Locale with full language code
@@ -376,8 +397,12 @@ msgstr "More Translation"
 	}
 
 	tr = l.GetN("This one has invalid syntax translations", "This are tests", 1)
+	if tr != "This one has invalid syntax translations" {
+		t.Errorf("Expected 'This one has invalid syntax translations' but got '%s'", tr)
+	}
+	tr = l.GetN("This one has invalid syntax translations", "This are tests", 14)
 	if tr != "This are tests" {
-		t.Errorf("Expected 'Plural index' but got '%s'", tr)
+		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 }
 

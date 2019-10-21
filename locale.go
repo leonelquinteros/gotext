@@ -200,7 +200,10 @@ func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) stri
 		}
 	}
 
-	// Return the same we received by default
+	// Use western default rule (plural > 1) to handle missing domain default result.
+	if n == 1 {
+		return Printf(str, vars...)
+	}
 	return Printf(plural, vars...)
 }
 
@@ -237,7 +240,10 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...inte
 		}
 	}
 
-	// Return the same we received by default
+	// Use western default rule (plural > 1) to handle missing domain default result.
+	if n == 1 {
+		return Printf(str, vars...)
+	}
 	return Printf(plural, vars...)
 }
 
