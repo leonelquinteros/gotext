@@ -55,12 +55,24 @@ Stable releases use [semantic versioning](http://semver.org/spec/v2.0.0.html) ta
 You can rely on this to use your preferred vendoring tool or to manually retrieve the corresponding release tag from the GitHub repository.
 
 
+### Vendoring with [Go Modules](https://github.com/golang/go/wiki/Modules) (Recommended)
+
+Add `github.com/leonelquinteros/gotext` inside the  `require` section in your `go.mod` file.
+
+i.e.
+```
+require (
+    github.com/leonelquinteros/gotext v1.4.0
+)
+```
+
+
 ### Vendoring with [dep](https://golang.github.io/dep/)
 
-To use last stable version (v1.3.1 at the moment of writing)
+To use last stable version (v1.4.0 at the moment of writing)
 
 ```
-dep ensure -add github.com/leonelquinteros/gotext@v1.3.1
+dep ensure -add github.com/leonelquinteros/gotext@v1.4.0
 ```
 
 Import as
@@ -87,18 +99,6 @@ import "gopkg.in/leonelquinteros/gotext.v1"
 ```
 
 Refer to it as gotext.
-
-
-### Vendoring with [Go Modules](https://github.com/golang/go/wiki/Modules)
-
-Add `github.com/leonelquinteros/gotext` inside the  `require` section in your `go.mod` file.
-
-i.e.
-```
-require (
-    github.com/leonelquinteros/gotext v1.4.0
-)
-```
 
 
 # Locales directories structure
