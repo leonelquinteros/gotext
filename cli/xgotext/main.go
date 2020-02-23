@@ -3,8 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
-	"path/filepath"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
@@ -32,29 +30,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = os.MkdirAll(*outputDir, os.ModePerm)
+	err = data.Save(*outputDir)
 	if err != nil {
-		log.Fatalf("failed to create output dir: %s", err)
-	}
-
-	for name, domain := range data {
-		outFile := filepath.Join(*outputDir, name+".po")
-		file, err := os.Create(outFile)
-		if err != nil {
-			log.Fatalf("failed to save po file for %s: %s", name, err)
-		}
-
-		file.WriteString(`msgid ""
-msgstr ""
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Language: \n"
-"X-Generator: xgotext\n"
-
-`)
-		file.WriteString(domain.Dump())
-		file.Close()
+		log.Fatal(err)
 	}
 }

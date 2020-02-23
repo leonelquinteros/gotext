@@ -1,6 +1,9 @@
 package parser
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -117,6 +120,34 @@ func (d *Domain) Dump() string {
 	return strings.Join(data, "\n\n")
 }
 
+// Save domain to file
+func (d *Domain) Save(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to domain: %w", err)
+	}
+	defer file.Close()
+
+	// write header
+	_, err = file.WriteString(`msgid ""
+msgstr ""
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: \n"
+"X-Generator: xgotext\n"
+
+`)
+	if err != nil {
+		return err
+	}
+
+	// write domain content
+	_, err = file.WriteString(d.Dump())
+	return err
+}
+
 // DomainMap contains multiple domains as map with name as key
 type DomainMap map[string]*Domain
 
@@ -126,4 +157,22 @@ func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
 		(*m)[domain] = new(Domain)
 	}
 	(*m)[domain].AddTranslation(translation)
+}
+
+// Save domains to directory
+func (m *DomainMap) Save(directory string) error {
+	// ensure output directory exist
+	err := os.MkdirAll(directory, os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to create output dir: %w", err)
+	}
+
+	// save each domain in a separate po file
+	for name, domain := range *m {
+		err := domain.Save(filepath.Join(directory, name+".po"))
+		if err != nil {
+			return fmt.Errorf("failed to save domain %s: %w", name, err)
+		}
+	}
+	return nil
 }
