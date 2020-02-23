@@ -35,6 +35,10 @@ func main() {
 	// same as before
 	fmt.Println(gotext.Get("My text on 'domain-name' domain"))
 
+	// unsupported function call
+	trStr := "some string to translate"
+	fmt.Println(gotext.Get(trStr))
+
 	// same with alias package name
 	fmt.Println(alias.Get("alias call"))
 

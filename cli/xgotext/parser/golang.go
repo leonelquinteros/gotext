@@ -240,14 +240,30 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 		domain, _ = strconv.Unquote(args[def.Domain].Value)
 	}
 
+	// only handle function calls with strings as ID
+	if args[def.Id] == nil || args[def.Id].Kind != token.STRING {
+		log.Printf("ERR: Unsupported call at %s (ID not a string)", pos)
+		return
+	}
+
 	trans := Translation{
 		MsgId:           args[def.Id].Value,
 		SourceLocations: []string{pos},
 	}
 	if def.Plural > 0 {
+		// plural ID must be a string
+		if args[def.Plural] == nil || args[def.Plural].Kind != token.STRING {
+			log.Printf("ERR: Unsupported call at %s (Plural not a string)", pos)
+			return
+		}
 		trans.MsgIdPlural = args[def.Plural].Value
 	}
 	if def.Context > 0 {
+		// Context must be a string
+		if args[def.Context] == nil || args[def.Context].Kind != token.STRING {
+			log.Printf("ERR: Unsupported call at %s (Context not a string)", pos)
+			return
+		}
 		trans.Context = args[def.Context].Value
 	}
 
