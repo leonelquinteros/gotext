@@ -11,7 +11,7 @@ go install github.com/leonelquinteros/gotext/cli/xgotext
 ## Usage
 
 ```
-xgotext /path/to/go/package [/path/to/output/dir]
+xgotext -in /path/to/go/package -out /path/to/output/dir
 ```
 
 ## Implementation
@@ -31,7 +31,7 @@ tr := "Translate this string"
 gotext.Get(tr)
 ```
 
-The CLI tool doesn't traverse sub-directories and other packages.
+The CLI tool traverse sub-directories based on the given input directory.
 
 
 ## Contribute

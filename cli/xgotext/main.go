@@ -20,6 +20,13 @@ func main() {
 	// Init logger
 	log.SetFlags(0)
 
+	if *dirName == "" {
+		log.Fatal("No input directory given")
+	}
+	if *outputDir == "" {
+		log.Fatal("No output directory given")
+	}
+
 	data, err := parser.ParseDirRec(*dirName)
 	if err != nil {
 		log.Fatal(err)
