@@ -53,7 +53,7 @@ func init() {
 }
 
 // parse go package
-func goParser(dirPath, basePath string, data DomainMap) error {
+func goParser(dirPath, basePath string, data *DomainMap) error {
 	fileSet := token.NewFileSet()
 
 	conf := packages.Config{
@@ -100,7 +100,7 @@ func goParser(dirPath, basePath string, data DomainMap) error {
 type GoFile struct {
 	filePath string
 	basePath string
-	data     DomainMap
+	data     *DomainMap
 
 	fileSet *token.FileSet
 	pkgConf *packages.Config
@@ -234,9 +234,7 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 
 	// get domain
 	var domain string
-	if def.Domain == -1 {
-		domain = "default" // TODO
-	} else {
+	if def.Domain != -1 {
 		domain, _ = strconv.Unquote(args[def.Domain].Value)
 	}
 

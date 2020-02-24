@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	dirName   = flag.String("in", "", "input dir: /path/to/go/pkg")
-	outputDir = flag.String("out", "", "output dir: /path/to/i18n/files")
+	dirName       = flag.String("in", "", "input dir: /path/to/go/pkg")
+	outputDir     = flag.String("out", "", "output dir: /path/to/i18n/files")
+	defaultDomain = flag.String("default", "default", "Name of default domain")
 )
 
 func main() {
@@ -25,7 +26,11 @@ func main() {
 		log.Fatal("No output directory given")
 	}
 
-	data, err := parser.ParseDirRec(*dirName)
+	data := &parser.DomainMap{
+		Default: *defaultDomain,
+	}
+
+	err := parser.ParseDirRec(*dirName, data)
 	if err != nil {
 		log.Fatal(err)
 	}

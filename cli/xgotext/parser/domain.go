@@ -149,14 +149,31 @@ msgstr ""
 }
 
 // DomainMap contains multiple domains as map with name as key
-type DomainMap map[string]*Domain
+type DomainMap struct {
+	Domains map[string]*Domain
+	Default string
+}
 
 // AddTranslation to domain map
 func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
-	if _, ok := (*m)[domain]; !ok {
-		(*m)[domain] = new(Domain)
+	if m.Domains == nil {
+		m.Domains = make(map[string]*Domain, 1)
 	}
-	(*m)[domain].AddTranslation(translation)
+
+	// use "default" as default domain if not set
+	if m.Default == "" {
+		m.Default = "default"
+	}
+
+	// no domain given -> use default
+	if domain == "" {
+		domain = m.Default
+	}
+
+	if _, ok := m.Domains[domain]; !ok {
+		m.Domains[domain] = new(Domain)
+	}
+	m.Domains[domain].AddTranslation(translation)
 }
 
 // Save domains to directory
@@ -168,7 +185,7 @@ func (m *DomainMap) Save(directory string) error {
 	}
 
 	// save each domain in a separate po file
-	for name, domain := range *m {
+	for name, domain := range m.Domains {
 		err := domain.Save(filepath.Join(directory, name+".po"))
 		if err != nil {
 			return fmt.Errorf("failed to save domain %s: %v", name, err)

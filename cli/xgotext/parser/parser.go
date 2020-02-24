@@ -6,7 +6,7 @@ import (
 )
 
 // ParseDirFunc parses one directory
-type ParseDirFunc func(filePath, basePath string, data DomainMap) error
+type ParseDirFunc func(filePath, basePath string, data *DomainMap) error
 
 var knownParser []ParseDirFunc
 
@@ -20,7 +20,7 @@ func AddParser(parser ParseDirFunc) {
 }
 
 // ParseDir calls all known parser for each directory
-func ParseDir(dirPath, basePath string, data DomainMap) error {
+func ParseDir(dirPath, basePath string, data *DomainMap) error {
 	dirPath, _ = filepath.Abs(dirPath)
 	basePath, _ = filepath.Abs(basePath)
 
@@ -34,8 +34,7 @@ func ParseDir(dirPath, basePath string, data DomainMap) error {
 }
 
 // ParseDirRec calls all known parser for each directory
-func ParseDirRec(dirPath string) (DomainMap, error) {
-	data := make(DomainMap)
+func ParseDirRec(dirPath string, data *DomainMap) error {
 	dirPath, _ = filepath.Abs(dirPath)
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -51,5 +50,5 @@ func ParseDirRec(dirPath string) (DomainMap, error) {
 		}
 		return nil
 	})
-	return data, err
+	return err
 }
