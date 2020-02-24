@@ -124,7 +124,7 @@ func (d *Domain) Dump() string {
 func (d *Domain) Save(path string) error {
 	file, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("failed to domain: %w", err)
+		return fmt.Errorf("failed to domain: %v", err)
 	}
 	defer file.Close()
 
@@ -164,14 +164,14 @@ func (m *DomainMap) Save(directory string) error {
 	// ensure output directory exist
 	err := os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("failed to create output dir: %w", err)
+		return fmt.Errorf("failed to create output dir: %v", err)
 	}
 
 	// save each domain in a separate po file
 	for name, domain := range *m {
 		err := domain.Save(filepath.Join(directory, name+".po"))
 		if err != nil {
-			return fmt.Errorf("failed to save domain %s: %w", name, err)
+			return fmt.Errorf("failed to save domain %s: %v", name, err)
 		}
 	}
 	return nil
