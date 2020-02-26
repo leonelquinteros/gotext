@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/leonelquinteros/gotext"
@@ -78,6 +79,9 @@ func main() {
 	// redefine alias with fake struct
 	alias := Fake2{}
 	alias.Get("3")
+
+	err := errors.New("test")
+	fmt.Print(err.Error())
 }
 
 // dummy function
