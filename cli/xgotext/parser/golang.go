@@ -193,7 +193,8 @@ func (g *GoFile) inspectCallExpr(n *ast.CallExpr) {
 
 		} else {
 			// validate type of object
-			if !g.checkType(g.getType(e).Type()) {
+			t := g.getType(e)
+			if t == nil || !g.checkType(t.Type()) {
 				return
 			}
 		}
@@ -201,7 +202,8 @@ func (g *GoFile) inspectCallExpr(n *ast.CallExpr) {
 	// call to attribute
 	case *ast.SelectorExpr:
 		// validate type of object
-		if !g.checkType(g.getType(e.Sel).Type()) {
+		t := g.getType(e.Sel)
+		if t == nil || !g.checkType(t.Type()) {
 			return
 		}
 
