@@ -1,6 +1,6 @@
 # xgotext
 
-CLI tool to extract translation strings from Go packages into .PO files. 
+CLI tool to extract translation strings from Go packages into .POT files. 
 
 ## Installation
 
@@ -11,7 +11,15 @@ go install github.com/leonelquinteros/gotext/cli/xgotext
 ## Usage
 
 ```
-xgotext -in /path/to/go/package -out /path/to/output/dir
+Usage of xgotext:
+  -default string
+        Name of default domain (default "default")
+  -exclude string
+        Comma separated list of directories to exclude (default ".git")
+  -in string
+        input dir: /path/to/go/pkg
+  -out string
+        output dir: /path/to/i18n/files
 ```
 
 ## Implementation
@@ -27,7 +35,7 @@ Isn't able to parse calls to translation functions using parameters inside varia
 gotext.Get("Translate this")
 
 tr := "Translate this string"
-// The following line will NOT be added to the .po file
+// The following line will NOT be added to the .pot file
 gotext.Get(tr)
 ```
 

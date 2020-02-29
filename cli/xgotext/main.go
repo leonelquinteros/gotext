@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"strings"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
@@ -11,6 +12,7 @@ var (
 	dirName       = flag.String("in", "", "input dir: /path/to/go/pkg")
 	outputDir     = flag.String("out", "", "output dir: /path/to/i18n/files")
 	defaultDomain = flag.String("default", "default", "Name of default domain")
+	excludeDirs   = flag.String("exclude", ".git", "Comma separated list of directories to exclude")
 )
 
 func main() {
@@ -30,7 +32,7 @@ func main() {
 		Default: *defaultDomain,
 	}
 
-	err := parser.ParseDirRec(*dirName, data)
+	err := parser.ParseDirRec(*dirName, strings.Split(*excludeDirs, ","), data)
 	if err != nil {
 		log.Fatal(err)
 	}

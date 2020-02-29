@@ -186,7 +186,7 @@ func (m *DomainMap) Save(directory string) error {
 
 	// save each domain in a separate po file
 	for name, domain := range m.Domains {
-		err := domain.Save(filepath.Join(directory, name+".po"))
+		err := domain.Save(filepath.Join(directory, name+".pot"))
 		if err != nil {
 			return fmt.Errorf("failed to save domain %s: %v", name, err)
 		}

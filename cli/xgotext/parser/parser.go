@@ -1,8 +1,10 @@
 package parser
 
 import (
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ParseDirFunc parses one directory
@@ -34,7 +36,7 @@ func ParseDir(dirPath, basePath string, data *DomainMap) error {
 }
 
 // ParseDirRec calls all known parser for each directory
-func ParseDirRec(dirPath string, data *DomainMap) error {
+func ParseDirRec(dirPath string, exclude []string, data *DomainMap) error {
 	dirPath, _ = filepath.Abs(dirPath)
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -43,6 +45,15 @@ func ParseDirRec(dirPath string, data *DomainMap) error {
 		}
 
 		if info.IsDir() {
+			// skip directory if in exclude list
+			subDir, _ := filepath.Rel(dirPath, path)
+			for _, d := range exclude {
+				if strings.HasPrefix(subDir, d) {
+					return nil
+				}
+			}
+			log.Print(path)
+
 			err := ParseDir(path, dirPath, data)
 			if err != nil {
 				return err
