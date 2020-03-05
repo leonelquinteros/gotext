@@ -36,7 +36,7 @@ func ParseDir(dirPath, basePath string, data *DomainMap) error {
 }
 
 // ParseDirRec calls all known parser for each directory
-func ParseDirRec(dirPath string, exclude []string, data *DomainMap) error {
+func ParseDirRec(dirPath string, exclude []string, data *DomainMap, verbose bool) error {
 	dirPath, _ = filepath.Abs(dirPath)
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -52,7 +52,9 @@ func ParseDirRec(dirPath string, exclude []string, data *DomainMap) error {
 					return nil
 				}
 			}
-			log.Print(path)
+			if verbose {
+				log.Print(path)
+			}
 
 			err := ParseDir(path, dirPath, data)
 			if err != nil {
