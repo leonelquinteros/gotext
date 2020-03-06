@@ -13,6 +13,7 @@ var (
 	outputDir     = flag.String("out", "", "output dir: /path/to/i18n/files")
 	defaultDomain = flag.String("default", "default", "Name of default domain")
 	excludeDirs   = flag.String("exclude", ".git", "Comma separated list of directories to exclude")
+	verbose       = flag.Bool("v", false, "print currently handled directory")
 )
 
 func main() {
@@ -32,7 +33,7 @@ func main() {
 		Default: *defaultDomain,
 	}
 
-	err := parser.ParseDirRec(*dirName, strings.Split(*excludeDirs, ","), data)
+	err := parser.ParseDirRec(*dirName, strings.Split(*excludeDirs, ","), data, *verbose)
 	if err != nil {
 		log.Fatal(err)
 	}
