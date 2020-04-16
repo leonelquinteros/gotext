@@ -25,8 +25,11 @@ jobs:
       run: |
         go get -v -u -t -d ./...
 
-    - name: Build
+    - name: Build package
       run: go build -v .
+
+    - name: Install xgotext CLI
+      run: go install -v github.com/leonelquinteros/gotext/cli/xgotext
 
     - name: Test
       run: go test -v -race ./...
