@@ -4,3 +4,16 @@ msgstr ""
 
 msgid "Alcohol & Tobacco"
 msgstr "الكحول والتبغ"
+
+# this test data is purposely missing msgstr
+msgid "%d selected"
+msgid_plural "%d selected"
+
+msgid "Load %d more document"
+msgid_plural "Load %d more documents"
+msgstr[0] "حمّل %d مستندات إضافيّة"
+msgstr[1] "حمّل مستند واحد إضافي"
+msgstr[2] "حمّل مستندين إضافيين"
+msgstr[3] "حمّل %d مستندات إضافيّة"
+msgstr[4] "حمّل %d مستندا إضافيّا"
+msgstr[5] "حمّل %d مستند إضافي"

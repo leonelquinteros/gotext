@@ -171,7 +171,20 @@ func GetN(str, plural string, n int, vars ...interface{}) string {
 // GetD returns the corresponding Translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetD(dom, str string, vars ...interface{}) string {
-	return GetND(dom, str, str, 1, vars...)
+	// Try to load default package Locale storage
+	loadStorage(false)
+
+	// Return Translation
+	globalConfig.RLock()
+
+	if _, ok := globalConfig.storage.Domains[dom]; !ok {
+		globalConfig.storage.AddDomain(dom)
+	}
+
+	tr := globalConfig.storage.GetD(dom, str, vars...)
+	globalConfig.RUnlock()
+
+	return tr
 }
 
 // GetND retrieves the (N)th plural form of Translation in the given domain for a given string.
@@ -208,7 +221,15 @@ func GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 // GetDC returns the corresponding Translation in the given domain for the given string in the given context.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetDC(dom, str, ctx string, vars ...interface{}) string {
-	return GetNDC(dom, str, str, 1, ctx, vars...)
+	// Try to load default package Locale storage
+	loadStorage(false)
+
+	// Return Translation
+	globalConfig.RLock()
+	tr := globalConfig.storage.GetDC(dom, str, ctx, vars...)
+	globalConfig.RUnlock()
+
+	return tr
 }
 
 // GetNDC retrieves the (N)th plural form of Translation in the given domain for a given string.
