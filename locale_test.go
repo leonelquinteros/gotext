@@ -504,8 +504,60 @@ func TestArabicTranslation(t *testing.T) {
 	// Add domain
 	l.AddDomain("categories")
 
-	// Get translation
+	// Plurals formula missing + Plural translation string missing
 	tr := l.GetD("categories", "Alcohol & Tobacco")
+	if tr != "الكحول والتبغ" {
+		t.Errorf("Expected to get 'الكحول والتبغ', but got '%s'", tr)
+	}
+
+	// Plural translation string present without translations, should get the msgid_plural
+	tr = l.GetND("categories", "%d selected", "%d selected", 10)
+	if tr != "%d selected" {
+		t.Errorf("Expected to get '%%d selected', but got '%s'", tr)
+	}
+
+	//Plurals formula present + Plural translation string present and complete
+	tr = l.GetND("categories", "Load %d more document", "Load %d more documents", 0)
+	if tr != "حمّل %d مستندات إضافيّة" {
+		t.Errorf("Expected to get 'msgstr[0]', but got '%s'", tr)
+	}
+
+	tr = l.GetND("categories", "Load %d more document", "Load %d more documents", 1)
+	if tr != "حمّل مستند واحد إضافي" {
+		t.Errorf("Expected to get 'msgstr[1]', but got '%s'", tr)
+	}
+
+	tr = l.GetND("categories", "Load %d more document", "Load %d more documents", 2)
+	if tr != "حمّل مستندين إضافيين" {
+		t.Errorf("Expected to get 'msgstr[2]', but got '%s'", tr)
+	}
+
+	tr = l.GetND("categories", "Load %d more document", "Load %d more documents", 6)
+	if tr != "حمّل %d مستندات إضافيّة" {
+		t.Errorf("Expected to get 'msgstr[3]', but got '%s'", tr)
+	}
+
+	tr = l.GetND("categories", "Load %d more document", "Load %d more documents", 116)
+	if tr != "حمّل %d مستندا إضافيّا" {
+		t.Errorf("Expected to get 'msgstr[4]', but got '%s'", tr)
+	}
+
+	tr = l.GetND("categories", "Load %d more document", "Load %d more documents", 102)
+	if tr != "حمّل %d مستند إضافي" {
+		t.Errorf("Expected to get 'msgstr[5]', but got '%s'", tr)
+	}
+
+}
+
+func TestArabicMissingPluralForm(t *testing.T) {
+	// Create Locale
+	l := NewLocale("fixtures/", "ar")
+
+	// Add domain
+	l.AddDomain("no_plural_header")
+
+	// Get translation
+	tr := l.GetD("no_plural_header", "Alcohol & Tobacco")
 	if tr != "الكحول والتبغ" {
 		t.Errorf("Expected to get 'الكحول والتبغ', but got '%s'", tr)
 	}

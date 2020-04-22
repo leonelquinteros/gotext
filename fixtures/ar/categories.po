@@ -1,6 +1,19 @@
 msgid ""
 msgstr ""
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5);\n"
 
 msgid "Alcohol & Tobacco"
 msgstr "الكحول والتبغ"
+
+# this test data is purposely missing msgstr
+msgid "%d selected"
+msgid_plural "%d selected"
+
+msgid "Load %d more document"
+msgid_plural "Load %d more documents"
+msgstr[0] "حمّل %d مستندات إضافيّة"
+msgstr[1] "حمّل مستند واحد إضافي"
+msgstr[2] "حمّل مستندين إضافيين"
+msgstr[3] "حمّل %d مستندات إضافيّة"
+msgstr[4] "حمّل %d مستندا إضافيّا"
+msgstr[5] "حمّل %d مستند إضافي"
