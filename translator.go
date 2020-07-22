@@ -13,10 +13,16 @@ import "net/textproto"
 type Translator interface {
 	ParseFile(f string)
 	Parse(buf []byte)
+
 	Get(str string, vars ...interface{}) string
 	GetN(str, plural string, n int, vars ...interface{}) string
 	GetC(str, ctx string, vars ...interface{}) string
 	GetNC(str, plural string, n int, ctx string, vars ...interface{}) string
+
+	GetE(str string, vars ...interface{}) (string, bool)
+	GetNE(str, plural string, n int, vars ...interface{}) (string, bool)
+	GetCE(str, ctx string, vars ...interface{}) (string, bool)
+	GetNCE(str, plural string, n int, ctx string, vars ...interface{}) (string, bool)
 
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary([]byte) error

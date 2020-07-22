@@ -50,3 +50,29 @@ func (t *Translation) GetN(n int) string {
 	// Return untranslated plural by default
 	return t.PluralID
 }
+
+// Get returns the string of the translation. The second return value is true
+// iff the string was found.
+func (t *Translation) GetE() (string, bool) {
+	// Look for Translation index 0
+	if _, ok := t.Trs[0]; ok {
+		if t.Trs[0] != "" {
+			return t.Trs[0], true
+		}
+	}
+
+	return "", false
+}
+
+// GetN returns the string of the plural translation. The second return value
+// is true iff the string was found.
+func (t *Translation) GetNE(n int) (string, bool) {
+	// Look for Translation index
+	if _, ok := t.Trs[n]; ok {
+		if t.Trs[n] != "" {
+			return t.Trs[n], true
+		}
+	}
+
+	return "", false
+}

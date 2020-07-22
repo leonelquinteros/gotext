@@ -271,6 +271,111 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...inte
 	return Printf(plural, vars...)
 }
 
+// Get Euses a domain "default" to return the corresponding Translation of a given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetE(str string, vars ...interface{}) (string, bool) {
+	return l.GetDE(l.GetDomain(), str, vars...)
+}
+
+// GetNE retrieves the (N)th plural form of Translation for the given string in the "default" domain.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetNE(str, plural string, n int, vars ...interface{}) (string, bool) {
+	return l.GetNDE(l.GetDomain(), str, plural, n, vars...)
+}
+
+// GetDE returns the corresponding Translation in the given domain for the given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetDE(dom, str string, vars ...interface{}) (string, bool) {
+	// Sync read
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.Domains != nil {
+		if _, ok := l.Domains[dom]; ok {
+			if l.Domains[dom] != nil {
+				return l.Domains[dom].GetE(str, vars...)
+			}
+		}
+	}
+
+	return "", false
+}
+
+// GetNDE retrieves the (N)th plural form of Translation in the given domain for the given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetNDE(dom, str, plural string, n int, vars ...interface{}) (string, bool) {
+	// Sync read
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.Domains != nil {
+		if _, ok := l.Domains[dom]; ok {
+			if l.Domains[dom] != nil {
+				return l.Domains[dom].GetNE(str, plural, n, vars...)
+			}
+		}
+	}
+
+	// Use western default rule (plural > 1) to handle missing domain default result.
+	return "", false
+}
+
+// GetC uses a domain "default" to return the corresponding Translation of the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetCE(str, ctx string, vars ...interface{}) (string, bool) {
+	return l.GetDCE(l.GetDomain(), str, ctx, vars...)
+}
+
+// GetNC retrieves the (N)th plural form of Translation for the given string in the given context in the "default" domain.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetNCE(str, plural string, n int, ctx string, vars ...interface{}) (string, bool) {
+	return l.GetNDCE(l.GetDomain(), str, plural, n, ctx, vars...)
+}
+
+// GetDCE returns the corresponding Translation in the given domain for the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetDCE(dom, str, ctx string, vars ...interface{}) (string, bool) {
+	// Sync read
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.Domains != nil {
+		if _, ok := l.Domains[dom]; ok {
+			if l.Domains[dom] != nil {
+				return l.Domains[dom].GetCE(str, ctx, vars...)
+			}
+		}
+	}
+
+	return "", false
+}
+
+// GetNDCE retrieves the (N)th plural form of Translation in the given domain for the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (l *Locale) GetNDCE(dom, str, plural string, n int, ctx string, vars ...interface{}) (string, bool) {
+	// Sync read
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.Domains != nil {
+		if _, ok := l.Domains[dom]; ok {
+			if l.Domains[dom] != nil {
+				return l.Domains[dom].GetNCE(str, plural, n, ctx, vars...)
+			}
+		}
+	}
+
+	// Use western default rule (plural > 1) to handle missing domain default result.
+	return "", false
+}
+
 // LocaleEncoding is used as intermediary storage to encode Locale objects to Gob.
 type LocaleEncoding struct {
 	Path          string

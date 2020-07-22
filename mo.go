@@ -427,6 +427,90 @@ func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 	return Printf(plural, vars...)
 }
 
+// GetE retrieves the corresponding Translation for the given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (mo *Mo) GetE(str string, vars ...interface{}) (string, bool) {
+	// Sync read
+	mo.RLock()
+	defer mo.RUnlock()
+
+	if mo.translations != nil {
+		if _, ok := mo.translations[str]; ok {
+			if fmt, ok := mo.translations[str].GetE(); ok {
+				return Printf(fmt, vars...), true
+			}
+		}
+	}
+
+	return "", false
+}
+
+// GetNE retrieves the (N)th plural form of Translation for the given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (mo *Mo) GetNE(str, plural string, n int, vars ...interface{}) (string, bool) {
+	// Sync read
+	mo.RLock()
+	defer mo.RUnlock()
+
+	if mo.translations != nil {
+		if _, ok := mo.translations[str]; ok {
+			if fmt, ok := mo.translations[str].GetNE(mo.pluralForm(n)); ok {
+				return Printf(fmt, vars...), true
+			}
+		}
+	}
+
+	return "", false
+}
+
+// GetCE retrieves the corresponding Translation for a given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (mo *Mo) GetCE(str, ctx string, vars ...interface{}) (string, bool) {
+	// Sync read
+	mo.RLock()
+	defer mo.RUnlock()
+
+	if mo.contexts != nil {
+		if _, ok := mo.contexts[ctx]; ok {
+			if mo.contexts[ctx] != nil {
+				if _, ok := mo.contexts[ctx][str]; ok {
+					if fmt, ok := mo.contexts[ctx][str].GetE(); ok {
+						return Printf(fmt, vars...), true
+					}
+				}
+			}
+		}
+	}
+
+	return "", false
+}
+
+// GetNCE retrieves the (N)th plural form of Translation for the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+// The second return value is true iff the string was found.
+func (mo *Mo) GetNCE(str, plural string, n int, ctx string, vars ...interface{}) (string, bool) {
+	// Sync read
+	mo.RLock()
+	defer mo.RUnlock()
+
+	if mo.contexts != nil {
+		if _, ok := mo.contexts[ctx]; ok {
+			if mo.contexts[ctx] != nil {
+				if _, ok := mo.contexts[ctx][str]; ok {
+					if fmt, ok := mo.contexts[ctx][str].GetNE(mo.pluralForm(n)); ok {
+						return Printf(fmt, vars...), true
+                    }
+				}
+			}
+		}
+	}
+
+	return "", false
+}
+
 // MarshalBinary implements encoding.BinaryMarshaler interface
 func (mo *Mo) MarshalBinary() ([]byte, error) {
 	obj := new(TranslatorEncoding)

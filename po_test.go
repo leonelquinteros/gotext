@@ -62,7 +62,7 @@ msgid ""
 msgstr "id with multiline content"
 
 # Multi-line msgid_plural
-msgid "" 
+msgid ""
 "multi"
 "line"
 "plural"
@@ -71,7 +71,7 @@ msgstr "plural id with multiline content"
 
 #Multi-line string
 msgid "Multi-line"
-msgstr "" 
+msgstr ""
 "Multi "
 "line"
 
@@ -177,6 +177,22 @@ msgstr "More Translation"
 		t.Errorf("Expected 'This are tests' but got '%s'", tr)
 	}
 
+	// Test translations with existence check
+	tr, exists := po.GetE("My text")
+	if (tr != "Translated text") || (!exists) {
+		t.Errorf("Expected 'Translated text', true but got '%s', %v", tr, exists)
+	}
+	
+	tr, exists = po.GetE("I don't exist")
+	if exists {
+		t.Errorf("Expected 'I don't exist' not to exist but got '%s'", tr)
+	}
+
+	tr = po.GetN("I don't exist", "We don't exist", 100)
+	if exists {
+		t.Errorf("Expected 'I/We don't exist' not to exist but got '%s'", tr)
+	}
+	
 	// Test context translations
 	v = "Test"
 	tr = po.GetC("One with var: %s", "Ctx", v)
@@ -241,7 +257,7 @@ msgstr[0] "TR Singular: %s"
 msgstr[1] "TR Plural: %s"
 msgstr[2] "TR Plural 2: %s"
 
-	
+
 `
 	// Create po object
 	po := new(Po)
@@ -271,7 +287,7 @@ msgstr[0] "TR Singular: %s"
 msgstr[1] "TR Plural: %s"
 msgstr[2] "TR Plural 2: %s"
 
-	
+
 `
 	// Create po object
 	po := new(Po)
