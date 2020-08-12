@@ -3,7 +3,7 @@
 ![Gotext build](https://github.com/leonelquinteros/gotext/workflows/Gotext%20build/badge.svg?branch=master)
 [![Build Status](https://travis-ci.org/leonelquinteros/gotext.svg?branch=master)](https://travis-ci.org/leonelquinteros/gotext)
 [![Go Report Card](https://goreportcard.com/badge/github.com/leonelquinteros/gotext)](https://goreportcard.com/report/github.com/leonelquinteros/gotext)
-[![GoDev](https://img.shields.io/static/v1?label=godev&message=reference&color=00add8)](https://pkg.go.dev/github.com/leonelquinteros/gotext?tab=doc)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/leonelquinteros/gotext)](https://pkg.go.dev/github.com/leonelquinteros/gotext)
 
 
 # Gotext
