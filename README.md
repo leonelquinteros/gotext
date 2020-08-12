@@ -1,9 +1,10 @@
 [![GitHub release](https://img.shields.io/github/release/leonelquinteros/gotext.svg)](https://github.com/leonelquinteros/gotext)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![GoDoc](https://godoc.org/github.com/leonelquinteros/gotext?status.svg)](https://godoc.org/github.com/leonelquinteros/gotext)
 ![Gotext build](https://github.com/leonelquinteros/gotext/workflows/Gotext%20build/badge.svg?branch=master)
 [![Build Status](https://travis-ci.org/leonelquinteros/gotext.svg?branch=master)](https://travis-ci.org/leonelquinteros/gotext)
 [![Go Report Card](https://goreportcard.com/badge/github.com/leonelquinteros/gotext)](https://goreportcard.com/report/github.com/leonelquinteros/gotext)
+[![GoDev](https://img.shields.io/static/v1?label=godev&message=reference&color=00add8)](https://pkg.go.dev/github.com/leonelquinteros/gotext?tab=doc)
+
 
 # Gotext
 
@@ -272,8 +273,6 @@ PO format supports defining one or more plural forms for the same translation.
 Relying on the PO file headers, a Plural-Forms formula can be set on the translation file
 as defined in (https://www.gnu.org/savannah-checkouts/gnu/gettext/manual/html_node/Plural-forms.html)
 
-Plural formulas are parsed and evaluated using [Kinako](https://github.com/mattn/kinako)
-
 ```go
 import (
     "fmt"
@@ -318,3 +317,4 @@ msgstr[1] "This one is the plural: %s"
 - Report issues on Github.
 - Send pull requests for bugfixes and improvements.
 - Send proposals on Github issues.
+
