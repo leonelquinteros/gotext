@@ -11,17 +11,17 @@ import (
 )
 
 func TestSimplifiedLocale(t *testing.T) {
-	tr :=SimplifiedLocale("de_DE@euro")
+	tr := SimplifiedLocale("de_DE@euro")
 	if tr != "de_DE" {
 		t.Errorf("Expected 'de_DE' but got '%s'", tr)
 	}
 
-	tr =SimplifiedLocale("de_DE.UTF-8")
+	tr = SimplifiedLocale("de_DE.UTF-8")
 	if tr != "de_DE" {
 		t.Errorf("Expected 'de_DE' but got '%s'", tr)
 	}
 
-	tr =SimplifiedLocale("de_DE:latin1")
+	tr = SimplifiedLocale("de_DE:latin1")
 	if tr != "de_DE" {
 		t.Errorf("Expected 'de_DE' but got '%s'", tr)
 	}
@@ -97,10 +97,10 @@ func TestNPrintf(t *testing.T) {
 func TestSprintfFloatsWithPrecision(t *testing.T) {
 	pat := "%(float)f / %(floatprecision).1f / %(long)g / %(longprecision).3g"
 	params := map[string]interface{}{
-		"float": 5.034560,
+		"float":          5.034560,
 		"floatprecision": 5.03456,
-		"long": 5.03456,
-		"longprecision": 5.03456,
+		"long":           5.03456,
+		"longprecision":  5.03456,
 	}
 
 	s := Sprintf(pat, params)

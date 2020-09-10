@@ -6,14 +6,19 @@
 package gotext
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"testing"
 )
 
+const (
+	translatedText = "Translated text"
+)
+
 func TestPo_Get(t *testing.T) {
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Try to parse a directory
 	po.ParseFile(path.Clean(os.TempDir()))
@@ -23,8 +28,8 @@ func TestPo_Get(t *testing.T) {
 
 	// Test translations
 	tr := po.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 	// Test translations
 	tr = po.Get("language")
@@ -122,7 +127,7 @@ msgstr "More Translation"
 	}
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Try to parse a directory
 	po.ParseFile(path.Clean(os.TempDir()))
@@ -132,8 +137,8 @@ msgstr "More Translation"
 
 	// Test translations
 	tr := po.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 
 	v := "Variable"
@@ -244,7 +249,7 @@ msgstr[2] "TR Plural 2: %s"
 	
 `
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 	po.Parse([]byte(str))
 
 	v := "Var"
@@ -274,7 +279,7 @@ msgstr[2] "TR Plural 2: %s"
 	
 `
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 	po.Parse([]byte(str))
 
 	v := "Var"
@@ -307,7 +312,7 @@ msgstr "Translated example"
 	`
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse
 	po.Parse([]byte(str))
@@ -317,9 +322,10 @@ msgstr "Translated example"
 		t.Errorf("Expected 'Language: en' but got '%s'", po.Language)
 	}
 
+	do := po.GetDomain()
 	// Check headers expected
-	if po.PluralForms != "nplurals=2; plural=(n != 1);" {
-		t.Errorf("Expected 'Plural-Forms: nplurals=2; plural=(n != 1);' but got '%s'", po.PluralForms)
+	if do.PluralForms != "nplurals=2; plural=(n != 1);" {
+		t.Errorf("Expected 'Plural-Forms: nplurals=2; plural=(n != 1);' but got '%s'", do.PluralForms)
 	}
 }
 
@@ -331,7 +337,7 @@ msgstr "Translated example"
 	`
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse
 	po.Parse([]byte(str))
@@ -339,6 +345,23 @@ msgstr "Translated example"
 	// Check Translation expected
 	if po.Get("Example") != "Translated example" {
 		t.Errorf("Expected 'Translated example' but got '%s'", po.Get("Example"))
+	}
+}
+
+type pluralTest struct {
+	form, num int
+}
+
+func pluralExpected(t *testing.T, pluralTests []pluralTest, domain *Domain) {
+	t.Helper()
+	for _, pt := range pluralTests {
+		pt := pt
+		t.Run(fmt.Sprintf("pluralForm(%d)", pt.num), func(t *testing.T) {
+			n := domain.pluralForm(pt.num)
+			if n != pt.form {
+				t.Errorf("Expected %d for pluralForm(%d), got %d", pt.form, pt.num, n)
+			}
+		})
 	}
 }
 
@@ -359,32 +382,20 @@ msgstr[3] "Plural form 3"
 	`
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse
 	po.Parse([]byte(str))
 
-	// Check plural form
-	n := po.pluralForm(0)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(0), got %d", n)
+	pluralTests := []pluralTest{
+		{form: 0, num: 0},
+		{form: 0, num: 1},
+		{form: 0, num: 2},
+		{form: 0, num: 3},
+		{form: 0, num: 50},
 	}
-	n = po.pluralForm(1)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
-	}
-	n = po.pluralForm(2)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(2), got %d", n)
-	}
-	n = po.pluralForm(3)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(3), got %d", n)
-	}
-	n = po.pluralForm(50)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(50), got %d", n)
-	}
+
+	pluralExpected(t, pluralTests, po.GetDomain())
 }
 
 func TestPluralForms2(t *testing.T) {
@@ -404,28 +415,19 @@ msgstr[3] "Plural form 3"
 	`
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse
 	po.Parse([]byte(str))
 
-	// Check plural form
-	n := po.pluralForm(0)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(0), got %d", n)
+	pluralTests := []pluralTest{
+		{form: 1, num: 0},
+		{form: 0, num: 1},
+		{form: 1, num: 2},
+		{form: 1, num: 3},
 	}
-	n = po.pluralForm(1)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
-	}
-	n = po.pluralForm(2)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(2), got %d", n)
-	}
-	n = po.pluralForm(3)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
-	}
+
+	pluralExpected(t, pluralTests, po.GetDomain())
 }
 
 func TestPluralForms3(t *testing.T) {
@@ -445,36 +447,21 @@ msgstr[3] "Plural form 3"
 	`
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse
 	po.Parse([]byte(str))
 
-	// Check plural form
-	n := po.pluralForm(0)
-	if n != 2 {
-		t.Errorf("Expected 2 for pluralForm(0), got %d", n)
+	pluralTests := []pluralTest{
+		{form: 2, num: 0},
+		{form: 0, num: 1},
+		{form: 1, num: 2},
+		{form: 1, num: 3},
+		{form: 1, num: 100},
+		{form: 1, num: 49},
 	}
-	n = po.pluralForm(1)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
-	}
-	n = po.pluralForm(2)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(2), got %d", n)
-	}
-	n = po.pluralForm(3)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
-	}
-	n = po.pluralForm(100)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(100), got %d", n)
-	}
-	n = po.pluralForm(49)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(3), got %d", n)
-	}
+
+	pluralExpected(t, pluralTests, po.GetDomain())
 }
 
 func TestPluralFormsSpecial(t *testing.T) {
@@ -495,32 +482,20 @@ msgstr[3] "Plural form 3"
 	`
 
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse
 	po.Parse([]byte(str))
 
-	// Check plural form
-	n := po.pluralForm(1)
-	if n != 0 {
-		t.Errorf("Expected 0 for pluralForm(1), got %d", n)
+	pluralTests := []pluralTest{
+		{form: 0, num: 1},
+		{form: 1, num: 2},
+		{form: 1, num: 4},
+		{form: 2, num: 0},
+		{form: 2, num: 1000},
 	}
-	n = po.pluralForm(2)
-	if n != 1 {
-		t.Errorf("Expected 1 for pluralForm(2), got %d", n)
-	}
-	n = po.pluralForm(4)
-	if n != 1 {
-		t.Errorf("Expected 4 for pluralForm(4), got %d", n)
-	}
-	n = po.pluralForm(0)
-	if n != 2 {
-		t.Errorf("Expected 2 for pluralForm(2), got %d", n)
-	}
-	n = po.pluralForm(1000)
-	if n != 2 {
-		t.Errorf("Expected 2 for pluralForm(1000), got %d", n)
-	}
+
+	pluralExpected(t, pluralTests, po.GetDomain())
 }
 
 func TestTranslationObject(t *testing.T) {
@@ -560,7 +535,7 @@ msgstr[2] "And this is the second plural form: %s"
 	`
 
 	// Create Po object
-	po := new(Po)
+	po := NewPo()
 
 	// Create sync channels
 	pc := make(chan bool)
@@ -588,7 +563,7 @@ msgstr[2] "And this is the second plural form: %s"
 
 func TestNewPoTranslatorRace(t *testing.T) {
 	// Create Po object
-	mo := NewPoTranslator()
+	po := NewPo()
 
 	// Create sync channels
 	pc := make(chan bool)
@@ -599,48 +574,18 @@ func TestNewPoTranslatorRace(t *testing.T) {
 		// Parse file
 		mo.ParseFile("fixtures/en_US/default.po")
 		done <- true
-	}(mo, pc)
+	}(po, pc)
 
 	// Read some Translation on a goroutine
 	go func(mo Translator, done chan bool) {
 		mo.Get("My text")
 		done <- true
-	}(mo, rc)
+	}(po, rc)
 
 	// Read something at top level
-	mo.Get("My text")
+	po.Get("My text")
 
 	// Wait for goroutines to finish
 	<-pc
 	<-rc
-}
-
-func TestPoBinaryEncoding(t *testing.T) {
-	// Create po objects
-	po := new(Po)
-	po2 := new(Po)
-
-	// Parse file
-	po.ParseFile("fixtures/en_US/default.po")
-
-	buff, err := po.MarshalBinary()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = po2.UnmarshalBinary(buff)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Test translations
-	tr := po2.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
-	}
-	// Test translations
-	tr = po2.Get("language")
-	if tr != "en_US" {
-		t.Errorf("Expected 'en_US' but got '%s'", tr)
-	}
 }

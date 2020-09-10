@@ -6,18 +6,9 @@
 package gotext
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
-	"encoding/gob"
-	"io/ioutil"
 	"net/textproto"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
-
-	"github.com/leonelquinteros/gotext/plurals"
 )
 
 const (
@@ -57,52 +48,52 @@ Example:
 
 */
 type Mo struct {
-	// Headers storage
-	Headers textproto.MIMEHeader
-
-	// Language header
-	Language string
-
-	// Plural-Forms header
+	//these three public members are for backwards compatibility. they are just set to the value in the domain
+	Headers     textproto.MIMEHeader
+	Language    string
 	PluralForms string
-
-	// Parsed Plural-Forms header values
-	nplurals    int
-	plural      string
-	pluralforms plurals.Expression
-
-	// Storage
-	translations map[string]*Translation
-	contexts     map[string]map[string]*Translation
-
-	// Sync Mutex
-	sync.RWMutex
-
-	// Parsing buffers
-	trBuffer  *Translation
-	ctxBuffer string
+	domain      *Domain
 }
 
-// NewMoTranslator creates a new Mo object with the Translator interface
-func NewMoTranslator() Translator {
-	return new(Mo)
+//NewMo should always be used to instantiate a new Mo object
+func NewMo() *Mo {
+	mo := new(Mo)
+	mo.domain = NewDomain()
+
+	return mo
 }
 
-// ParseFile tries to read the file by its provided path (f) and parse its content as a .po file.
+func (mo *Mo) GetDomain() *Domain {
+	return mo.domain
+}
+
+//all of the Get functions are for convenience and aid in backwards compatibility
+func (mo *Mo) Get(str string, vars ...interface{}) string {
+	return mo.domain.Get(str, vars...)
+}
+
+func (mo *Mo) GetN(str, plural string, n int, vars ...interface{}) string {
+	return mo.domain.GetN(str, plural, n, vars...)
+}
+
+func (mo *Mo) GetC(str, ctx string, vars ...interface{}) string {
+	return mo.domain.GetC(str, ctx, vars...)
+}
+
+func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+	return mo.domain.GetNC(str, plural, n, ctx, vars...)
+}
+
+func (mo *Mo) MarshalBinary() ([]byte, error) {
+	return mo.domain.MarshalBinary()
+}
+
+func (mo *Mo) UnmarshalBinary(data []byte) error {
+	return mo.domain.UnmarshalBinary(data)
+}
+
 func (mo *Mo) ParseFile(f string) {
-	// Check if file exists
-	info, err := os.Stat(f)
-	if err != nil {
-		return
-	}
-
-	// Check that isn't a directory
-	if info.IsDir() {
-		return
-	}
-
-	// Parse file content
-	data, err := ioutil.ReadFile(f)
+	data, err := getFileData(f)
 	if err != nil {
 		return
 	}
@@ -110,16 +101,13 @@ func (mo *Mo) ParseFile(f string) {
 	mo.Parse(data)
 }
 
-// Parse loads the translations specified in the provided string (str)
+// Parse loads the translations specified in the provided byte slice, in the GNU gettext .mo format
 func (mo *Mo) Parse(buf []byte) {
 	// Lock while parsing
-	mo.Lock()
-
-	// Init storage
-	if mo.translations == nil {
-		mo.translations = make(map[string]*Translation)
-		mo.contexts = make(map[string]map[string]*Translation)
-	}
+	mo.domain.trMutex.Lock()
+	mo.domain.pluralMutex.Lock()
+	defer mo.domain.trMutex.Unlock()
+	defer mo.domain.pluralMutex.Unlock()
 
 	r := bytes.NewReader(buf)
 
@@ -223,13 +211,14 @@ func (mo *Mo) Parse(buf []byte) {
 		}
 	}
 
-	// Unlock to parse headers
-	mo.Unlock()
-
 	// Parse headers
-	mo.parseHeaders()
-	return
-	// return nil
+	mo.domain.parseHeaders()
+
+	// set values on this struct
+	// this is for backwards compatibility
+	mo.Language = mo.domain.Language
+	mo.PluralForms = mo.domain.PluralForms
+	mo.Headers = mo.domain.Headers
 }
 
 func (mo *Mo) addTranslation(msgid, msgstr []byte) {
@@ -266,207 +255,11 @@ func (mo *Mo) addTranslation(msgid, msgstr []byte) {
 
 	if len(msgctxt) > 0 {
 		// With context...
-		if _, ok := mo.contexts[string(msgctxt)]; !ok {
-			mo.contexts[string(msgctxt)] = make(map[string]*Translation)
+		if _, ok := mo.domain.contexts[string(msgctxt)]; !ok {
+			mo.domain.contexts[string(msgctxt)] = make(map[string]*Translation)
 		}
-		mo.contexts[string(msgctxt)][translation.ID] = translation
+		mo.domain.contexts[string(msgctxt)][translation.ID] = translation
 	} else {
-		mo.translations[translation.ID] = translation
+		mo.domain.translations[translation.ID] = translation
 	}
-}
-
-// parseHeaders retrieves data from previously parsed headers
-func (mo *Mo) parseHeaders() {
-	// Make sure we end with 2 carriage returns.
-	raw := mo.Get("") + "\n\n"
-
-	// Read
-	reader := bufio.NewReader(strings.NewReader(raw))
-	tp := textproto.NewReader(reader)
-
-	var err error
-
-	// Sync Headers write.
-	mo.Lock()
-	defer mo.Unlock()
-
-	mo.Headers, err = tp.ReadMIMEHeader()
-	if err != nil {
-		return
-	}
-
-	// Get/save needed headers
-	mo.Language = mo.Headers.Get("Language")
-	mo.PluralForms = mo.Headers.Get("Plural-Forms")
-
-	// Parse Plural-Forms formula
-	if mo.PluralForms == "" {
-		return
-	}
-
-	// Split plural form header value
-	pfs := strings.Split(mo.PluralForms, ";")
-
-	// Parse values
-	for _, i := range pfs {
-		vs := strings.SplitN(i, "=", 2)
-		if len(vs) != 2 {
-			continue
-		}
-
-		switch strings.TrimSpace(vs[0]) {
-		case "nplurals":
-			mo.nplurals, _ = strconv.Atoi(vs[1])
-
-		case "plural":
-			mo.plural = vs[1]
-
-			if expr, err := plurals.Compile(mo.plural); err == nil {
-				mo.pluralforms = expr
-			}
-
-		}
-	}
-}
-
-// pluralForm calculates the plural form index corresponding to n.
-// Returns 0 on error
-func (mo *Mo) pluralForm(n int) int {
-	mo.RLock()
-	defer mo.RUnlock()
-
-	// Failure fallback
-	if mo.pluralforms == nil {
-		/* Use the Germanic plural rule.  */
-		if n == 1 {
-			return 0
-		}
-		return 1
-
-	}
-	return mo.pluralforms.Eval(uint32(n))
-}
-
-// Get retrieves the corresponding Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (mo *Mo) Get(str string, vars ...interface{}) string {
-	// Sync read
-	mo.RLock()
-	defer mo.RUnlock()
-
-	if mo.translations != nil {
-		if _, ok := mo.translations[str]; ok {
-			return Printf(mo.translations[str].Get(), vars...)
-		}
-	}
-
-	// Return the same we received by default
-	return Printf(str, vars...)
-}
-
-// GetN retrieves the (N)th plural form of Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (mo *Mo) GetN(str, plural string, n int, vars ...interface{}) string {
-	// Sync read
-	mo.RLock()
-	defer mo.RUnlock()
-
-	if mo.translations != nil {
-		if _, ok := mo.translations[str]; ok {
-			return Printf(mo.translations[str].GetN(mo.pluralForm(n)), vars...)
-		}
-	}
-
-	if n == 1 {
-		return Printf(str, vars...)
-	}
-	return Printf(plural, vars...)
-}
-
-// GetC retrieves the corresponding Translation for a given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (mo *Mo) GetC(str, ctx string, vars ...interface{}) string {
-	// Sync read
-	mo.RLock()
-	defer mo.RUnlock()
-
-	if mo.contexts != nil {
-		if _, ok := mo.contexts[ctx]; ok {
-			if mo.contexts[ctx] != nil {
-				if _, ok := mo.contexts[ctx][str]; ok {
-					return Printf(mo.contexts[ctx][str].Get(), vars...)
-				}
-			}
-		}
-	}
-
-	// Return the string we received by default
-	return Printf(str, vars...)
-}
-
-// GetNC retrieves the (N)th plural form of Translation for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
-	// Sync read
-	mo.RLock()
-	defer mo.RUnlock()
-
-	if mo.contexts != nil {
-		if _, ok := mo.contexts[ctx]; ok {
-			if mo.contexts[ctx] != nil {
-				if _, ok := mo.contexts[ctx][str]; ok {
-					return Printf(mo.contexts[ctx][str].GetN(mo.pluralForm(n)), vars...)
-				}
-			}
-		}
-	}
-
-	if n == 1 {
-		return Printf(str, vars...)
-	}
-	return Printf(plural, vars...)
-}
-
-// MarshalBinary implements encoding.BinaryMarshaler interface
-func (mo *Mo) MarshalBinary() ([]byte, error) {
-	obj := new(TranslatorEncoding)
-	obj.Headers = mo.Headers
-	obj.Language = mo.Language
-	obj.PluralForms = mo.PluralForms
-	obj.Nplurals = mo.nplurals
-	obj.Plural = mo.plural
-	obj.Translations = mo.translations
-	obj.Contexts = mo.contexts
-
-	var buff bytes.Buffer
-	encoder := gob.NewEncoder(&buff)
-	err := encoder.Encode(obj)
-
-	return buff.Bytes(), err
-}
-
-// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
-func (mo *Mo) UnmarshalBinary(data []byte) error {
-	buff := bytes.NewBuffer(data)
-	obj := new(TranslatorEncoding)
-
-	decoder := gob.NewDecoder(buff)
-	err := decoder.Decode(obj)
-	if err != nil {
-		return err
-	}
-
-	mo.Headers = obj.Headers
-	mo.Language = obj.Language
-	mo.PluralForms = obj.PluralForms
-	mo.nplurals = obj.Nplurals
-	mo.plural = obj.Plural
-	mo.translations = obj.Translations
-	mo.contexts = obj.Contexts
-
-	if expr, err := plurals.Compile(mo.plural); err == nil {
-		mo.pluralforms = expr
-	}
-
-	return nil
 }
