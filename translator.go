@@ -8,7 +8,6 @@ package gotext
 import (
 	"errors"
 	"io/ioutil"
-	"net/textproto"
 	"os"
 )
 
@@ -31,7 +30,7 @@ type Translator interface {
 // TranslatorEncoding is used as intermediary storage to encode Translator objects to Gob.
 type TranslatorEncoding struct {
 	// Headers storage
-	Headers textproto.MIMEHeader
+	Headers HeaderMap
 
 	// Language header
 	Language string

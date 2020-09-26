@@ -359,6 +359,9 @@ func tokenize(s string) []string {
 
 		Eg: (foo) -> true; (foo)(bar) -> false;
 	*/
+	if len(s) == 0 {
+		return []string{}
+	}
 	if s[0] == '(' && s[len(s)-1] == ')' {
 		s = s[1 : len(s)-1]
 	}
