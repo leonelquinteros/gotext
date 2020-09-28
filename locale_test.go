@@ -93,8 +93,8 @@ msgstr "More Translation"
 
 	// Test translations
 	tr := l.GetD("my_domain", "My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 
 	v := "Variable"
@@ -474,7 +474,7 @@ msgstr[2] "And this is the second plural form: %s"
 
 func TestAddTranslator(t *testing.T) {
 	// Create po object
-	po := new(Po)
+	po := NewPo()
 
 	// Parse file
 	po.ParseFile("fixtures/en_US/default.po")
@@ -487,8 +487,8 @@ func TestAddTranslator(t *testing.T) {
 
 	// Test translations
 	tr := l.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 	// Test translations
 	tr = l.Get("language")

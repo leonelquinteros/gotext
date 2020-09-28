@@ -5,7 +5,12 @@
 
 package gotext
 
-import "net/textproto"
+import (
+	"errors"
+	"io/ioutil"
+	"net/textproto"
+	"os"
+)
 
 // Translator interface is used by Locale and Po objects.Translator
 // It contains all methods needed to parse translation sources and obtain corresponding translations.
@@ -20,6 +25,7 @@ type Translator interface {
 
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary([]byte) error
+	GetDomain() *Domain
 }
 
 // TranslatorEncoding is used as intermediary storage to encode Translator objects to Gob.
@@ -42,18 +48,36 @@ type TranslatorEncoding struct {
 	Contexts     map[string]map[string]*Translation
 }
 
-// GetTranslator is used to recover a Translator object after unmarshaling the TranslatorEncoding object.
-// Internally uses a Po object as it should be switcheable with Mo objects without problem.
-// External Translator implementations should be able to serialize into a TranslatorEncoding object in order to unserialize into a Po-compatible object.
+// GetTranslator is used to recover a Translator object after unmarshalling the TranslatorEncoding object.
+// Internally uses a Po object as it should be switchable with Mo objects without problem.
+// External Translator implementations should be able to serialize into a TranslatorEncoding object in order to
+// deserialize into a Po-compatible object.
 func (te *TranslatorEncoding) GetTranslator() Translator {
-	po := new(Po)
-	po.Headers = te.Headers
-	po.Language = te.Language
-	po.PluralForms = te.PluralForms
-	po.nplurals = te.Nplurals
-	po.plural = te.Plural
-	po.translations = te.Translations
-	po.contexts = te.Contexts
+	po := NewPo()
+	po.domain = NewDomain()
+	po.domain.Headers = te.Headers
+	po.domain.Language = te.Language
+	po.domain.PluralForms = te.PluralForms
+	po.domain.nplurals = te.Nplurals
+	po.domain.plural = te.Plural
+	po.domain.translations = te.Translations
+	po.domain.contexts = te.Contexts
 
 	return po
+}
+
+//getFileData reads a file and returns the byte slice after doing some basic sanity checking
+func getFileData(f string) ([]byte, error) {
+	// Check if file exists
+	info, err := os.Stat(f)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check that isn't a directory
+	if info.IsDir() {
+		return nil, errors.New("cannot parse a directory")
+	}
+
+	return ioutil.ReadFile(f)
 }
