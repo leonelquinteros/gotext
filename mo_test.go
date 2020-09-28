@@ -12,9 +12,8 @@ import (
 )
 
 func TestMo_Get(t *testing.T) {
-
-	// Create po object
-	mo := new(Mo)
+	// Create mo object
+	mo := NewMo()
 
 	// Try to parse a directory
 	mo.ParseFile(path.Clean(os.TempDir()))
@@ -24,8 +23,8 @@ func TestMo_Get(t *testing.T) {
 
 	// Test translations
 	tr := mo.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 	// Test translations
 	tr = mo.Get("language")
@@ -35,9 +34,8 @@ func TestMo_Get(t *testing.T) {
 }
 
 func TestMo(t *testing.T) {
-
-	// Create po object
-	mo := new(Mo)
+	// Create mo object
+	mo := NewMo()
 
 	// Try to parse a directory
 	mo.ParseFile(path.Clean(os.TempDir()))
@@ -47,8 +45,8 @@ func TestMo(t *testing.T) {
 
 	// Test translations
 	tr := mo.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 
 	v := "Variable"
@@ -144,9 +142,8 @@ func TestMo(t *testing.T) {
 }
 
 func TestMoRace(t *testing.T) {
-
-	// Create Po object
-	mo := new(Mo)
+	// Create mo object
+	mo := NewMo()
 
 	// Create sync channels
 	pc := make(chan bool)
@@ -176,7 +173,7 @@ func TestMoRace(t *testing.T) {
 func TestNewMoTranslatorRace(t *testing.T) {
 
 	// Create Po object
-	mo := NewMoTranslator()
+	mo := NewMo()
 
 	// Create sync channels
 	pc := make(chan bool)
@@ -205,8 +202,8 @@ func TestNewMoTranslatorRace(t *testing.T) {
 
 func TestMoBinaryEncoding(t *testing.T) {
 	// Create mo objects
-	mo := new(Mo)
-	mo2 := new(Mo)
+	mo := NewMo()
+	mo2 := NewMo()
 
 	// Parse file
 	mo.ParseFile("fixtures/en_US/default.mo")
@@ -223,8 +220,8 @@ func TestMoBinaryEncoding(t *testing.T) {
 
 	// Test translations
 	tr := mo2.Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 	// Test translations
 	tr = mo2.Get("language")

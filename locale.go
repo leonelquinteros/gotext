@@ -107,13 +107,13 @@ func (l *Locale) AddDomain(dom string) {
 
 	file := l.findExt(dom, "po")
 	if file != "" {
-		poObj = new(Po)
+		poObj = NewPo()
 		// Parse file.
 		poObj.ParseFile(file)
 	} else {
 		file = l.findExt(dom, "mo")
 		if file != "" {
-			poObj = new(Mo)
+			poObj = NewMo()
 			// Parse file.
 			poObj.ParseFile(file)
 		} else {

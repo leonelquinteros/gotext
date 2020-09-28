@@ -6,17 +6,9 @@
 package gotext
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/gob"
-	"io/ioutil"
 	"net/textproto"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
-
-	"github.com/leonelquinteros/gotext/plurals"
 )
 
 /*
@@ -44,30 +36,12 @@ Example:
 
 */
 type Po struct {
-	// Headers storage
-	Headers textproto.MIMEHeader
-
-	// Language header
-	Language string
-
-	// Plural-Forms header
+	//these three public members are for backwards compatibility. they are just set to the value in the domain
+	Headers     textproto.MIMEHeader
+	Language    string
 	PluralForms string
 
-	// Parsed Plural-Forms header values
-	nplurals    int
-	plural      string
-	pluralforms plurals.Expression
-
-	// Storage
-	translations map[string]*Translation
-	contexts     map[string]map[string]*Translation
-
-	// Sync Mutex
-	sync.RWMutex
-
-	// Parsing buffers
-	trBuffer  *Translation
-	ctxBuffer string
+	domain *Domain
 }
 
 type parseState int
@@ -80,26 +54,45 @@ const (
 	msgStr
 )
 
-// NewPoTranslator creates a new Po object with the Translator interface
-func NewPoTranslator() Translator {
-	return new(Po)
+//NewPo should always be used to instantiate a new Po object
+func NewPo() *Po {
+	po := new(Po)
+	po.domain = NewDomain()
+
+	return po
 }
 
-// ParseFile tries to read the file by its provided path (f) and parse its content as a .po file.
+func (po *Po) GetDomain() *Domain {
+	return po.domain
+}
+
+//all of these functions are for convenience and aid in backwards compatibility
+func (po *Po) Get(str string, vars ...interface{}) string {
+	return po.domain.Get(str, vars...)
+}
+
+func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
+	return po.domain.GetN(str, plural, n, vars...)
+}
+
+func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
+	return po.domain.GetC(str, ctx, vars...)
+}
+
+func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+	return po.domain.GetNC(str, plural, n, ctx, vars...)
+}
+
+func (po *Po) MarshalBinary() ([]byte, error) {
+	return po.domain.MarshalBinary()
+}
+
+func (po *Po) UnmarshalBinary(data []byte) error {
+	return po.domain.UnmarshalBinary(data)
+}
+
 func (po *Po) ParseFile(f string) {
-	// Check if file exists
-	info, err := os.Stat(f)
-	if err != nil {
-		return
-	}
-
-	// Check that isn't a directory
-	if info.IsDir() {
-		return
-	}
-
-	// Parse file content
-	data, err := ioutil.ReadFile(f)
+	data, err := getFileData(f)
 	if err != nil {
 		return
 	}
@@ -109,21 +102,22 @@ func (po *Po) ParseFile(f string) {
 
 // Parse loads the translations specified in the provided string (str)
 func (po *Po) Parse(buf []byte) {
-	// Lock while parsing
-	po.Lock()
-
-	// Init storage
-	if po.translations == nil {
-		po.translations = make(map[string]*Translation)
-		po.contexts = make(map[string]map[string]*Translation)
+	if po.domain == nil {
+		panic("po.domain must be set when calling Parse")
 	}
+
+	// Lock while parsing
+	po.domain.trMutex.Lock()
+	po.domain.pluralMutex.Lock()
+	defer po.domain.trMutex.Unlock()
+	defer po.domain.pluralMutex.Unlock()
 
 	// Get lines
 	lines := strings.Split(string(buf), "\n")
 
 	// Init buffer
-	po.trBuffer = NewTranslation()
-	po.ctxBuffer = ""
+	po.domain.trBuffer = NewTranslation()
+	po.domain.ctxBuffer = ""
 
 	state := head
 	for _, l := range lines {
@@ -152,6 +146,7 @@ func (po *Po) Parse(buf []byte) {
 		// Check for plural form
 		if strings.HasPrefix(l, "msgid_plural") {
 			po.parsePluralID(l)
+			po.domain.pluralTranslations[po.domain.trBuffer.PluralID] = po.domain.trBuffer
 			state = msgIDPlural
 			continue
 		}
@@ -173,34 +168,37 @@ func (po *Po) Parse(buf []byte) {
 	// Save last Translation buffer.
 	po.saveBuffer()
 
-	// Unlock to parse headers
-	po.Unlock()
-
 	// Parse headers
-	po.parseHeaders()
+	po.domain.parseHeaders()
+
+	// set values on this struct
+	// this is for backwards compatibility
+	po.Language = po.domain.Language
+	po.PluralForms = po.domain.PluralForms
+	po.Headers = po.domain.Headers
 }
 
 // saveBuffer takes the context and Translation buffers
 // and saves it on the translations collection
 func (po *Po) saveBuffer() {
 	// With no context...
-	if po.ctxBuffer == "" {
-		po.translations[po.trBuffer.ID] = po.trBuffer
+	if po.domain.ctxBuffer == "" {
+		po.domain.translations[po.domain.trBuffer.ID] = po.domain.trBuffer
 	} else {
 		// With context...
-		if _, ok := po.contexts[po.ctxBuffer]; !ok {
-			po.contexts[po.ctxBuffer] = make(map[string]*Translation)
+		if _, ok := po.domain.contexts[po.domain.ctxBuffer]; !ok {
+			po.domain.contexts[po.domain.ctxBuffer] = make(map[string]*Translation)
 		}
-		po.contexts[po.ctxBuffer][po.trBuffer.ID] = po.trBuffer
+		po.domain.contexts[po.domain.ctxBuffer][po.domain.trBuffer.ID] = po.domain.trBuffer
 
 		// Cleanup current context buffer if needed
-		if po.trBuffer.ID != "" {
-			po.ctxBuffer = ""
+		if po.domain.trBuffer.ID != "" {
+			po.domain.ctxBuffer = ""
 		}
 	}
 
 	// Flush Translation buffer
-	po.trBuffer = NewTranslation()
+	po.domain.trBuffer = NewTranslation()
 }
 
 // parseContext takes a line starting with "msgctxt",
@@ -210,7 +208,7 @@ func (po *Po) parseContext(l string) {
 	po.saveBuffer()
 
 	// Buffer context
-	po.ctxBuffer, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgctxt")))
+	po.domain.ctxBuffer, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgctxt")))
 }
 
 // parseID takes a line starting with "msgid",
@@ -220,12 +218,12 @@ func (po *Po) parseID(l string) {
 	po.saveBuffer()
 
 	// Set id
-	po.trBuffer.ID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid")))
+	po.domain.trBuffer.ID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid")))
 }
 
 // parsePluralID saves the plural id buffer from a line starting with "msgid_plural"
 func (po *Po) parsePluralID(l string) {
-	po.trBuffer.PluralID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
+	po.domain.trBuffer.PluralID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
 }
 
 // parseMessage takes a line starting with "msgstr" and saves it into the current buffer.
@@ -248,14 +246,14 @@ func (po *Po) parseMessage(l string) {
 		}
 
 		// Parse Translation string
-		po.trBuffer.Trs[i], _ = strconv.Unquote(strings.TrimSpace(l[idx+1:]))
+		po.domain.trBuffer.Trs[i], _ = strconv.Unquote(strings.TrimSpace(l[idx+1:]))
 
 		// Loop
 		return
 	}
 
 	// Save single Translation form under 0 index
-	po.trBuffer.Trs[0], _ = strconv.Unquote(l)
+	po.domain.trBuffer.Trs[0], _ = strconv.Unquote(l)
 }
 
 // parseString takes a well formatted string without prefix
@@ -266,19 +264,19 @@ func (po *Po) parseString(l string, state parseState) {
 	switch state {
 	case msgStr:
 		// Append to last Translation found
-		po.trBuffer.Trs[len(po.trBuffer.Trs)-1] += clean
+		po.domain.trBuffer.Trs[len(po.domain.trBuffer.Trs)-1] += clean
 
 	case msgID:
 		// Multiline msgid - Append to current id
-		po.trBuffer.ID += clean
+		po.domain.trBuffer.ID += clean
 
 	case msgIDPlural:
 		// Multiline msgid - Append to current id
-		po.trBuffer.PluralID += clean
+		po.domain.trBuffer.PluralID += clean
 
 	case msgCtxt:
 		// Multiline context - Append to current context
-		po.ctxBuffer += clean
+		po.domain.ctxBuffer += clean
 
 	}
 }
@@ -301,201 +299,4 @@ func (po *Po) isValidLine(l string) bool {
 	}
 
 	return false
-}
-
-// parseHeaders retrieves data from previously parsed headers
-func (po *Po) parseHeaders() {
-	// Make sure we end with 2 carriage returns.
-	raw := po.Get("") + "\n\n"
-
-	// Read
-	reader := bufio.NewReader(strings.NewReader(raw))
-	tp := textproto.NewReader(reader)
-
-	var err error
-
-	// Sync Headers write.
-	po.Lock()
-	defer po.Unlock()
-
-	po.Headers, err = tp.ReadMIMEHeader()
-	if err != nil {
-		return
-	}
-
-	// Get/save needed headers
-	po.Language = po.Headers.Get("Language")
-	po.PluralForms = po.Headers.Get("Plural-Forms")
-
-	// Parse Plural-Forms formula
-	if po.PluralForms == "" {
-		return
-	}
-
-	// Split plural form header value
-	pfs := strings.Split(po.PluralForms, ";")
-
-	// Parse values
-	for _, i := range pfs {
-		vs := strings.SplitN(i, "=", 2)
-		if len(vs) != 2 {
-			continue
-		}
-
-		switch strings.TrimSpace(vs[0]) {
-		case "nplurals":
-			po.nplurals, _ = strconv.Atoi(vs[1])
-
-		case "plural":
-			po.plural = vs[1]
-
-			if expr, err := plurals.Compile(po.plural); err == nil {
-				po.pluralforms = expr
-			}
-
-		}
-	}
-}
-
-// pluralForm calculates the plural form index corresponding to n.
-// Returns 0 on error
-func (po *Po) pluralForm(n int) int {
-	po.RLock()
-	defer po.RUnlock()
-
-	// Failure fallback
-	if po.pluralforms == nil {
-		/* Use Western plural rule.  */
-		if n == 1 {
-			return 0
-		}
-		return 1
-	}
-	return po.pluralforms.Eval(uint32(n))
-}
-
-// Get retrieves the corresponding Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (po *Po) Get(str string, vars ...interface{}) string {
-	// Sync read
-	po.RLock()
-	defer po.RUnlock()
-
-	if po.translations != nil {
-		if _, ok := po.translations[str]; ok {
-			return Printf(po.translations[str].Get(), vars...)
-		}
-	}
-
-	// Return the same we received by default
-	return Printf(str, vars...)
-}
-
-// GetN retrieves the (N)th plural form of Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
-	// Sync read
-	po.RLock()
-	defer po.RUnlock()
-
-	if po.translations != nil {
-		if _, ok := po.translations[str]; ok {
-			return Printf(po.translations[str].GetN(po.pluralForm(n)), vars...)
-		}
-	}
-
-	// Parse plural forms to distinguish between plural and singular
-	if po.pluralForm(n) == 0 {
-		return Printf(str, vars...)
-	}
-	return Printf(plural, vars...)
-}
-
-// GetC retrieves the corresponding Translation for a given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
-	// Sync read
-	po.RLock()
-	defer po.RUnlock()
-
-	if po.contexts != nil {
-		if _, ok := po.contexts[ctx]; ok {
-			if po.contexts[ctx] != nil {
-				if _, ok := po.contexts[ctx][str]; ok {
-					return Printf(po.contexts[ctx][str].Get(), vars...)
-				}
-			}
-		}
-	}
-
-	// Return the string we received by default
-	return Printf(str, vars...)
-}
-
-// GetNC retrieves the (N)th plural form of Translation for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
-	// Sync read
-	po.RLock()
-	defer po.RUnlock()
-
-	if po.contexts != nil {
-		if _, ok := po.contexts[ctx]; ok {
-			if po.contexts[ctx] != nil {
-				if _, ok := po.contexts[ctx][str]; ok {
-					return Printf(po.contexts[ctx][str].GetN(po.pluralForm(n)), vars...)
-				}
-			}
-		}
-	}
-
-	// Parse plural forms to distinguish between plural and singular
-	if po.pluralForm(n) == 0 {
-		return Printf(str, vars...)
-	}
-	return Printf(plural, vars...)
-}
-
-// MarshalBinary implements encoding.BinaryMarshaler interface
-func (po *Po) MarshalBinary() ([]byte, error) {
-	obj := new(TranslatorEncoding)
-	obj.Headers = po.Headers
-	obj.Language = po.Language
-	obj.PluralForms = po.PluralForms
-	obj.Nplurals = po.nplurals
-	obj.Plural = po.plural
-	obj.Translations = po.translations
-	obj.Contexts = po.contexts
-
-	var buff bytes.Buffer
-	encoder := gob.NewEncoder(&buff)
-	err := encoder.Encode(obj)
-
-	return buff.Bytes(), err
-}
-
-// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
-func (po *Po) UnmarshalBinary(data []byte) error {
-	buff := bytes.NewBuffer(data)
-	obj := new(TranslatorEncoding)
-
-	decoder := gob.NewDecoder(buff)
-	err := decoder.Decode(obj)
-	if err != nil {
-		return err
-	}
-
-	po.Headers = obj.Headers
-	po.Language = obj.Language
-	po.PluralForms = obj.PluralForms
-	po.nplurals = obj.Nplurals
-	po.plural = obj.Plural
-	po.translations = obj.Translations
-	po.contexts = obj.Contexts
-
-	if expr, err := plurals.Compile(po.plural); err == nil {
-		po.pluralforms = expr
-	}
-
-	return nil
 }

@@ -139,8 +139,8 @@ msgstr "Another text on another domain"
 
 	// Test translations
 	tr := Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 	}
 
 	v := "Variable"
@@ -252,7 +252,6 @@ msgstr[1] ""
 }
 
 func TestMoAndPoTranslator(t *testing.T) {
-
 	fixPath, _ := filepath.Abs("./fixtures/")
 
 	Configure(fixPath, "en_GB", "default")
@@ -260,8 +259,8 @@ func TestMoAndPoTranslator(t *testing.T) {
 	// Check default domain Translation
 	SetDomain("default")
 	tr := Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text'. Got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s'. Got '%s'", translatedText, tr)
 	}
 	tr = Get("language")
 	if tr != "en_GB" {
@@ -274,8 +273,8 @@ func TestMoAndPoTranslator(t *testing.T) {
 	// Check default domain Translation
 	SetDomain("default")
 	tr = Get("My text")
-	if tr != "Translated text" {
-		t.Errorf("Expected 'Translated text'. Got '%s'", tr)
+	if tr != translatedText {
+		t.Errorf("Expected '%s'. Got '%s'", translatedText, tr)
 	}
 	tr = Get("language")
 	if tr != "en_AU" {
