@@ -8,7 +8,6 @@ package gotext
 import (
 	"bytes"
 	"encoding/binary"
-	"net/textproto"
 )
 
 const (
@@ -49,7 +48,7 @@ Example:
 */
 type Mo struct {
 	//these three public members are for backwards compatibility. they are just set to the value in the domain
-	Headers     textproto.MIMEHeader
+	Headers     HeaderMap
 	Language    string
 	PluralForms string
 	domain      *Domain

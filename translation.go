@@ -10,14 +10,37 @@ type Translation struct {
 	ID       string
 	PluralID string
 	Trs      map[int]string
+	Refs     []string
+
+	dirty bool
 }
 
 // NewTranslation returns the Translation object and initialized it.
 func NewTranslation() *Translation {
-	tr := new(Translation)
-	tr.Trs = make(map[int]string)
+	return &Translation{
+		Trs: make(map[int]string),
+	}
+}
 
-	return tr
+func NewTranslationWithRefs(refs []string) *Translation {
+	return &Translation{
+		Trs:  make(map[int]string),
+		Refs: refs,
+	}
+}
+
+func (t *Translation) IsStale() bool {
+	return t.dirty == false
+}
+
+func (t *Translation) SetRefs(refs []string) {
+	t.Refs = refs
+	t.dirty = true
+}
+
+func (t *Translation) Set(str string) {
+	t.Trs[0] = str
+	t.dirty = true
 }
 
 // Get returns the string of the translation
@@ -31,6 +54,11 @@ func (t *Translation) Get() string {
 
 	// Return untranslated id by default
 	return t.ID
+}
+
+func (t *Translation) SetN(n int, str string) {
+	t.Trs[n] = str
+	t.dirty = true
 }
 
 // GetN returns the string of the plural translation

@@ -6,7 +6,6 @@
 package gotext
 
 import (
-	"net/textproto"
 	"strconv"
 	"strings"
 )
@@ -37,7 +36,7 @@ Example:
 */
 type Po struct {
 	//these three public members are for backwards compatibility. they are just set to the value in the domain
-	Headers     textproto.MIMEHeader
+	Headers     HeaderMap
 	Language    string
 	PluralForms string
 
@@ -66,21 +65,48 @@ func (po *Po) GetDomain() *Domain {
 	return po.domain
 }
 
-//all of these functions are for convenience and aid in backwards compatibility
+// Convenience interfaces
+func (po *Po) DropStaleTranslations() {
+	po.domain.DropStaleTranslations()
+}
+
+func (po *Po) SetRefs(str string, refs []string) {
+	po.domain.SetRefs(str, refs)
+}
+func (po *Po) GetRefs(str string) []string {
+	return po.domain.GetRefs(str)
+}
+
+func (po *Po) Set(id, str string) {
+	po.domain.Set(id, str)
+}
 func (po *Po) Get(str string, vars ...interface{}) string {
 	return po.domain.Get(str, vars...)
 }
 
+func (po *Po) SetN(id, plural string, n int, str string) {
+	po.domain.SetN(id, plural, n, str)
+}
 func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 	return po.domain.GetN(str, plural, n, vars...)
 }
 
+func (po *Po) SetC(id, ctx, str string) {
+	po.domain.SetC(id, ctx, str)
+}
 func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
 	return po.domain.GetC(str, ctx, vars...)
 }
 
+func (po *Po) SetNC(id, plural, ctx string, n int, str string) {
+	po.domain.SetNC(id, plural, ctx, n, str)
+}
 func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 	return po.domain.GetNC(str, plural, n, ctx, vars...)
+}
+
+func (po *Po) MarshalText() ([]byte, error) {
+	return po.domain.MarshalText()
 }
 
 func (po *Po) MarshalBinary() ([]byte, error) {
@@ -103,7 +129,7 @@ func (po *Po) ParseFile(f string) {
 // Parse loads the translations specified in the provided string (str)
 func (po *Po) Parse(buf []byte) {
 	if po.domain == nil {
-		panic("po.domain must be set when calling Parse")
+		panic("NewPo() was not used to instantiate this object")
 	}
 
 	// Lock while parsing
@@ -118,6 +144,7 @@ func (po *Po) Parse(buf []byte) {
 	// Init buffer
 	po.domain.trBuffer = NewTranslation()
 	po.domain.ctxBuffer = ""
+	po.domain.refBuffer = ""
 
 	state := head
 	for _, l := range lines {
@@ -126,6 +153,7 @@ func (po *Po) Parse(buf []byte) {
 
 		// Skip invalid lines
 		if !po.isValidLine(l) {
+			po.parseComment(l, state)
 			continue
 		}
 
@@ -198,7 +226,28 @@ func (po *Po) saveBuffer() {
 	}
 
 	// Flush Translation buffer
-	po.domain.trBuffer = NewTranslation()
+	if po.domain.refBuffer == "" {
+		po.domain.trBuffer = NewTranslation()
+	} else {
+		po.domain.trBuffer = NewTranslationWithRefs(strings.Split(po.domain.refBuffer, " "))
+	}
+}
+
+// Either preserves comments before the first "msgid", for later round-trip.
+// Or preserves source references for a given translation.
+func (po *Po) parseComment(l string, state parseState) {
+	if len(l) > 0 && l[0] == '#' {
+		if state == head {
+			po.domain.headerComments = append(po.domain.headerComments, l)
+		} else if len(l) > 1 {
+			switch l[1] {
+			case ':':
+				if len(l) > 2 {
+					po.domain.refBuffer = strings.TrimSpace(l[2:])
+				}
+			}
+		}
+	}
 }
 
 // parseContext takes a line starting with "msgctxt",

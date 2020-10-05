@@ -589,3 +589,149 @@ func TestNewPoTranslatorRace(t *testing.T) {
 	<-pc
 	<-rc
 }
+
+func TestPoBinaryEncoding(t *testing.T) {
+	// Create po objects
+	po := NewPo()
+	po2 := NewPo()
+
+	// Parse file
+	po.ParseFile("fixtures/en_US/default.po")
+
+	buff, err := po.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = po2.UnmarshalBinary(buff)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Test translations
+	tr := po2.Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	}
+	// Test translations
+	tr = po2.Get("language")
+	if tr != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	}
+}
+
+func TestPoTextEncoding(t *testing.T) {
+	// Create po objects
+	po := NewPo()
+	po2 := NewPo()
+
+	// Parse file
+	po.ParseFile("fixtures/en_US/default.po")
+
+	if _, ok := po.Headers["Pot-Creation-Date"]; ok {
+		t.Errorf("Expected non-canonicalised header, got canonicalised")
+	} else {
+		if _, ok = po.Headers["POT-Creation-Date"]; !ok {
+			t.Errorf("Expected non-canonicalised header, but it was missing")
+		}
+	}
+
+	// Round-trip
+	buff, err := po.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	po2.Parse(buff)
+
+	for k, v := range po.Headers {
+		if v2, ok := po2.Headers[k]; ok {
+			for i, value := range v {
+				if value != v2[i] {
+					t.Errorf("TestPoTextEncoding: Header Difference for %s: %s vs %s", k, value, v2[i])
+				}
+			}
+		}
+	}
+
+	// Test translations
+	tr := po2.Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	}
+
+	tr = po2.Get("language")
+	if tr != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	}
+
+	tr = po2.Get("Some random")
+	if tr != "Some random translation" {
+		t.Errorf("Expected 'Some random translation' but got '%s'", tr)
+	}
+
+	v := "Test"
+	tr = po.GetC("One with var: %s", "Ctx", v)
+	if tr != "This one is the singular in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is the singular in a Ctx context: Test' but got '%s'", tr)
+	}
+
+	tr = po.GetNC("One with var: %s", "Several with vars: %s", 17, "Ctx", v)
+	if tr != "This one is the plural in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is the plural in a Ctx context: Test' but got '%s'", tr)
+	}
+
+	// Another kind of round-trip
+	po.Set("My text", "Translated text")
+	po.Set("language", "en_US")
+
+	// But remove 'the'
+	po.SetNC("One with var: %s", "Several with vars: %s", "Ctx", 1, "This one is singular in a Ctx context: %s")
+	po.SetNC("One with var: %s", "Several with vars: %s", "Ctx", 17, "This one is plural in a Ctx context: %s")
+
+	po.DropStaleTranslations()
+
+	buff, err = po.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	po2 = NewPo()
+	po2.Parse(buff)
+
+	for k, v := range po.Headers {
+		if v2, ok := po2.Headers[k]; ok {
+			for i, value := range v {
+				if value != v2[i] {
+					t.Errorf("Only translations should have been dropped, not headers")
+				}
+			}
+		}
+	}
+
+	tr = po2.Get("My text")
+	if tr != "Translated text" {
+		t.Errorf("Expected 'Translated text' but got '%s'", tr)
+	}
+	tr = po2.Get("language")
+	if tr != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	}
+
+	tr = po2.Get("Some random")
+	if tr == "Some random translation" || tr != "Some random" {
+		t.Errorf("Expected 'Some random' translation to be dropped; was present")
+	}
+
+	// With 'the' removed?
+	v = "Test"
+	tr = po.GetC("One with var: %s", "Ctx", v)
+	if tr != "This one is singular in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is singular in a Ctx context: Test' but got '%s'", tr)
+	}
+
+	tr = po.GetNC("One with var: %s", "Several with vars: %s", 17, "Ctx", v)
+	if tr != "This one is plural in a Ctx context: Test" {
+		t.Errorf("Expected 'This one is plural in a Ctx context: Test' but got '%s'", tr)
+	}
+}
