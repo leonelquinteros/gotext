@@ -8,7 +8,11 @@ import (
 	"strings"
 	"sync"
 
+	"golang.org/x/text/feature/plural"
 	"golang.org/x/text/language"
+
+	"github.com/razor-1/localizer"
+	"github.com/razor-1/localizer/store"
 
 	"github.com/leonelquinteros/gotext/plurals"
 )
@@ -624,4 +628,38 @@ func (do *Domain) UnmarshalBinary(data []byte) error {
 	}
 
 	return nil
+}
+
+//GetAll retrieves all translations in the domain
+func (do *Domain) GetAll() (map[string]*store.Translation, error) {
+	lcData, err := localizer.GetLocaleData(do.tag)
+	if err != nil {
+		return nil, err
+	}
+
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	all := make(map[string]*store.Translation, len(do.translations))
+	for messageID, msg := range do.translations {
+		newTranslation := &store.Translation{
+			ID:       msg.ID,
+			PluralID: msg.PluralID,
+			String:   msg.Get(),
+		}
+
+		if msg.PluralID != "" && lcData != nil && len(lcData.Plural.Cardinal.Forms) > 0 {
+			plForms := make(map[plural.Form]string, len(lcData.Plural.Cardinal.Forms))
+			for i, form := range lcData.Plural.Cardinal.Forms {
+				plForms[form] = msg.GetN(i)
+			}
+			newTranslation.Plurals = plForms
+		}
+		all[messageID] = newTranslation
+		if msg.PluralID != "" {
+			all[msg.PluralID] = newTranslation
+		}
+	}
+
+	return all, nil
 }

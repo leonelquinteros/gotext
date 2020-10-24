@@ -8,9 +8,17 @@ package gotext
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"os"
 	"path"
 	"sync"
+
+	"github.com/razor-1/localizer/store"
+	"golang.org/x/text/language"
+)
+
+const (
+	LCMessages = "LC_MESSAGES"
 )
 
 /*
@@ -51,6 +59,7 @@ type Locale struct {
 
 	// Language for this Locale
 	lang string
+	tag  language.Tag
 
 	// List of available Domains for this locale.
 	Domains map[string]Translator
@@ -65,21 +74,23 @@ type Locale struct {
 // NewLocale creates and initializes a new Locale object for a given language.
 // It receives a path for the i18n .po/.mo files directory (p) and a language code to use (l).
 func NewLocale(p, l string) *Locale {
+	simplifiedLocale := SimplifiedLocale(l)
 	return &Locale{
 		path:    p,
-		lang:    SimplifiedLocale(l),
+		lang:    simplifiedLocale,
+		tag:     language.Make(simplifiedLocale),
 		Domains: make(map[string]Translator),
 	}
 }
 
 func (l *Locale) findExt(dom, ext string) string {
-	filename := path.Join(l.path, l.lang, "LC_MESSAGES", dom+"."+ext)
+	filename := path.Join(l.path, l.lang, LCMessages, dom+"."+ext)
 	if _, err := os.Stat(filename); err == nil {
 		return filename
 	}
 
 	if len(l.lang) > 2 {
-		filename = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+"."+ext)
+		filename = path.Join(l.path, l.lang[:2], LCMessages, dom+"."+ext)
 		if _, err := os.Stat(filename); err == nil {
 			return filename
 		}
@@ -165,6 +176,31 @@ func (l *Locale) SetDomain(dom string) {
 	l.Lock()
 	l.defaultDomain = dom
 	l.Unlock()
+}
+
+//GetTranslations conforms us to the store.TranslationStore interface
+func (l *Locale) GetTranslations(tag language.Tag) (lc store.LocaleCatalog, err error) {
+	if l.tag != tag {
+		err = fmt.Errorf("tags do not match: %v != %v", l.tag, tag)
+		return
+	}
+
+	lc = store.NewLocaleCatalog(tag)
+	lc.Path = l.path
+	l.RLock()
+	defer l.RUnlock()
+
+	for _, translator := range l.Domains {
+		all, err := translator.GetDomain().GetAll()
+		if err != nil {
+			return store.LocaleCatalog{}, err
+		}
+		for msgID, msg := range all {
+			lc.Translations[msgID] = msg
+		}
+	}
+
+	return
 }
 
 // Get uses a domain "default" to return the corresponding Translation of a given string.
