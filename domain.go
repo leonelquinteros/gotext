@@ -403,7 +403,7 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 
 //GetTranslations returns a copy of every translation in the domain. It does not support contexts.
 func (do *Domain) GetTranslations() map[string]*Translation {
-	all := make(map[string]*Translation)
+	all := make(map[string]*Translation, len(do.translations))
 
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
