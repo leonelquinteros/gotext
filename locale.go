@@ -271,6 +271,21 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...inte
 	return Printf(plural, vars...)
 }
 
+//GetTranslations returns a copy of all translations in all domains of this locale. It does not support contexts.
+func (l *Locale) GetTranslations() map[string]*Translation {
+	all := make(map[string]*Translation)
+
+	l.RLock()
+	defer l.RUnlock()
+	for _, translator := range l.Domains {
+		for msgID, trans := range translator.GetDomain().GetTranslations() {
+			all[msgID] = trans
+		}
+	}
+
+	return all
+}
+
 // LocaleEncoding is used as intermediary storage to encode Locale objects to Gob.
 type LocaleEncoding struct {
 	Path          string

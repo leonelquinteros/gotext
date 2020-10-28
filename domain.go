@@ -401,6 +401,31 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 	return Printf(plural, vars...)
 }
 
+//GetTranslations returns a copy of every translation in the domain. It does not support contexts.
+func (do *Domain) GetTranslations() map[string]*Translation {
+	all := make(map[string]*Translation)
+
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	for msgID, trans := range do.translations {
+		newTrans := NewTranslation()
+		newTrans.ID = trans.ID
+		newTrans.PluralID = trans.PluralID
+		newTrans.dirty = trans.dirty
+		if len(trans.Refs) > 0 {
+			newTrans.Refs = make([]string, len(trans.Refs))
+			copy(newTrans.Refs, trans.Refs)
+		}
+		for k, v := range trans.Trs {
+			newTrans.Trs[k] = v
+		}
+		all[msgID] = newTrans
+	}
+
+	return all
+}
+
 type SourceReference struct {
 	path    string
 	line    int
