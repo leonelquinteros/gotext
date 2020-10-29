@@ -601,3 +601,23 @@ func TestLocaleBinaryEncoding(t *testing.T) {
 		t.Errorf("'%s' is different from '%s", l.GetN("One with var: %s", "Several with vars: %s", 3, "VALUE"), l2.GetN("One with var: %s", "Several with vars: %s", 3, "VALUE"))
 	}
 }
+
+func TestLocale_GetTranslations(t *testing.T) {
+	l := NewLocale("fixtures/", "en_US")
+	l.AddDomain("default")
+
+	all := l.GetTranslations()
+
+	if len(all) < 5 {
+		t.Errorf("length of all translations is too few: %d", len(all))
+	}
+
+	const moreMsgID = "More"
+	more, ok := all[moreMsgID]
+	if !ok {
+		t.Error("missing expected translation")
+	}
+	if more.Get() != l.Get(moreMsgID) {
+		t.Errorf("translations of msgid %s do not match: \"%s\" != \"%s\"", moreMsgID, more.Get(), l.Get(moreMsgID))
+	}
+}
