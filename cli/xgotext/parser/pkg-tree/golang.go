@@ -1,18 +1,23 @@
-package parser
+package pkg_tree
 
 import (
 	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
+	"golang.org/x/tools/go/packages"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
-	"golang.org/x/tools/go/packages"
+	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
 
-// GetterDef describes a getter
+const gotextPkgPath = "github.com/leonelquinteros/gotext"
+
+
 type GetterDef struct {
 	Id      int
 	Plural  int
@@ -20,7 +25,7 @@ type GetterDef struct {
 	Domain  int
 }
 
-// maxArgIndex returns the largest argument index
+// MaxArgIndex returns the largest argument index
 func (d *GetterDef) maxArgIndex() int {
 	m := d.Id
 	if d.Plural > m {
@@ -47,60 +52,102 @@ var gotextGetter = map[string]GetterDef{
 	"GetNDC": {1, 2, 4, 0},
 }
 
-// register go parser
-func init() {
-	AddParser(goParser)
+// ParsePkgTree parse go package tree
+func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
+	basePath, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return pkgParser(pkgPath, basePath, data, verbose)
 }
 
-// parse go package
-func goParser(dirPath, basePath string, data *DomainMap) error {
-	fileSet := token.NewFileSet()
 
-	conf := packages.Config{
+func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) error {
+	mainPkg, err := loadPackage(dirPath)
+	if err != nil {
+		return err
+	}
+
+	for _, pkg := range filterPkgs(mainPkg) {
+		if verbose {
+			fmt.Println(pkg.ID)
+		}
+		for _, node := range pkg.Syntax {
+			file := GoFile{
+				filePath: pkg.Fset.Position(node.Package).Filename,
+				basePath: basePath,
+				data:     data,
+				fileSet:  pkg.Fset,
+
+				importedPackages: map[string]*packages.Package{
+					pkg.Name: pkg,
+				},
+			}
+
+			ast.Inspect(node, file.inspectFile)
+		}
+	}
+
+	return nil
+}
+
+var pkgCache = make(map[string]*packages.Package)
+
+func loadPackage(name string) (*packages.Package, error) {
+	fileSet := token.NewFileSet()
+	conf := &packages.Config{
 		Mode: packages.NeedName |
 			packages.NeedFiles |
 			packages.NeedSyntax |
 			packages.NeedTypes |
-			packages.NeedTypesInfo,
+			packages.NeedTypesInfo |
+			packages.NeedImports |
+			packages.NeedDeps,
 		Fset: fileSet,
-		Dir:  basePath,
+		Dir:  name,
+	}
+	pkgs, err := packages.Load(conf)
+	if err != nil {
+		return nil, err
 	}
 
-	// load package from path
-	pkgs, err := packages.Load(&packages.Config{
-		Mode: conf.Mode,
-		Fset: fileSet,
-		Dir:  dirPath,
-	})
-	if err != nil || len(pkgs) == 0 {
-		// not a go package
-		return nil
-	}
-
-	// handle each file
-	for _, node := range pkgs[0].Syntax {
-		file := GoFile{
-			pkgConf:  &conf,
-			filePath: fileSet.Position(node.Package).Filename,
-			basePath: basePath,
-			data:     data,
-			fileSet:  fileSet,
-
-			importedPackages: map[string]*packages.Package{
-				pkgs[0].Name: pkgs[0],
-			},
-		}
-
-		ast.Inspect(node, file.inspectFile)
-	}
-	return nil
+	return pkgs[0], nil
 }
+
+func getPkgPath(pkg *packages.Package) string {
+	if len(pkg.GoFiles) == 0 {
+		return pkg.PkgPath
+	}
+	pkgPath, _ := filepath.Split(pkg.GoFiles[0])
+	return strings.TrimRight(pkgPath, "/")
+}
+
+func filterPkgs(pkg *packages.Package) []*packages.Package {
+	result := filterPkgsRec(pkg)
+	return result
+}
+
+func filterPkgsRec(pkg *packages.Package) []*packages.Package {
+	result := make([]*packages.Package, 0, 100)
+	pkgCache[pkg.ID] = pkg
+	for _, importedPkg := range pkg.Imports {
+		if importedPkg.ID == gotextPkgPath {
+			result = append(result, pkg)
+		}
+		if _, ok := pkgCache[importedPkg.ID]; ok {
+			continue
+		}
+		result = append(result, filterPkgsRec(importedPkg)...)
+	}
+	return result
+}
+
 
 // GoFile handles the parsing of one go file
 type GoFile struct {
 	filePath string
 	basePath string
-	data     *DomainMap
+	data     *parser.DomainMap
 
 	fileSet *token.FileSet
 	pkgConf *packages.Config
@@ -110,19 +157,19 @@ type GoFile struct {
 
 // getPackage loads module by name
 func (g *GoFile) getPackage(name string) (*packages.Package, error) {
-	pkgs, err := packages.Load(g.pkgConf, name)
-	if err != nil {
-		return nil, err
+	pkg, ok := pkgCache[name]
+	if !ok {
+		return nil, fmt.Errorf("not found in cache")
 	}
-	if len(pkgs) == 0 {
-		return nil, nil
-	}
-	return pkgs[0], nil
+	return pkg, nil
 }
 
 // getType from ident object
 func (g *GoFile) getType(ident *ast.Ident) types.Object {
 	for _, pkg := range g.importedPackages {
+		if pkg.Types == nil {
+			continue
+		}
 		if obj, ok := pkg.TypesInfo.Uses[ident]; ok {
 			return obj
 		}
@@ -165,7 +212,7 @@ func (g *GoFile) checkType(rawType types.Type) bool {
 		return g.checkType(t.Elem())
 
 	case *types.Named:
-		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != "github.com/leonelquinteros/gotext" {
+		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != gotextPkgPath {
 			return false
 		}
 	default:
@@ -185,13 +232,7 @@ func (g *GoFile) inspectCallExpr(n *ast.CallExpr) {
 	// direct call
 	case *ast.Ident:
 		// object is a package if the Obj is not set
-		if e.Obj == nil {
-			pkg, ok := g.importedPackages[e.Name]
-			if !ok || pkg.PkgPath != "github.com/leonelquinteros/gotext" {
-				return
-			}
-
-		} else {
+		if e.Obj != nil {
 			// validate type of object
 			t := g.getType(e)
 			if t == nil || !g.checkType(t.Type()) {
@@ -246,7 +287,7 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 		return
 	}
 
-	trans := Translation{
+	trans := parser.Translation{
 		MsgId:           args[def.Id].Value,
 		SourceLocations: []string{pos},
 	}
@@ -269,3 +310,5 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 
 	g.data.AddTranslation(domain, &trans)
 }
+
+

@@ -1,14 +1,16 @@
-package parser
+package dir
 
 import (
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
 
 // ParseDirFunc parses one directory
-type ParseDirFunc func(filePath, basePath string, data *DomainMap) error
+type ParseDirFunc func(filePath, basePath string, data *parser.DomainMap) error
 
 var knownParser []ParseDirFunc
 
@@ -22,7 +24,7 @@ func AddParser(parser ParseDirFunc) {
 }
 
 // ParseDir calls all known parser for each directory
-func ParseDir(dirPath, basePath string, data *DomainMap) error {
+func ParseDir(dirPath, basePath string, data *parser.DomainMap) error {
 	dirPath, _ = filepath.Abs(dirPath)
 	basePath, _ = filepath.Abs(basePath)
 
@@ -36,7 +38,7 @@ func ParseDir(dirPath, basePath string, data *DomainMap) error {
 }
 
 // ParseDirRec calls all known parser for each directory
-func ParseDirRec(dirPath string, exclude []string, data *DomainMap, verbose bool) error {
+func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbose bool) error {
 	dirPath, _ = filepath.Abs(dirPath)
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
