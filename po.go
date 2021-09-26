@@ -126,7 +126,7 @@ func (po *Po) ParseFile(f string) {
 	po.Parse(data)
 }
 
-// Parse loads the translations specified in the provided string (str)
+// Parse loads the translations specified in the provided byte slice (buf)
 func (po *Po) Parse(buf []byte) {
 	if po.domain == nil {
 		panic("NewPo() was not used to instantiate this object")
