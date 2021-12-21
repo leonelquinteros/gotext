@@ -55,7 +55,7 @@ Stable releases use [semantic versioning](http://semver.org/spec/v2.0.0.html) ta
 
 You can rely on this to use your preferred vendoring tool or to manually retrieve the corresponding release tag from the GitHub repository.
 
-NOTE: v1.5.0 contains a breaking change on how `Po` objects are initialised, see (https://github.com/leonelquinteros/gotext/issues/56)
+**NOTE:** v1.5.0 contains a breaking change on how `Po` objects are initialised, see (https://github.com/leonelquinteros/gotext/issues/56)
 
 
 ### Vendoring with [Go Modules](https://github.com/golang/go/wiki/Modules) (Recommended)
