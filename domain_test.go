@@ -1,6 +1,9 @@
 package gotext
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 const (
 	enUSFixture = "fixtures/en_US/default.po"
@@ -67,5 +70,22 @@ func TestDomain_GetTranslations(t *testing.T) {
 		if len(all[k].Refs) != len(v.Refs) {
 			t.Errorf("Refs length does not match: %d != %d", len(all[k].Refs), len(v.Refs))
 		}
+	}
+}
+
+func TestDomain_CheckExportFormatting(t *testing.T) {
+	po := NewPo()
+	po.Set("myid", "test string\nwith \"newline\"")
+	poBytes, _ := po.MarshalText()
+
+	expectedOutput := `msgid ""
+msgstr ""
+
+msgid "myid"
+msgstr "test string"
+"with \"newline\""`
+	
+	if string(poBytes) != expectedOutput {
+		t.Errorf("Exported PO format does not match. Received:\n\n%v\n\n\nExpected:\n\n%v", string(poBytes), expectedOutput)
 	}
 }

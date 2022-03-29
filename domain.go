@@ -3,6 +3,7 @@ package gotext
 import (
 	"bytes"
 	"encoding/gob"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -589,22 +590,28 @@ func (do *Domain) MarshalText() ([]byte, error) {
 		}
 
 		if ref.context == "" {
-			buf.WriteString("\nmsgid \"" + trans.ID + "\"")
+			buf.WriteString("\nmsgid \"" + EscapeSpecialCharacters(trans.ID) + "\"")
 		} else {
-			buf.WriteString("\nmsgctxt \"" + ref.context + "\"\nmsgid \"" + trans.ID + "\"")
+			buf.WriteString("\nmsgctxt \"" + EscapeSpecialCharacters(ref.context) + "\"\nmsgid \"" + EscapeSpecialCharacters(trans.ID) + "\"")
 		}
 
 		if trans.PluralID == "" {
-			buf.WriteString("\nmsgstr \"" + trans.Trs[0] + "\"")
+			buf.WriteString("\nmsgstr \"" + EscapeSpecialCharacters(trans.Trs[0]) + "\"")
 		} else {
 			buf.WriteString("\nmsgid_plural \"" + trans.PluralID + "\"")
 			for i, tr := range trans.Trs {
-				buf.WriteString("\nmsgstr[" + strconv.Itoa(i) + "] \"" + tr + "\"")
+				buf.WriteString("\nmsgstr[" + EscapeSpecialCharacters(strconv.Itoa(i)) + "] \"" + tr + "\"")
 			}
 		}
 	}
 
 	return buf.Bytes(), nil
+}
+
+func EscapeSpecialCharacters(s string) string {
+	s = regexp.MustCompile(`([^\\])(")`).ReplaceAllString(s, "$1\\\"")  // Escape non-escaped double quotation marks
+	s = strings.ReplaceAll(s, "\n", "\"\n\"") // Convert newlines into multi-line strings
+	return s 
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler interface
