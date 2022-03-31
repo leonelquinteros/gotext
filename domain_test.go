@@ -1,7 +1,6 @@
 package gotext
 
 import (
-	"fmt"
 	"testing"
 )
 
