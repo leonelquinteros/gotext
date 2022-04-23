@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// ExtractStringLiteral checks if an expression is a string and returns it.
+// ExtractStringLiteral checks if an expression represents a string and returns it correctly formatted.
 func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 	stack := []ast.Expr{expr}
 	result := ""
