@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"strconv"
+	"strings"
 )
 
 // ExtractStringLiteral checks if an expression is a string and returns it.
@@ -43,6 +44,10 @@ func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 }
 
 func prepareString(rawString string) string {
+	if strings.HasPrefix(rawString, `"`) && strings.HasSuffix(rawString, `"`) {
+		return rawString
+	}
+
 	// Remove backquotes and add quotes
 	unquoteString, err := strconv.Unquote(rawString)
 	if err != nil {
