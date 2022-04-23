@@ -6,16 +6,6 @@ import (
 	"strconv"
 )
 
-func PrepareString(rawString string) string {
-	// Remove backquotes and add quotes
-	unquoteString, err := strconv.Unquote(rawString)
-	if err != nil {
-		return rawString
-	}
-
-	return strconv.Quote(unquoteString)
-}
-
 // ExtractStringLiteral checks if an expression is a string and returns it.
 func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 	stack := []ast.Expr{expr}
@@ -49,5 +39,15 @@ func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 		}
 	}
 
-	return strconv.Quote(result), true
+	return prepareString(result), true
+}
+
+func prepareString(rawString string) string {
+	// Remove backquotes and add quotes
+	unquoteString, err := strconv.Unquote(rawString)
+	if err != nil {
+		return strconv.Quote(rawString)
+	}
+
+	return strconv.Quote(unquoteString)
 }

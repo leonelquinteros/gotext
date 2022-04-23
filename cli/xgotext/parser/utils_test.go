@@ -34,7 +34,7 @@ func TestPrepareString(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := PrepareString(tt.raw); got != tt.want {
+			if got := prepareString(tt.raw); got != tt.want {
 				t.Errorf("PrepareString() = %v, want %v", got, tt.want)
 			}
 		})

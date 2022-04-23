@@ -251,7 +251,7 @@ func (g *GoFile) parseGetter(def GetterDef, args []*string, pos string) {
 	}
 
 	trans := parser.Translation{
-		MsgId:           parser.PrepareString(*args[def.Id]),
+		MsgId:           *args[def.Id],
 		SourceLocations: []string{pos},
 	}
 	if def.Plural > 0 {
@@ -260,7 +260,7 @@ func (g *GoFile) parseGetter(def GetterDef, args []*string, pos string) {
 			log.Printf("ERR: Unsupported call at %s (Plural not a string)", pos)
 			return
 		}
-		trans.MsgIdPlural = parser.PrepareString(*args[def.Plural])
+		trans.MsgIdPlural = *args[def.Plural]
 	}
 	if def.Context > 0 {
 		// Context must be a string
@@ -268,7 +268,7 @@ func (g *GoFile) parseGetter(def GetterDef, args []*string, pos string) {
 			log.Printf("ERR: Unsupported call at %s (Context not a string)", pos)
 			return
 		}
-		trans.Context = parser.PrepareString(*args[def.Context])
+		trans.Context = *args[def.Context]
 	}
 
 	g.data.AddTranslation(domain, &trans)
