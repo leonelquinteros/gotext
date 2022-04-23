@@ -44,7 +44,7 @@ func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 }
 
 func prepareString(rawString string) string {
-	if strings.HasPrefix(rawString, `"`) && strings.HasSuffix(rawString, `"`) {
+	if rawString == "" || strings.HasPrefix(rawString, `"`) && strings.HasSuffix(rawString, `"`) {
 		return rawString
 	}
 
