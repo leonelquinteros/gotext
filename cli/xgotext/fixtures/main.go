@@ -36,6 +36,14 @@ func main() {
 	// same as before
 	fmt.Println(gotext.Get("My text on 'domain-name' domain"))
 
+	// Multiline with string
+	fmt.Println(gotext.Get("This is a string addition. " +
+		"Which is merged."))
+
+	// Multiline with raw string literal
+	fmt.Print(gotext.Get(`This is a multiline string.
+It should be formatted properly in a .pot file.`))
+
 	// unsupported function call
 	trStr := "some string to translate"
 	fmt.Println(gotext.Get(trStr))

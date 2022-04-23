@@ -5,18 +5,18 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/go/packages"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"golang.org/x/tools/go/packages"
+
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
 
 const gotextPkgPath = "github.com/leonelquinteros/gotext"
-
 
 type GetterDef struct {
 	Id      int
@@ -60,7 +60,6 @@ func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
 	}
 	return pkgParser(pkgPath, basePath, data, verbose)
 }
-
 
 func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) error {
 	mainPkg, err := loadPackage(dirPath)
@@ -141,7 +140,6 @@ func filterPkgsRec(pkg *packages.Package) []*packages.Package {
 	}
 	return result
 }
-
 
 // GoFile handles the parsing of one go file
 type GoFile struct {
@@ -253,9 +251,11 @@ func (g *GoFile) inspectCallExpr(n *ast.CallExpr) {
 	}
 
 	// convert args
-	args := make([]*ast.BasicLit, len(n.Args))
+	args := make([]*string, len(n.Args))
 	for idx, arg := range n.Args {
-		args[idx], _ = arg.(*ast.BasicLit)
+		if str, found := parser.ExtractStringLiteral(arg); found {
+			args[idx] = &str
+		}
 	}
 
 	// get position
@@ -269,7 +269,7 @@ func (g *GoFile) inspectCallExpr(n *ast.CallExpr) {
 	}
 }
 
-func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
+func (g *GoFile) parseGetter(def GetterDef, args []*string, pos string) {
 	// check if enough arguments are given
 	if len(args) < def.maxArgIndex() {
 		return
@@ -278,37 +278,35 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 	// get domain
 	var domain string
 	if def.Domain != -1 {
-		domain, _ = strconv.Unquote(args[def.Domain].Value)
+		domain, _ = strconv.Unquote(*args[def.Domain])
 	}
 
 	// only handle function calls with strings as ID
-	if args[def.Id] == nil || args[def.Id].Kind != token.STRING {
+	if args[def.Id] == nil {
 		log.Printf("ERR: Unsupported call at %s (ID not a string)", pos)
 		return
 	}
 
 	trans := parser.Translation{
-		MsgId:           args[def.Id].Value,
+		MsgId:           parser.PrepareString(*args[def.Id]),
 		SourceLocations: []string{pos},
 	}
 	if def.Plural > 0 {
 		// plural ID must be a string
-		if args[def.Plural] == nil || args[def.Plural].Kind != token.STRING {
+		if args[def.Plural] == nil {
 			log.Printf("ERR: Unsupported call at %s (Plural not a string)", pos)
 			return
 		}
-		trans.MsgIdPlural = args[def.Plural].Value
+		trans.MsgIdPlural = parser.PrepareString(*args[def.Plural])
 	}
 	if def.Context > 0 {
 		// Context must be a string
-		if args[def.Context] == nil || args[def.Context].Kind != token.STRING {
+		if args[def.Context] == nil {
 			log.Printf("ERR: Unsupported call at %s (Context not a string)", pos)
 			return
 		}
-		trans.Context = args[def.Context].Value
+		trans.Context = parser.PrepareString(*args[def.Context])
 	}
 
 	g.data.AddTranslation(domain, &trans)
 }
-
-

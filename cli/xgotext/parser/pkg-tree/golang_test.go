@@ -1,10 +1,12 @@
 package pkg_tree
 
 import (
-	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
+
+	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
 
 func TestParsePkgTree(t *testing.T) {
@@ -23,7 +25,22 @@ func TestParsePkgTree(t *testing.T) {
 		t.Error(err)
 	}
 
-	translations := []string{"\"inside sub package\"", "\"My text on 'domain-name' domain\"", "\"alias call\"", "\"Singular\"", "\"SingularVar\"", "\"translate package\"", "\"translate sub package\"", "\"inside dummy\""}
+	translations := []string{
+		"inside sub package",
+		"My text on 'domain-name' domain",
+		"This is a string addition. Which is merged.",
+		"This is a multiline string.\nIt should be formatted properly in a .pot file.",
+		"alias call",
+		"Singular",
+		"SingularVar",
+		"translate package",
+		"translate sub package",
+		"inside dummy",
+	}
+
+	for idx, translation := range translations {
+		translations[idx] = strconv.Quote(translation)
+	}
 
 	if len(translations) != len(data.Domains[defaultDomain].Translations) {
 		t.Error("translations count mismatch")
