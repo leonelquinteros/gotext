@@ -54,10 +54,10 @@ func prepareString(str string) string {
 	// Single line msgid / entry starts with msgid "text"
 	if len(lines) == 1 {
 		// Single line
-		return fmt.Sprintf("\"%s\"", lines[0])
+		return fmt.Sprintf(`"%s"`, lines[0])
 	} else if len(lines) == 2 && lines[1] == "" {
 		// Single line with newline at end
-		return fmt.Sprintf("\"%s\\n\"", lines[0])
+		return fmt.Sprintf(`"%s\n"`, lines[0])
 	}
 
 	// Multiline msgid // entry starts with msgid ""\n"text"

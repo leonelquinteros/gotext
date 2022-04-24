@@ -25,17 +25,21 @@ func TestParsePkgTree(t *testing.T) {
 	}
 
 	translations := []string{
-		"\"inside sub package\"",
-		"\"My text on 'domain-name' domain\"",
-		"\"This is a string addition. Which is merged.\"",
-		"\"\"\n\"This is a string\\n\"\n\"with an Newline\"",
-		"\"\"\n\"This is a multiline string.\\n\"\n\"It should be formatted properly in a .pot file.\"",
-		"\"alias call\"",
-		"\"Singular\"",
-		"\"SingularVar\"",
-		"\"translate package\"",
-		"\"translate sub package\"",
-		"\"inside dummy\"",
+		`"inside sub package"`,
+		`"My text on 'domain-name' domain"`,
+		`"This is a string addition. Which is merged."`,
+		`"alias call"`,
+		`"Singular"`,
+		`"SingularVar"`,
+		`"translate package"`,
+		`"translate sub package"`,
+		`"inside dummy"`,
+		`""
+"This is a string\n"
+"with an Newline"`,
+		`""
+"This is a multiline string.\n"
+"It should be formatted properly in a .pot file."`,
 	}
 
 	if len(translations) != len(data.Domains[defaultDomain].Translations) {
