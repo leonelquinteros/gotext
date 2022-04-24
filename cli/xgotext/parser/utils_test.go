@@ -13,13 +13,13 @@ func TestPrepareString(t *testing.T) {
 	}{
 		{
 			name: "Quotation marks are added",
-			raw:  "Extracted string",
-			want: "\"Extracted string\"",
+			raw:  `Extracted string`,
+			want: `"Extracted string"`,
 		},
 		{
 			name: "Intentional multiple quotation marks are preserved",
-			raw:  "\"Extracted string\"",
-			want: "\"\"Extracted string\"\"",
+			raw:  `"Extracted string"`,
+			want: `""Extracted string""`,
 		},
 		{
 			name: "Intentional backquotes are preserved",
@@ -29,23 +29,30 @@ func TestPrepareString(t *testing.T) {
 		{
 			name: "Multiline text are formatted correctly",
 			raw:  "This is an multiline\nstring",
-			want: "\"\"\n\"This is an multiline\\n\"\n\"string\"",
+			want: `""
+"This is an multiline\n"
+"string"`,
 		},
 		{
 			name: "backquoted newline is converted to newline",
 			raw: `This is an multiline
 string`,
-			want: "\"\"\n\"This is an multiline\\n\"\n\"string\"",
+			want: `""
+"This is an multiline\n"
+"string"`,
 		},
 		{
 			name: "Single line with a newline at the end remains a single line",
 			raw:  "Single line with newline\n",
-			want: "\"Single line with newline\\n\"",
+			want: `"Single line with newline\n"`,
 		},
 		{
 			name: "Last newline does not start a new line",
 			raw:  "Multiline\nwith\nnewlines\n",
-			want: "\"\"\n\"Multiline\\n\"\n\"with\\n\"\n\"newlines\\n\"",
+			want: `""
+"Multiline\n"
+"with\n"
+"newlines\n"`,
 		},
 		{
 			name: "Empty string is ignored",
@@ -94,9 +101,11 @@ func TestExtractStringLiteral(t *testing.T) {
 			wantFound: true,
 		},
 		{
-			name:      "Multiline text with backquotes are formatted correctly",
-			code:      "`This is an multiline\nstring`",
-			wantStr:   "\"\"\n\"This is an multiline\\n\"\n\"string\"",
+			name: "Multiline text with backquotes are formatted correctly",
+			code: "`This is an multiline\nstring`",
+			wantStr: `""
+"This is an multiline\n"
+"string"`,
 			wantFound: true,
 		},
 	}
