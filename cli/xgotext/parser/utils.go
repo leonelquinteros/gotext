@@ -49,18 +49,29 @@ func prepareString(str string) string {
 		return ""
 	}
 
-	// Entry starts with msgid "text"
 	lines := strings.Split(str, "\n")
+
+	// Single line msgid / entry starts with msgid "text"
 	if len(lines) == 1 {
+		// Single line
 		return fmt.Sprintf("\"%s\"", lines[0])
+	} else if len(lines) == 2 && lines[1] == "" {
+		// Single line with newline at end
+		return fmt.Sprintf("\"%s\\n\"", lines[0])
 	}
 
+	// Multiline msgid // entry starts with msgid ""\n"text"
 	lastIdx := len(lines) - 1
-	result := "\"\"\n" // Entry starts with msgid ""\n"text"
-	for _, line := range lines[:lastIdx] {
-		result += fmt.Sprintf("\"%s\\n\"\n", line)
+	result := fmt.Sprintf("\"\"\n\"%s\\n\"", lines[0])
+	for _, l := range lines[1:lastIdx] {
+		result += fmt.Sprintf("\n\"%s\\n\"", l)
 	}
-	result += fmt.Sprintf("\"%s\"", lines[lastIdx])
+
+	// If the last element is empty, the previous element ended with a newline.
+	// Then the text to translate should also end with a newline and we can ignore the last entry.
+	if lines[lastIdx] != "" {
+		result += fmt.Sprintf("\n\"%s\"", lines[lastIdx])
+	}
 
 	return result
 }

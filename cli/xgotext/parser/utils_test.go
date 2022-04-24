@@ -38,6 +38,16 @@ string`,
 			want: "\"\"\n\"This is an multiline\\n\"\n\"string\"",
 		},
 		{
+			name: "Single line with a newline at the end remains a single line",
+			raw:  "Single line with newline\n",
+			want: "\"Single line with newline\\n\"",
+		},
+		{
+			name: "Last newline does not start a new line",
+			raw:  "Multiline\nwith\nnewlines\n",
+			want: "\"\"\n\"Multiline\\n\"\n\"with\\n\"\n\"newlines\\n\"",
+		},
+		{
 			name: "Empty string is ignored",
 			raw:  "",
 			want: "",
