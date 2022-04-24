@@ -32,6 +32,16 @@ func TestPrepareString(t *testing.T) {
 			want: "\"`Extracted string`\"",
 		},
 		{
+			name: "Multiline text are formatted correctly",
+			raw:  "\"This is an multiline\nstring\"",
+			want: "\"This is an multiline\"\n\"string\"",
+		},
+		{
+			name: "Multiline text with backquotes are formatted correctly",
+			raw:  "`This is an multiline\nstring`",
+			want: "\"This is an multiline\"\n\"string\"",
+		},
+		{
 			name: "Ignore empty string",
 			raw:  "",
 			want: "",

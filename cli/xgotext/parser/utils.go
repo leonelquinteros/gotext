@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"strconv"
@@ -43,16 +44,27 @@ func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 	return prepareString(result), true
 }
 
-func prepareString(rawString string) string {
-	if rawString == "" || strings.HasPrefix(rawString, `"`) && strings.HasSuffix(rawString, `"`) {
-		return rawString
+func prepareString(str string) string {
+	if str == "" {
+		return ""
 	}
 
-	// Remove backquotes and add quotes
-	unquoteString, err := strconv.Unquote(rawString)
-	if err != nil {
-		return strconv.Quote(rawString)
+	// Remove backquotes and qoutes
+	if unquoteString, err := strconv.Unquote(str); err != nil {
+		if strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\"") {
+			str = str[1 : len(str)-1]
+		}
+	} else {
+		str = unquoteString
 	}
 
-	return strconv.Quote(unquoteString)
+	lines := strings.Split(str, "\n")
+	lastIdx := len(lines) - 1
+	result := ""
+	for _, line := range lines[:lastIdx] {
+		result += fmt.Sprintf("\"%s\"\n", line)
+	}
+	result += fmt.Sprintf("\"%s\"", lines[lastIdx])
+
+	return result
 }
