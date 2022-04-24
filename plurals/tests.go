@@ -1,7 +1,8 @@
-/*
- * Copyright (c) 2018 DeineAgentur UG https://www.deineagentur.com. All rights reserved.
- * Licensed under the MIT License. See LICENSE file in the project root for full license information.
- */
+// Original work Copyright (c) 2016 Jonas Obrist (https://github.com/ojii/gettext.go)
+// Modified work Copyright (c) 2018 DeineAgentur UG https://www.deineagentur.com
+// Modified work Copyright (c) 2018-present gotext maintainers (https://github.com/leonelquinteros/gotext)
+//
+// Licensed under the BSD License. See License.txt in the project root for license information.
 
 package plurals
 
