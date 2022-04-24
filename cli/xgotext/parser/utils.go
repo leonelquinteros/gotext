@@ -11,7 +11,7 @@ import (
 // ExtractStringLiteral checks if an expression represents a string and returns it correctly formatted.
 func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 	stack := []ast.Expr{expr}
-	result := ""
+	var b strings.Builder
 
 	for len(stack) != 0 {
 		n := len(stack) - 1
@@ -26,22 +26,22 @@ func ExtractStringLiteral(expr ast.Expr) (string, bool) {
 			}
 
 			if unqouted, err := strconv.Unquote(v.Value); err != nil {
-				result = v.Value + result
+				b.WriteString(v.Value)
 			} else {
-				result = unqouted + result
+				b.WriteString(unqouted)
 			}
 		// Concatenation of several string literals
 		case *ast.BinaryExpr:
 			if v.Op != token.ADD {
 				return "", false
 			}
-			stack = append(stack, v.X, v.Y)
+			stack = append(stack, v.Y, v.X)
 		default:
 			return "", false
 		}
 	}
 
-	return prepareString(result), true
+	return prepareString(b.String()), true
 }
 
 func prepareString(str string) string {
@@ -49,20 +49,16 @@ func prepareString(str string) string {
 		return ""
 	}
 
-	// Remove backquotes and qoutes
-	if unquoteString, err := strconv.Unquote(str); err != nil {
-		if strings.HasPrefix(str, "\"") && strings.HasSuffix(str, "\"") {
-			str = str[1 : len(str)-1]
-		}
-	} else {
-		str = unquoteString
+	// Entry starts with msgid "text"
+	lines := strings.Split(str, "\n")
+	if len(lines) == 1 {
+		return fmt.Sprintf("\"%s\"", lines[0])
 	}
 
-	lines := strings.Split(str, "\n")
 	lastIdx := len(lines) - 1
-	result := ""
+	result := "\"\"\n" // Entry starts with msgid ""\n"text"
 	for _, line := range lines[:lastIdx] {
-		result += fmt.Sprintf("\"%s\"\n", line)
+		result += fmt.Sprintf("\"%s\\n\"\n", line)
 	}
 	result += fmt.Sprintf("\"%s\"", lines[lastIdx])
 

@@ -36,9 +36,12 @@ func main() {
 	// same as before
 	fmt.Println(gotext.Get("My text on 'domain-name' domain"))
 
-	// Multiline with string
+	// String addition
 	fmt.Println(gotext.Get("This is a string addition. " +
 		"Which is merged."))
+
+	// Multiline string
+	fmt.Println(gotext.Get("This is a string\nwith an Newline"))
 
 	// Multiline with raw string literal
 	fmt.Print(gotext.Get(`This is a multiline string.

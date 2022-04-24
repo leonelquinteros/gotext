@@ -12,37 +12,33 @@ func TestPrepareString(t *testing.T) {
 		want string
 	}{
 		{
-			name: "Quotation marks are preserved",
-			raw:  "\"Extracted string\"",
-			want: "\"Extracted string\"",
-		},
-		{
-			name: "Backquotes are replaced",
-			raw:  "`Extracted string`",
+			name: "Quotation marks are added",
+			raw:  "Extracted string",
 			want: "\"Extracted string\"",
 		},
 		{
 			name: "Intentional multiple quotation marks are preserved",
-			raw:  "\"\"Extracted string\"\"",
+			raw:  "\"Extracted string\"",
 			want: "\"\"Extracted string\"\"",
 		},
 		{
 			name: "Intentional backquotes are preserved",
-			raw:  "\"`Extracted string`\"",
+			raw:  "`Extracted string`",
 			want: "\"`Extracted string`\"",
 		},
 		{
 			name: "Multiline text are formatted correctly",
-			raw:  "\"This is an multiline\nstring\"",
-			want: "\"This is an multiline\"\n\"string\"",
+			raw:  "This is an multiline\nstring",
+			want: "\"\"\n\"This is an multiline\\n\"\n\"string\"",
 		},
 		{
-			name: "Multiline text with backquotes are formatted correctly",
-			raw:  "`This is an multiline\nstring`",
-			want: "\"This is an multiline\"\n\"string\"",
+			name: "backquoted newline is converted to newline",
+			raw: `This is an multiline
+string`,
+			want: "\"\"\n\"This is an multiline\\n\"\n\"string\"",
 		},
 		{
-			name: "Ignore empty string",
+			name: "Empty string is ignored",
 			raw:  "",
 			want: "",
 		},
@@ -79,6 +75,18 @@ func TestExtractStringLiteral(t *testing.T) {
 			name:      "Odd addition is merged",
 			code:      `"Extracted " + "string" + " is combined"`,
 			wantStr:   `"Extracted string is combined"`,
+			wantFound: true,
+		},
+		{
+			name:      "Backquotes are replaced",
+			code:      "`Extracted string`",
+			wantStr:   "\"Extracted string\"",
+			wantFound: true,
+		},
+		{
+			name:      "Multiline text with backquotes are formatted correctly",
+			code:      "`This is an multiline\nstring`",
+			wantStr:   "\"\"\n\"This is an multiline\\n\"\n\"string\"",
 			wantFound: true,
 		},
 	}
