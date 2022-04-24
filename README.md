@@ -70,21 +70,6 @@ require (
 ```
 
 
-### Vendoring with [dep](https://golang.github.io/dep/)
-
-To use last stable version (v1.4.0 at the moment of writing)
-
-```
-dep ensure -add github.com/leonelquinteros/gotext@v1.4.0
-```
-
-Import as
-
-```go
-import "github.com/leonelquinteros/gotext"
-```
-
-
 ### Vendoring with [gopkg.in](http://labix.org/gopkg.in)
 
 [http://gopkg.in/leonelquinteros/gotext.v1](http://gopkg.in/leonelquinteros/gotext.v1)
