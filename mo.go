@@ -35,14 +35,14 @@ Example:
 	)
 
 	func main() {
-		// Create po object
-		po := gotext.NewMoTranslator()
+		// Create mo object
+		mo := gotext.NewMo()
 
-		// Parse .po file
-		po.ParseFile("/path/to/po/file/translations.mo")
+		// Parse .mo file
+		mo.ParseFile("/path/to/po/file/translations.mo")
 
 		// Get Translation
-		fmt.Println(po.Get("Translate this"))
+		fmt.Println(mo.Get("Translate this"))
 	}
 
 */
