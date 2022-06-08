@@ -36,7 +36,7 @@ Example:
 
 	func main() {
 		// Create po object
-		po := gotext.NewMoTranslator()
+		po := gotext.NewMo()
 
 		// Parse .po file
 		po.ParseFile("/path/to/po/file/translations.mo")
