@@ -8,6 +8,7 @@ package gotext
 import (
 	"bytes"
 	"encoding/binary"
+	"io/fs"
 )
 
 const (
@@ -52,6 +53,7 @@ type Mo struct {
 	Language    string
 	PluralForms string
 	domain      *Domain
+	fs          fs.FS
 }
 
 //NewMo should always be used to instantiate a new Mo object
@@ -59,6 +61,13 @@ func NewMo() *Mo {
 	mo := new(Mo)
 	mo.domain = NewDomain()
 
+	return mo
+}
+
+// NewMoFS works like NewMO but adds an optional fs.FS
+func NewMoFS(filesystem fs.FS) *Mo {
+	mo := NewMo()
+	mo.fs = filesystem
 	return mo
 }
 
@@ -92,7 +101,7 @@ func (mo *Mo) UnmarshalBinary(data []byte) error {
 }
 
 func (mo *Mo) ParseFile(f string) {
-	data, err := getFileData(f)
+	data, err := getFileData(f, mo.fs)
 	if err != nil {
 		return
 	}

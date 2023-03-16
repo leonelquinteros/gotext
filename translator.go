@@ -7,6 +7,7 @@ package gotext
 
 import (
 	"errors"
+	"io/fs"
 	"io/ioutil"
 	"os"
 )
@@ -66,7 +67,11 @@ func (te *TranslatorEncoding) GetTranslator() Translator {
 }
 
 //getFileData reads a file and returns the byte slice after doing some basic sanity checking
-func getFileData(f string) ([]byte, error) {
+func getFileData(f string, filesystem fs.FS) ([]byte, error) {
+	if filesystem != nil {
+		return fs.ReadFile(filesystem, f)
+	}
+
 	// Check if file exists
 	info, err := os.Stat(f)
 	if err != nil {
