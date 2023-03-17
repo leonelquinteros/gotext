@@ -77,8 +77,8 @@ func NewLocale(p, l string) *Locale {
 }
 
 // NewLocaleFS returns a Locale working with a fs.FS
-func NewLocaleFS(p, l string, filesystem fs.FS) *Locale {
-	loc := NewLocale(p, l)
+func NewLocaleFS(l string, filesystem fs.FS) *Locale {
+	loc := NewLocale("", l)
 	loc.fs = filesystem
 	return loc
 }

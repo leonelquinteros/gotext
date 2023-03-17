@@ -13,23 +13,28 @@ import (
 
 func TestMo_Get(t *testing.T) {
 	// Create mo object
-	mo := NewMo()
-
-	// Try to parse a directory
-	mo.ParseFile(path.Clean(os.TempDir()))
-
-	// Parse file
-	mo.ParseFile("fixtures/en_US/default.mo")
-
-	// Test translations
-	tr := mo.Get("My text")
-	if tr != translatedText {
-		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
+	mos := []*Mo{
+		NewMo(),
+		NewMoFS(os.DirFS(".")),
 	}
-	// Test translations
-	tr = mo.Get("language")
-	if tr != "en_US" {
-		t.Errorf("Expected 'en_US' but got '%s'", tr)
+
+	for _, mo := range mos {
+		// Try to parse a directory
+		mo.ParseFile(path.Clean(os.TempDir()))
+
+		// Parse file
+		mo.ParseFile("fixtures/en_US/default.mo")
+
+		// Test translations
+		tr := mo.Get("My text")
+		if tr != translatedText {
+			t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
+		}
+		// Test translations
+		tr = mo.Get("language")
+		if tr != "en_US" {
+			t.Errorf("Expected 'en_US' but got '%s'", tr)
+		}
 	}
 }
 

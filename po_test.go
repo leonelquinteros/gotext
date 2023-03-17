@@ -17,24 +17,28 @@ const (
 )
 
 func TestPo_Get(t *testing.T) {
-	// Create po object
-	po := NewPo()
-
-	// Try to parse a directory
-	po.ParseFile(path.Clean(os.TempDir()))
-
-	// Parse file
-	po.ParseFile("fixtures/en_US/default.po")
-
-	// Test translations
-	tr := po.Get("My text")
-	if tr != translatedText {
-		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
+	var pos = []*Po{
+		NewPo(), // test os
+		NewPoFS(os.DirFS(".")),
 	}
-	// Test translations
-	tr = po.Get("language")
-	if tr != "en_US" {
-		t.Errorf("Expected 'en_US' but got '%s'", tr)
+
+	for _, po := range pos {
+		// Try to parse a directory
+		po.ParseFile(path.Clean(os.TempDir()))
+
+		// Parse file
+		po.ParseFile("fixtures/en_US/default.po")
+
+		// Test translations
+		tr := po.Get("My text")
+		if tr != translatedText {
+			t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
+		}
+		// Test translations
+		tr = po.Get("language")
+		if tr != "en_US" {
+			t.Errorf("Expected 'en_US' but got '%s'", tr)
+		}
 	}
 }
 
