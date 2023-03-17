@@ -8,6 +8,7 @@ package gotext
 import (
 	"bytes"
 	"encoding/gob"
+	"io/fs"
 	"os"
 	"path"
 	"sync"
@@ -60,6 +61,9 @@ type Locale struct {
 
 	// Sync Mutex
 	sync.RWMutex
+
+	// optional fs to use
+	fs fs.FS
 }
 
 // NewLocale creates and initializes a new Locale object for a given language.
@@ -72,32 +76,53 @@ func NewLocale(p, l string) *Locale {
 	}
 }
 
+// NewLocaleFS returns a Locale working with a fs.FS
+func NewLocaleFS(l string, filesystem fs.FS) *Locale {
+	loc := NewLocale("", l)
+	loc.fs = filesystem
+	return loc
+}
+
 func (l *Locale) findExt(dom, ext string) string {
 	filename := path.Join(l.path, l.lang, "LC_MESSAGES", dom+"."+ext)
-	if _, err := os.Stat(filename); err == nil {
+	if l.fileExists(filename) {
 		return filename
 	}
 
 	if len(l.lang) > 2 {
 		filename = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+"."+ext)
-		if _, err := os.Stat(filename); err == nil {
+		if l.fileExists(filename) {
 			return filename
 		}
 	}
 
 	filename = path.Join(l.path, l.lang, dom+"."+ext)
-	if _, err := os.Stat(filename); err == nil {
+	if l.fileExists(filename) {
 		return filename
 	}
 
 	if len(l.lang) > 2 {
 		filename = path.Join(l.path, l.lang[:2], dom+"."+ext)
-		if _, err := os.Stat(filename); err == nil {
+		if l.fileExists(filename) {
 			return filename
 		}
 	}
 
 	return ""
+}
+
+func (l *Locale) fileExists(filename string) bool {
+	if l.fs != nil {
+		f, err := l.fs.Open(filename)
+		if err != nil {
+			return false
+		}
+		_, err = f.Stat()
+		return err == nil
+
+	}
+	_, err := os.Stat(filename)
+	return err == nil
 }
 
 // AddDomain creates a new domain for a given locale object and initializes the Po object.
@@ -107,13 +132,13 @@ func (l *Locale) AddDomain(dom string) {
 
 	file := l.findExt(dom, "po")
 	if file != "" {
-		poObj = NewPo()
+		poObj = NewPoFS(l.fs)
 		// Parse file.
 		poObj.ParseFile(file)
 	} else {
 		file = l.findExt(dom, "mo")
 		if file != "" {
-			poObj = NewMo()
+			poObj = NewMoFS(l.fs)
 			// Parse file.
 			poObj.ParseFile(file)
 		} else {
