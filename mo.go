@@ -92,6 +92,19 @@ func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 	return mo.domain.GetNC(str, plural, n, ctx, vars...)
 }
 
+func (mo *Mo) IsTranslated(str string) bool {
+	return mo.domain.IsTranslated(str)
+}
+func (mo *Mo) IsTranslatedN(str string, n int) bool {
+	return mo.domain.IsTranslatedN(str, n)
+}
+func (mo *Mo) IsTranslatedC(str, ctx string) bool {
+	return mo.domain.IsTranslatedC(str, ctx)
+}
+func (mo *Mo) IsTranslatedNC(str string, n int, ctx string) bool {
+	return mo.domain.IsTranslatedNC(str, n, ctx)
+}
+
 func (mo *Mo) MarshalBinary() ([]byte, error) {
 	return mo.domain.MarshalBinary()
 }

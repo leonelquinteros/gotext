@@ -114,6 +114,19 @@ func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) 
 	return po.domain.GetNC(str, plural, n, ctx, vars...)
 }
 
+func (po *Po) IsTranslated(str string) bool {
+	return po.domain.IsTranslated(str)
+}
+func (po *Po) IsTranslatedN(str string, n int) bool {
+	return po.domain.IsTranslatedN(str, n)
+}
+func (po *Po) IsTranslatedC(str, ctx string) bool {
+	return po.domain.IsTranslatedC(str, ctx)
+}
+func (po *Po) IsTranslatedNC(str string, n int, ctx string) bool {
+	return po.domain.IsTranslatedNC(str, n, ctx)
+}
+
 func (po *Po) MarshalText() ([]byte, error) {
 	return po.domain.MarshalText()
 }

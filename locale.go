@@ -311,6 +311,66 @@ func (l *Locale) GetTranslations() map[string]*Translation {
 	return all
 }
 
+// IsTranslated reports whether a string is translated
+func (l *Locale) IsTranslated(str string) bool {
+	return l.IsTranslatedND(l.GetDomain(), str, 0)
+}
+
+// IsTranslatedN reports whether a plural string is translated
+func (l *Locale) IsTranslatedN(str string, n int) bool {
+	return l.IsTranslatedND(l.GetDomain(), str, n)
+}
+
+// IsTranslatedD reports whether a domain string is translated
+func (l *Locale) IsTranslatedD(dom, str string) bool {
+	return l.IsTranslatedND(dom, str, 0)
+}
+
+// IsTranslatedND reports whether a plural domain string is translated
+func (l *Locale) IsTranslatedND(dom, str string, n int) bool {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.Domains == nil {
+		return false
+	}
+	translator, ok := l.Domains[dom]
+	if !ok {
+		return false
+	}
+	return translator.GetDomain().IsTranslatedN(str, n)
+}
+
+// IsTranslatedC reports whether a context string is translated
+func (l *Locale) IsTranslatedC(str, ctx string) bool {
+	return l.IsTranslatedNDC(l.GetDomain(), str, 0, ctx)
+}
+
+// IsTranslatedNC reports whether a plural context string is translated
+func (l *Locale) IsTranslatedNC(str string, n int, ctx string) bool {
+	return l.IsTranslatedNDC(l.GetDomain(), str, n, ctx)
+}
+
+// IsTranslatedDC reports whether a domain context string is translated
+func (l *Locale) IsTranslatedDC(dom, str, ctx string) bool {
+	return l.IsTranslatedNDC(dom, str, 0, ctx)
+}
+
+// IsTranslatedNDC reports whether a plural domain context string is translated
+func (l *Locale) IsTranslatedNDC(dom string, str string, n int, ctx string) bool {
+	l.RLock()
+	defer l.RUnlock()
+
+	if l.Domains == nil {
+		return false
+	}
+	translator, ok := l.Domains[dom]
+	if !ok {
+		return false
+	}
+	return translator.GetDomain().IsTranslatedNC(str, n, ctx)
+}
+
 // LocaleEncoding is used as intermediary storage to encode Locale objects to Gob.
 type LocaleEncoding struct {
 	Path          string
