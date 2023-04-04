@@ -402,7 +402,51 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 	return Printf(plural, vars...)
 }
 
-//GetTranslations returns a copy of every translation in the domain. It does not support contexts.
+// IsTranslated reports whether a string is translated
+func (do *Domain) IsTranslated(str string) bool {
+	return do.IsTranslatedN(str, 0)
+}
+
+// IsTranslatedN reports whether a plural string is translated
+func (do *Domain) IsTranslatedN(str string, n int) bool {
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.translations == nil {
+		return false
+	}
+	tr, ok := do.translations[str]
+	if !ok {
+		return false
+	}
+	return tr.IsTranslatedN(n)
+}
+
+// IsTranslatedC reports whether a context string is translated
+func (do *Domain) IsTranslatedC(str, ctx string) bool {
+	return do.IsTranslatedNC(str, 0, ctx)
+}
+
+// IsTranslatedNC reports whether a plural context string is translated
+func (do *Domain) IsTranslatedNC(str string, n int, ctx string) bool {
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.contextTranslations == nil {
+		return false
+	}
+	translations, ok := do.contextTranslations[ctx]
+	if !ok {
+		return false
+	}
+	tr, ok := translations[str]
+	if !ok {
+		return false
+	}
+	return tr.IsTranslatedN(n)
+}
+
+// GetTranslations returns a copy of every translation in the domain. It does not support contexts.
 func (do *Domain) GetTranslations() map[string]*Translation {
 	all := make(map[string]*Translation, len(do.translations))
 
