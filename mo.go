@@ -263,10 +263,10 @@ func (mo *Mo) addTranslation(msgid, msgstr []byte) {
 
 	if len(msgctxt) > 0 {
 		// With context...
-		if _, ok := mo.domain.contexts[string(msgctxt)]; !ok {
-			mo.domain.contexts[string(msgctxt)] = make(map[string]*Translation)
+		if _, ok := mo.domain.contextTranslations[string(msgctxt)]; !ok {
+			mo.domain.contextTranslations[string(msgctxt)] = make(map[string]*Translation)
 		}
-		mo.domain.contexts[string(msgctxt)][translation.ID] = translation
+		mo.domain.contextTranslations[string(msgctxt)][translation.ID] = translation
 	} else {
 		mo.domain.translations[translation.ID] = translation
 	}

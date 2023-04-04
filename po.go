@@ -223,10 +223,10 @@ func (po *Po) saveBuffer() {
 		po.domain.translations[po.domain.trBuffer.ID] = po.domain.trBuffer
 	} else {
 		// With context...
-		if _, ok := po.domain.contexts[po.domain.ctxBuffer]; !ok {
-			po.domain.contexts[po.domain.ctxBuffer] = make(map[string]*Translation)
+		if _, ok := po.domain.contextTranslations[po.domain.ctxBuffer]; !ok {
+			po.domain.contextTranslations[po.domain.ctxBuffer] = make(map[string]*Translation)
 		}
-		po.domain.contexts[po.domain.ctxBuffer][po.domain.trBuffer.ID] = po.domain.trBuffer
+		po.domain.contextTranslations[po.domain.ctxBuffer][po.domain.trBuffer.ID] = po.domain.trBuffer
 
 		// Cleanup current context buffer if needed
 		if po.domain.trBuffer.ID != "" {
