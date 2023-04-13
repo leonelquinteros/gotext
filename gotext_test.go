@@ -176,6 +176,33 @@ msgstr "Another text on another domain"
 	if tr != "Another text on another domain" {
 		t.Errorf("Expected 'Another text on another domain' but got '%s'", tr)
 	}
+
+	// Test IsTranslation functions
+	if !IsTranslated("My text") {
+		t.Error("'My text' should be reported as translated.")
+	}
+	if IsTranslated("Another string") {
+		t.Error("'Another string' should be reported as not translated.")
+	}
+	plural := "One with var: %s"
+	if !IsTranslated(plural) {
+		t.Errorf("'%s' should be reported as translated for singular.", plural)
+	}
+	if !IsTranslatedN(plural, 0) {
+		t.Errorf("'%s' should be reported as translated for n=0.", plural)
+	}
+	if !IsTranslatedN(plural, 2) {
+		t.Errorf("'%s' should be reported as translated for n=2.", plural)
+	}
+	if !IsTranslatedC("Some random in a context", "Ctx") {
+		t.Errorf("'Some random in a context' should be reported as translated under context.")
+	}
+	if !IsTranslatedC(plural, "Ctx") {
+		t.Errorf("'%s' should be reported as translated for singular under context.", plural)
+	}
+	if !IsTranslatedNC(plural, 0, "Ctx") {
+		t.Errorf("'%s' should be reported as translated for n=0 under context.", plural)
+	}
 }
 
 func TestUntranslated(t *testing.T) {

@@ -245,3 +245,57 @@ func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) str
 
 	return tr
 }
+
+// IsTranslated reports whether a string is translated
+func IsTranslated(str string) bool {
+	return IsTranslatedND(GetDomain(), str, 0)
+}
+
+// IsTranslatedN reports whether a plural string is translated
+func IsTranslatedN(str string, n int) bool {
+	return IsTranslatedND(GetDomain(), str, n)
+}
+
+// IsTranslatedD reports whether a domain string is translated
+func IsTranslatedD(dom, str string) bool {
+	return IsTranslatedND(dom, str, 0)
+}
+
+// IsTranslatedND reports whether a plural domain string is translated
+func IsTranslatedND(dom, str string, n int) bool {
+	loadStorage(false)
+
+	globalConfig.RLock()
+	defer globalConfig.RUnlock()
+
+	if _, ok := globalConfig.storage.Domains[dom]; !ok {
+		globalConfig.storage.AddDomain(dom)
+	}
+
+	return globalConfig.storage.IsTranslatedND(dom, str, n)
+}
+
+// IsTranslatedC reports whether a context string is translated
+func IsTranslatedC(str, ctx string) bool {
+	return IsTranslatedNDC(GetDomain(), str, 0, ctx)
+}
+
+// IsTranslatedNC reports whether a plural context string is translated
+func IsTranslatedNC(str string, n int, ctx string) bool {
+	return IsTranslatedNDC(GetDomain(), str, n, ctx)
+}
+
+// IsTranslatedDC reports whether a domain context string is translated
+func IsTranslatedDC(dom, str, ctx string) bool {
+	return IsTranslatedNDC(dom, str, 0, ctx)
+}
+
+// IsTranslatedNDC reports whether a plural domain context string is translated
+func IsTranslatedNDC(dom, str string, n int, ctx string) bool {
+	loadStorage(false)
+
+	globalConfig.RLock()
+	defer globalConfig.RUnlock()
+
+	return globalConfig.storage.IsTranslatedNDC(dom, str, n, ctx)
+}
