@@ -134,7 +134,11 @@ func SetLanguage(lang string) {
 	globalConfig.Lock()
 	var languages []string
 	for _, language := range strings.Split(lang, ":") {
-		languages = append(languages, SimplifiedLocale(language))
+		language = SimplifiedLocale(language)
+		languages = append(languages, language)
+		if language == "C" {
+			break
+		}
 	}
 	globalConfig.languages = languages
 	globalConfig.Unlock()
@@ -170,7 +174,11 @@ func Configure(lib, lang, dom string) {
 	globalConfig.library = lib
 	var languages []string
 	for _, language := range strings.Split(lang, ":") {
-		languages = append(languages, SimplifiedLocale(language))
+		language = SimplifiedLocale(language)
+		languages = append(languages, language)
+		if language == "C" {
+			break
+		}
 	}
 	globalConfig.languages = languages
 	globalConfig.domain = dom
