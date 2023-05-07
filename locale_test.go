@@ -226,6 +226,12 @@ msgstr "More Translation"
 	// Create Locale with full language code
 	l := NewLocale("/tmp", "en_US")
 
+	// Test language
+	language := l.GetLanguage()
+	if language != "en_US" {
+		t.Errorf("Expected 'en_US' but got '%s'", language)
+	}
+
 	// Force nil domain storage
 	l.Domains = nil
 
@@ -293,6 +299,12 @@ msgstr "More Translation"
 	// Create Locale with full language code
 	l = NewLocale("/tmp", "golem")
 
+	// Test language
+	language = l.GetLanguage()
+	if language != "golem" {
+		t.Errorf("Expected 'golem' but got '%s'", language)
+	}
+
 	// Force nil domain storage
 	l.Domains = nil
 
@@ -322,6 +334,12 @@ msgstr "More Translation"
 
 	// Create Locale with full language code
 	l = NewLocale("fixtures/", "fr_FR")
+
+	// Test language
+	language = l.GetLanguage()
+	if language != "fr_FR" {
+		t.Errorf("Expected 'fr_FR' but got '%s'", language)
+	}
 
 	// Force nil domain storage
 	l.Domains = nil
@@ -353,6 +371,12 @@ msgstr "More Translation"
 	// Create Locale with full language code
 	l = NewLocale("fixtures/", "de_DE")
 
+	// Test language
+	language = l.GetLanguage()
+	if language != "de_DE" {
+		t.Errorf("Expected 'de_DE' but got '%s'", language)
+	}
+
 	// Force nil domain storage
 	l.Domains = nil
 
@@ -382,6 +406,12 @@ msgstr "More Translation"
 
 	// Create Locale with full language code
 	l = NewLocale("fixtures/", "de_AT")
+
+	// Test language
+	language = l.GetLanguage()
+	if language != "de_AT" {
+		t.Errorf("Expected 'de_AT' but got '%s'", language)
+	}
 
 	// Force nil domain storage
 	l.Domains = nil
