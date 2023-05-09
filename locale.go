@@ -192,6 +192,14 @@ func (l *Locale) SetDomain(dom string) {
 	l.Unlock()
 }
 
+// GetLanguage is the lang getter for Locale configuration
+func (l *Locale) GetLanguage() string {
+	l.RLock()
+	lang := l.lang
+	l.RUnlock()
+	return lang
+}
+
 // Get uses a domain "default" to return the corresponding Translation of a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) Get(str string, vars ...interface{}) string {
