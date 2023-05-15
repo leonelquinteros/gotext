@@ -155,7 +155,7 @@ func GetLibrary() string {
 	return lib
 }
 
-// SetLibrary sets the root path for the loale directories and files to be used at package level.
+// SetLibrary sets the root path for the locale directories and files to be used at package level.
 // It reloads the corresponding Translation file.
 func SetLibrary(lib string) {
 	globalConfig.Lock()
