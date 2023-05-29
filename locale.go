@@ -113,13 +113,8 @@ func (l *Locale) findExt(dom, ext string) string {
 
 func (l *Locale) fileExists(filename string) bool {
 	if l.fs != nil {
-		f, err := l.fs.Open(filename)
-		if err != nil {
-			return false
-		}
-		_, err = f.Stat()
+		_, err := fs.Stat(l.fs, filename)
 		return err == nil
-
 	}
 	_, err := os.Stat(filename)
 	return err == nil
