@@ -142,6 +142,30 @@ func SetLibrary(lib string) {
 	loadStorage(true)
 }
 
+// GetStorage is the locale storage getter for the package configuration.
+func GetStorage() *Locale {
+	globalConfig.RLock()
+	storage := globalConfig.storage
+	globalConfig.RUnlock()
+
+	return storage
+}
+
+// SetStorage allows overridding the global Locale object with one built manually with NewLocale().
+// This allows then to attach to the locale Domains object in memory po or mo files (embedded or in any directory),
+// for each domain.
+// Locale library, language and domain properties will apply on default global configuration.
+// Any domain not loaded yet will use to the just in time domain loading process.
+// Note that any call to gotext.Set* or Configure will invalidate this override.
+func SetStorage(storage *Locale) {
+	globalConfig.Lock()
+	globalConfig.storage = storage
+	globalConfig.library = storage.path
+	globalConfig.language = storage.lang
+	globalConfig.domain = storage.defaultDomain
+	globalConfig.Unlock()
+}
+
 // Configure sets all configuration variables to be used at package level and reloads the corresponding Translation file.
 // It receives the library path, language code and domain name.
 // This function is recommended to be used when changing more than one setting,
