@@ -7,8 +7,11 @@ msgstr ""
 "Language: \n"
 "X-Generator: xgotext\n"
 
-	
-#: fixtures/main.go:26
-#. gotext.GetD
+#: fixtures/main.go:61
 msgid "Another text on a different domain"
+msgstr ""
+
+#: fixtures/main.go:78
+msgctxt "ctx"
+msgid "string"
 msgstr ""

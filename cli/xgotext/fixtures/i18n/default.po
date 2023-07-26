@@ -7,22 +7,80 @@ msgstr ""
 "Language: \n"
 "X-Generator: xgotext\n"
 
-	
-#: fixtures/main.go:23
-#. gotext.Get
+#: fixtures/main.go:35
+#: fixtures/main.go:37
 msgid "My text on 'domain-name' domain"
 msgstr ""
 
-#: fixtures/main.go:38
-#. l.GetN
+#: fixtures/main.go:75
 msgid "Singular"
 msgid_plural "Plural"
 msgstr[0] ""
 msgstr[1] ""
 
-#: fixtures/main.go:40
-#. l.GetN
+#: fixtures/main.go:77
 msgid "SingularVar"
 msgid_plural "PluralVar"
 msgstr[0] ""
 msgstr[1] ""
+
+#: fixtures/main.go:44
+msgid "alias call"
+msgstr ""
+
+#: fixtures/main.go:104
+msgid "inside dummy"
+msgstr ""
+
+#: fixtures/pkg/pkg.go:15
+msgid "inside sub package"
+msgstr ""
+
+#: fixtures/main.go:51
+msgid ""
+"multi\n"
+"line\n"
+"string\n"
+msgstr ""
+
+#: fixtures/main.go:54
+msgid ""
+"multi\n"
+"line\n"
+"string\n"
+"ending with\n"
+"EOL\n"
+msgstr ""
+
+#: fixtures/main.go:59
+msgid ""
+"multline\n"
+"ending with EOL\n"
+msgstr ""
+
+#: fixtures/main.go:50
+msgid "raw string with\nmultiple\nEOL"
+msgstr ""
+
+#: fixtures/main.go:48
+msgid "string ending with EOL\n"
+msgstr ""
+
+#: fixtures/main.go:49
+msgid ""
+"string with\n"
+"multiple\n"
+"EOL\n"
+msgstr ""
+
+#: fixtures/main.go:47
+msgid "string with backquotes"
+msgstr ""
+
+#: fixtures/main.go:91
+msgid "translate package"
+msgstr ""
+
+#: fixtures/main.go:92
+msgid "translate sub package"
+msgstr ""
