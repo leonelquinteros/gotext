@@ -134,9 +134,10 @@ func TestDomain_CheckExportFormatting(t *testing.T) {
 msgstr ""
 
 msgid "myid"
-msgstr "test string"
+msgstr ""
+"test string\n"
 "with \"newline\""`
-	
+
 	if string(poBytes) != expectedOutput {
 		t.Errorf("Exported PO format does not match. Received:\n\n%v\n\n\nExpected:\n\n%v", string(poBytes), expectedOutput)
 	}
