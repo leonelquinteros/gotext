@@ -3,6 +3,7 @@ package gotext
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
@@ -653,9 +654,39 @@ func (do *Domain) MarshalText() ([]byte, error) {
 }
 
 func EscapeSpecialCharacters(s string) string {
-	s = regexp.MustCompile(`([^\\])(")`).ReplaceAllString(s, "$1\\\"")  // Escape non-escaped double quotation marks
-	s = strings.ReplaceAll(s, "\n", "\"\n\"") // Convert newlines into multi-line strings
-	return s 
+	s = regexp.MustCompile(`([^\\])(")`).ReplaceAllString(s, "$1\\\"") // Escape non-escaped double quotation marks
+
+	if strings.Count(s, "\n") == 0 {
+		return s
+	}
+
+	// Handle EOL and multi-lines
+	// Only one line, but finishing with \n
+	if strings.Count(s, "\n") == 1 && strings.HasSuffix(s, "\n") {
+		return strings.ReplaceAll(s, "\n", "\\n")
+	}
+
+	elems := strings.Split(s, "\n")
+	// Skip last element for multiline which is an empty
+	var shouldEndWithEOL bool
+	if elems[len(elems)-1] == "" {
+		elems = elems[:len(elems)-1]
+		shouldEndWithEOL = true
+	}
+	data := []string{(`"`)}
+	for i, v := range elems {
+		l := fmt.Sprintf(`"%s\n"`, v)
+		// Last element without EOL
+		if i == len(elems)-1 && !shouldEndWithEOL {
+			l = fmt.Sprintf(`"%s"`, v)
+		}
+		// Remove finale " to last element as the whole string will be quoted
+		if i == len(elems)-1 {
+			l = strings.TrimSuffix(l, `"`)
+		}
+		data = append(data, l)
+	}
+	return strings.Join(data, "\n")
 }
 
 // MarshalBinary implements encoding.BinaryMarshaler interface
