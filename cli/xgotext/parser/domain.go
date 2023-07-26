@@ -29,7 +29,9 @@ func (t *Translation) AddLocations(locations []string) {
 func (t *Translation) Dump() string {
 	data := make([]string, 0, len(t.SourceLocations)+5)
 
-	for _, location := range t.SourceLocations {
+	locations := t.SourceLocations
+	sort.Strings(locations)
+	for _, location := range locations {
 		data = append(data, "#: "+location)
 	}
 
