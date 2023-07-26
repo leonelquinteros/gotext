@@ -37,18 +37,50 @@ func (t *Translation) Dump() string {
 		data = append(data, "msgctxt "+t.Context)
 	}
 
-	data = append(data, "msgid "+t.MsgId)
+	data = append(data, toMsgIDString("msgid", t.MsgId)...)
 
 	if t.MsgIdPlural == "" {
 		data = append(data, "msgstr \"\"")
 	} else {
+		data = append(data, toMsgIDString("msgid_plural", t.MsgIdPlural)...)
 		data = append(data,
-			"msgid_plural "+t.MsgIdPlural,
 			"msgstr[0] \"\"",
 			"msgstr[1] \"\"")
 	}
 
 	return strings.Join(data, "\n")
+}
+
+// toMsgIDString returns the spec implementation of multi line support of po files by aligning msgid on it.
+func toMsgIDString(prefix, msgID string) []string {
+	elems := strings.Split(msgID, "\n")
+	// Main case: single line.
+	if len(elems) == 1 {
+		return []string{fmt.Sprintf(`%s "%s"`, prefix, msgID)}
+	}
+
+	// Only one line, but finishing with \n
+	if strings.Count(msgID, "\n") == 1 && strings.HasSuffix(msgID, "\n") {
+		return []string{fmt.Sprintf(`%s "%s\n"`, prefix, strings.TrimSuffix(msgID, "\n"))}
+	}
+
+	// Skip last element for multiline which is an empty
+	var shouldEndWithEOL bool
+	if elems[len(elems)-1] == "" {
+		elems = elems[:len(elems)-1]
+		shouldEndWithEOL = true
+	}
+	data := []string{fmt.Sprintf(`%s ""`, prefix)}
+	for i, v := range elems {
+		l := fmt.Sprintf(`"%s\n"`, v)
+		// Last element without EOL
+		if i == len(elems)-1 && !shouldEndWithEOL {
+			l = fmt.Sprintf(`"%s"`, v)
+		}
+		data = append(data, l)
+	}
+
+	return data
 }
 
 // TranslationMap contains a map of translations with the ID as key

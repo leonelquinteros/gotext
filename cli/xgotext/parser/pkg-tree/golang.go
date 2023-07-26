@@ -17,7 +17,6 @@ import (
 
 const gotextPkgPath = "github.com/leonelquinteros/gotext"
 
-
 type GetterDef struct {
 	Id      int
 	Plural  int
@@ -287,8 +286,9 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 		return
 	}
 
+	msgID, _ := strconv.Unquote(args[def.Id].Value)
 	trans := parser.Translation{
-		MsgId:           args[def.Id].Value,
+		MsgId:           msgID,
 		SourceLocations: []string{pos},
 	}
 	if def.Plural > 0 {
@@ -297,7 +297,8 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 			log.Printf("ERR: Unsupported call at %s (Plural not a string)", pos)
 			return
 		}
-		trans.MsgIdPlural = args[def.Plural].Value
+		msgIDPlural, _ := strconv.Unquote(args[def.Plural].Value)
+		trans.MsgIdPlural = msgIDPlural
 	}
 	if def.Context > 0 {
 		// Context must be a string
