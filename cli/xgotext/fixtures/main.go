@@ -43,6 +43,21 @@ func main() {
 	// same with alias package name
 	fmt.Println(alias.Get("alias call"))
 
+	// Special strings
+	fmt.Println(gotext.Get(`string with backquotes`))
+	fmt.Println(gotext.Get("string ending with EOL\n"))
+	fmt.Println(gotext.Get("string with\nmultiple\nEOL"))
+	fmt.Println(gotext.Get(`raw string with\nmultiple\nEOL`))
+	fmt.Println(gotext.Get(`multi
+line
+string`))
+	fmt.Println(gotext.Get(`multi
+line
+string
+ending with
+EOL`))
+	fmt.Println(gotext.Get("multline\nending with EOL\n"))
+
 	// Translate text from a different domain without reconfigure
 	fmt.Println(gotext.GetD("domain2", "Another text on a different domain"))
 

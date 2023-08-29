@@ -7,14 +7,11 @@ msgstr ""
 "Language: \n"
 "X-Generator: xgotext\n"
 
-	
-#: fixtures/main.go:35
-#. l.GetD
+#: fixtures/main.go:71
 msgid "Translate this"
 msgstr ""
 
-#: fixtures/main.go:43
-#. l.GetNDC
+#: fixtures/main.go:79
 msgctxt "NDC-CTX"
 msgid "ndc"
 msgid_plural "ndcs"
