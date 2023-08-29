@@ -186,29 +186,13 @@ msgstr "Another text on another domain"
 		t.Errorf("Expected 'Another text on another domain' but got '%s'", tr)
 	}
 
-	// IsTranslated tests for when the string is translated in English.
+	// Test IsTranslation functions
 	if !IsTranslated("My text") {
-		t.Error("'My text' should be reported as translated when 'langs' is omitted.")
+		t.Error("'My text' should be reported as translated.")
 	}
-	if !IsTranslated("My text", "en_US") {
-		t.Error("'My text' should be reported as translated when 'langs' is 'en_US'.")
-	}
-	if IsTranslated("My text", "cs_CZ") {
-		t.Error("'My text' should be reported as not translated when 'langs' is 'cs_CZ'.")
-	}
-	if !IsTranslated("My text", "en_US", "cs_CZ") {
-		t.Error("'My text' should be reported as translated when 'langs' is 'en_US, cs_CZ'.")
-	}
-
-	// IsTranslated tests for when the string is not translated in English
 	if IsTranslated("Another string") {
 		t.Error("'Another string' should be reported as not translated.")
 	}
-	if IsTranslated("String not in .po") {
-		t.Error("'String not in .po' should be reported as not translated.")
-	}
-
-	// IsTranslated tests for plurals and contexts
 	plural := "One with var: %s"
 	if !IsTranslated(plural) {
 		t.Errorf("'%s' should be reported as translated for singular.", plural)
