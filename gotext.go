@@ -24,6 +24,7 @@ package gotext
 
 import (
 	"encoding/gob"
+	"strings"
 	"sync"
 )
 
@@ -31,17 +32,17 @@ import (
 type config struct {
 	sync.RWMutex
 
+	// Path to library directory where all locale directories and Translation files are.
+	library string
+
 	// Default domain to look at when no domain is specified. Used by package level functions.
 	domain string
 
 	// Language set.
-	language string
-
-	// Path to library directory where all locale directories and Translation files are.
-	library string
+	languages []string
 
 	// Storage for package level methods
-	storage *Locale
+	locales []*Locale
 }
 
 var globalConfig *config
@@ -49,29 +50,36 @@ var globalConfig *config
 func init() {
 	// Init default configuration
 	globalConfig = &config{
-		domain:   "default",
-		language: "en_US",
-		library:  "/usr/local/share/locale",
-		storage:  nil,
+		domain:    "default",
+		languages: []string{"en_US"},
+		library:   "/usr/local/share/locale",
+		locales:   nil,
 	}
 
 	// Register Translator types for gob encoding
 	gob.Register(TranslatorEncoding{})
 }
 
-// loadStorage creates a new Locale object at package level based on the Global variables settings.
+// loadStorage creates a new Locale object at package level based on the Global variables settings
+// for every language specified using Configure.
 // It's called automatically when trying to use Get or GetD methods.
 func loadStorage(force bool) {
 	globalConfig.Lock()
 
-	if globalConfig.storage == nil || force {
-		globalConfig.storage = NewLocale(globalConfig.library, globalConfig.language)
+	if globalConfig.locales == nil || force {
+		var locales []*Locale
+		for _, language := range globalConfig.languages {
+			locales = append(locales, NewLocale(globalConfig.library, language))
+		}
+		globalConfig.locales = locales
 	}
 
-	if _, ok := globalConfig.storage.Domains[globalConfig.domain]; !ok || force {
-		globalConfig.storage.AddDomain(globalConfig.domain)
+	for _, locale := range globalConfig.locales {
+		if _, ok := locale.Domains[globalConfig.domain]; !ok || force {
+			locale.AddDomain(globalConfig.domain)
+		}
+		locale.SetDomain(globalConfig.domain)
 	}
-	globalConfig.storage.SetDomain(globalConfig.domain)
 
 	globalConfig.Unlock()
 }
@@ -80,8 +88,9 @@ func loadStorage(force bool) {
 func GetDomain() string {
 	var dom string
 	globalConfig.RLock()
-	if globalConfig.storage != nil {
-		dom = globalConfig.storage.GetDomain()
+	if globalConfig.locales != nil {
+		// All locales have the same domain
+		dom = globalConfig.locales[0].GetDomain()
 	}
 	if dom == "" {
 		dom = globalConfig.domain
@@ -96,28 +105,42 @@ func GetDomain() string {
 func SetDomain(dom string) {
 	globalConfig.Lock()
 	globalConfig.domain = dom
-	if globalConfig.storage != nil {
-		globalConfig.storage.SetDomain(dom)
+	if globalConfig.locales != nil {
+		for _, locale := range globalConfig.locales {
+			locale.SetDomain(dom)
+		}
 	}
 	globalConfig.Unlock()
 
 	loadStorage(true)
 }
 
-// GetLanguage is the language getter for the package configuration
+// GetLanguage returns the language gotext will translate into.
+// If multiple languages have been supplied, the first one will be returned.
 func GetLanguage() string {
-	globalConfig.RLock()
-	lang := globalConfig.language
-	globalConfig.RUnlock()
-
-	return lang
+	return GetLanguages()[0]
 }
 
-// SetLanguage sets the language code to be used at package level.
+// GetLanguages returns all languages that have been supplied.
+func GetLanguages() []string {
+	globalConfig.RLock()
+	defer globalConfig.RUnlock()
+	return globalConfig.languages
+}
+
+// SetLanguage sets the language code (or colon separated language codes) to be used at package level.
 // It reloads the corresponding Translation file.
 func SetLanguage(lang string) {
 	globalConfig.Lock()
-	globalConfig.language = SimplifiedLocale(lang)
+	var languages []string
+	for _, language := range strings.Split(lang, ":") {
+		language = SimplifiedLocale(language)
+		languages = append(languages, language)
+		if language == "C" {
+			break
+		}
+	}
+	globalConfig.languages = languages
 	globalConfig.Unlock()
 
 	loadStorage(true)
@@ -132,7 +155,7 @@ func GetLibrary() string {
 	return lib
 }
 
-// SetLibrary sets the root path for the loale directories and files to be used at package level.
+// SetLibrary sets the root path for the locale directories and files to be used at package level.
 // It reloads the corresponding Translation file.
 func SetLibrary(lib string) {
 	globalConfig.Lock()
@@ -173,7 +196,15 @@ func SetStorage(storage *Locale) {
 func Configure(lib, lang, dom string) {
 	globalConfig.Lock()
 	globalConfig.library = lib
-	globalConfig.language = SimplifiedLocale(lang)
+	var languages []string
+	for _, language := range strings.Split(lang, ":") {
+		language = SimplifiedLocale(language)
+		languages = append(languages, language)
+		if language == "C" {
+			break
+		}
+	}
+	globalConfig.languages = languages
 	globalConfig.domain = dom
 	globalConfig.Unlock()
 
@@ -198,16 +229,20 @@ func GetD(dom, str string, vars ...interface{}) string {
 	// Try to load default package Locale storage
 	loadStorage(false)
 
-	// Return Translation
 	globalConfig.RLock()
+	defer globalConfig.RUnlock()
 
-	if _, ok := globalConfig.storage.Domains[dom]; !ok {
-		globalConfig.storage.AddDomain(dom)
+	var tr string
+	for i, locale := range globalConfig.locales {
+		if _, ok := locale.Domains[dom]; !ok {
+			locale.AddDomain(dom)
+		}
+		if !locale.IsTranslatedD(dom, str) && i < (len(globalConfig.locales)-1) {
+			continue
+		}
+		tr = locale.GetD(dom, str, vars...)
+		break
 	}
-
-	tr := globalConfig.storage.GetD(dom, str, vars...)
-	globalConfig.RUnlock()
-
 	return tr
 }
 
@@ -217,16 +252,20 @@ func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 	// Try to load default package Locale storage
 	loadStorage(false)
 
-	// Return Translation
 	globalConfig.RLock()
+	defer globalConfig.RUnlock()
 
-	if _, ok := globalConfig.storage.Domains[dom]; !ok {
-		globalConfig.storage.AddDomain(dom)
+	var tr string
+	for i, locale := range globalConfig.locales {
+		if _, ok := locale.Domains[dom]; !ok {
+			locale.AddDomain(dom)
+		}
+		if !locale.IsTranslatedND(dom, str, n) && i < (len(globalConfig.locales)-1) {
+			continue
+		}
+		tr = locale.GetND(dom, str, plural, n, vars...)
+		break
 	}
-
-	tr := globalConfig.storage.GetND(dom, str, plural, n, vars...)
-	globalConfig.RUnlock()
-
 	return tr
 }
 
@@ -248,11 +287,17 @@ func GetDC(dom, str, ctx string, vars ...interface{}) string {
 	// Try to load default package Locale storage
 	loadStorage(false)
 
-	// Return Translation
 	globalConfig.RLock()
-	tr := globalConfig.storage.GetDC(dom, str, ctx, vars...)
-	globalConfig.RUnlock()
+	defer globalConfig.RUnlock()
 
+	var tr string
+	for i, locale := range globalConfig.locales {
+		if !locale.IsTranslatedDC(dom, str, ctx) && i < (len(globalConfig.locales)-1) {
+			continue
+		}
+		tr = locale.GetDC(dom, str, ctx, vars...)
+		break
+	}
 	return tr
 }
 
@@ -264,62 +309,101 @@ func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) str
 
 	// Return Translation
 	globalConfig.RLock()
-	tr := globalConfig.storage.GetNDC(dom, str, plural, n, ctx, vars...)
-	globalConfig.RUnlock()
+	defer globalConfig.RUnlock()
 
+	var tr string
+	for i, locale := range globalConfig.locales {
+		if !locale.IsTranslatedNDC(dom, str, n, ctx) && i < (len(globalConfig.locales)-1) {
+			continue
+		}
+		tr = locale.GetNDC(dom, str, plural, n, ctx, vars...)
+		break
+	}
 	return tr
 }
 
-// IsTranslated reports whether a string is translated
-func IsTranslated(str string) bool {
-	return IsTranslatedND(GetDomain(), str, 0)
+// IsTranslated reports whether a string is translated in given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslated(str string, langs ...string) bool {
+	return IsTranslatedND(GetDomain(), str, 0, langs...)
 }
 
-// IsTranslatedN reports whether a plural string is translated
-func IsTranslatedN(str string, n int) bool {
-	return IsTranslatedND(GetDomain(), str, n)
+// IsTranslatedN reports whether a plural string is translated in given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedN(str string, n int, langs ...string) bool {
+	return IsTranslatedND(GetDomain(), str, n, langs...)
 }
 
-// IsTranslatedD reports whether a domain string is translated
-func IsTranslatedD(dom, str string) bool {
-	return IsTranslatedND(dom, str, 0)
+// IsTranslatedD reports whether a domain string is translated in given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedD(dom, str string, langs ...string) bool {
+	return IsTranslatedND(dom, str, 0, langs...)
 }
 
-// IsTranslatedND reports whether a plural domain string is translated
-func IsTranslatedND(dom, str string, n int) bool {
-	loadStorage(false)
-
-	globalConfig.RLock()
-	defer globalConfig.RUnlock()
-
-	if _, ok := globalConfig.storage.Domains[dom]; !ok {
-		globalConfig.storage.AddDomain(dom)
+// IsTranslatedND reports whether a plural domain string is translated in any of given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedND(dom, str string, n int, langs ...string) bool {
+	if len(langs) == 0 {
+		langs = GetLanguages()
 	}
 
-	return globalConfig.storage.IsTranslatedND(dom, str, n)
-}
-
-// IsTranslatedC reports whether a context string is translated
-func IsTranslatedC(str, ctx string) bool {
-	return IsTranslatedNDC(GetDomain(), str, 0, ctx)
-}
-
-// IsTranslatedNC reports whether a plural context string is translated
-func IsTranslatedNC(str string, n int, ctx string) bool {
-	return IsTranslatedNDC(GetDomain(), str, n, ctx)
-}
-
-// IsTranslatedDC reports whether a domain context string is translated
-func IsTranslatedDC(dom, str, ctx string) bool {
-	return IsTranslatedNDC(dom, str, 0, ctx)
-}
-
-// IsTranslatedNDC reports whether a plural domain context string is translated
-func IsTranslatedNDC(dom, str string, n int, ctx string) bool {
 	loadStorage(false)
 
 	globalConfig.RLock()
 	defer globalConfig.RUnlock()
 
-	return globalConfig.storage.IsTranslatedNDC(dom, str, n, ctx)
+	for _, lang := range langs {
+		lang = SimplifiedLocale(lang)
+
+		for _, supportedLocale := range globalConfig.locales {
+			if lang != supportedLocale.GetActualLanguage(dom) {
+				continue
+			}
+			return supportedLocale.IsTranslatedND(dom, str, n)
+		}
+	}
+	return false
+}
+
+// IsTranslatedC reports whether a context string is translated in given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedC(str, ctx string, langs ...string) bool {
+	return IsTranslatedNDC(GetDomain(), str, 0, ctx, langs...)
+}
+
+// IsTranslatedNC reports whether a plural context string is translated in given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedNC(str string, n int, ctx string, langs ...string) bool {
+	return IsTranslatedNDC(GetDomain(), str, n, ctx, langs...)
+}
+
+// IsTranslatedDC reports whether a domain context string is translated in given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedDC(dom, str, ctx string, langs ...string) bool {
+	return IsTranslatedNDC(dom, str, 0, ctx, langs...)
+}
+
+// IsTranslatedNDC reports whether a plural domain context string is translated in any of given languages.
+// When the langs argument is omitted, the output of GetLanguages is used.
+func IsTranslatedNDC(dom, str string, n int, ctx string, langs ...string) bool {
+	if len(langs) == 0 {
+		langs = GetLanguages()
+	}
+
+	loadStorage(false)
+
+	globalConfig.RLock()
+	defer globalConfig.RUnlock()
+
+	for _, lang := range langs {
+		lang = SimplifiedLocale(lang)
+
+		for _, locale := range globalConfig.locales {
+			if lang != locale.GetActualLanguage(dom) {
+				continue
+			}
+			return locale.IsTranslatedNDC(dom, str, n, ctx)
+		}
+	}
+	return false
 }
