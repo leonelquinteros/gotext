@@ -62,13 +62,13 @@ func init() {
 	gob.Register(TranslatorEncoding{})
 }
 
-// loadStorage creates a new Locale object at package level based on the Global variables settings
-// for every language specified using Configure.
-// It's called automatically when trying to use Get or GetD methods.
-func loadStorage(force bool) {
+// loadLocales creates a new Locale object for every language (specified using Configure)
+// at package level based on the configuration of global configuration .
+// It is called when trying to use Get or GetD methods.
+func loadLocales(rebuildCache bool) {
 	globalConfig.Lock()
 
-	if globalConfig.locales == nil || force {
+	if globalConfig.locales == nil || rebuildCache {
 		var locales []*Locale
 		for _, language := range globalConfig.languages {
 			locales = append(locales, NewLocale(globalConfig.library, language))
@@ -77,7 +77,7 @@ func loadStorage(force bool) {
 	}
 
 	for _, locale := range globalConfig.locales {
-		if _, ok := locale.Domains[globalConfig.domain]; !ok || force {
+		if _, ok := locale.Domains[globalConfig.domain]; !ok || rebuildCache {
 			locale.AddDomain(globalConfig.domain)
 		}
 		locale.SetDomain(globalConfig.domain)
@@ -114,7 +114,7 @@ func SetDomain(dom string) {
 	}
 	globalConfig.Unlock()
 
-	loadStorage(true)
+	loadLocales(true)
 }
 
 // GetLanguage returns the language gotext will translate into.
@@ -146,7 +146,7 @@ func SetLanguage(lang string) {
 	globalConfig.languages = languages
 	globalConfig.Unlock()
 
-	loadStorage(true)
+	loadLocales(true)
 }
 
 // GetLibrary is the library getter for the package configuration
@@ -165,7 +165,7 @@ func SetLibrary(lib string) {
 	globalConfig.library = lib
 	globalConfig.Unlock()
 
-	loadStorage(true)
+	loadLocales(true)
 }
 
 func GetLocales() []*Locale {
@@ -176,12 +176,11 @@ func GetLocales() []*Locale {
 
 // GetStorage is the locale storage getter for the package configuration.
 //
-// It returns the first locale returned by GetLocales.
-// This function exists for backwards compatibility, prefer using GetLocales directly.
+// Deprecated: Storage has been renamed to Locale for consistency, use GetLocales instead.
 func GetStorage() *Locale {
 	locales := GetLocales()
 	if len(locales) > 0 {
-		return GetLocales()[0]
+		return locales[0]
 	}
 	return nil
 }
@@ -205,16 +204,10 @@ func SetLocales(locales []*Locale) {
 }
 
 // SetStorage allows overriding the global Locale object with one built manually with NewLocale().
-// This allows then to attach to the locale Domains object in memory po or mo files (embedded or in any directory),
-// for each domain.
-// Locale library, language and domain properties will apply on default global configuration.
-// Any domain not loaded yet will use to the just in time domain loading process.
-// Note that any call to gotext.Set* or Configure will invalidate this override.
 //
-// This works by calling SetLocales with just one Locale object.
-// This function exists for backwards compatibility, prefer using SetLocales directly.
-func SetStorage(storage *Locale) {
-	SetLocales([]*Locale{storage})
+// Deprecated: Storage has been renamed to Locale for consistency, use SetLocales instead.
+func SetStorage(locale *Locale) {
+	SetLocales([]*Locale{locale})
 }
 
 // Configure sets all configuration variables to be used at package level and reloads the corresponding Translation file.
@@ -232,7 +225,7 @@ func Configure(lib, lang, dom string) {
 	globalConfig.domain = dom
 	globalConfig.Unlock()
 
-	loadStorage(true)
+	loadLocales(true)
 }
 
 // Get uses the default domain globally set to return the corresponding Translation of a given string.
@@ -250,8 +243,8 @@ func GetN(str, plural string, n int, vars ...interface{}) string {
 // GetD returns the corresponding Translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetD(dom, str string, vars ...interface{}) string {
-	// Try to load default package Locale storage
-	loadStorage(false)
+	// Try to load default package Locales
+	loadLocales(false)
 
 	globalConfig.RLock()
 	defer globalConfig.RUnlock()
@@ -273,8 +266,8 @@ func GetD(dom, str string, vars ...interface{}) string {
 // GetND retrieves the (N)th plural form of Translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetND(dom, str, plural string, n int, vars ...interface{}) string {
-	// Try to load default package Locale storage
-	loadStorage(false)
+	// Try to load default package Locales
+	loadLocales(false)
 
 	globalConfig.RLock()
 	defer globalConfig.RUnlock()
@@ -308,8 +301,8 @@ func GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 // GetDC returns the corresponding Translation in the given domain for the given string in the given context.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetDC(dom, str, ctx string, vars ...interface{}) string {
-	// Try to load default package Locale storage
-	loadStorage(false)
+	// Try to load default package Locales
+	loadLocales(false)
 
 	globalConfig.RLock()
 	defer globalConfig.RUnlock()
@@ -328,8 +321,8 @@ func GetDC(dom, str, ctx string, vars ...interface{}) string {
 // GetNDC retrieves the (N)th plural form of Translation in the given domain for a given string.
 // Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
 func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) string {
-	// Try to load default package Locale storage
-	loadStorage(false)
+	// Try to load default package Locales
+	loadLocales(false)
 
 	// Return Translation
 	globalConfig.RLock()
@@ -371,7 +364,7 @@ func IsTranslatedND(dom, str string, n int, langs ...string) bool {
 		langs = GetLanguages()
 	}
 
-	loadStorage(false)
+	loadLocales(false)
 
 	globalConfig.RLock()
 	defer globalConfig.RUnlock()
@@ -414,7 +407,7 @@ func IsTranslatedNDC(dom, str string, n int, ctx string, langs ...string) bool {
 		langs = GetLanguages()
 	}
 
-	loadStorage(false)
+	loadLocales(false)
 
 	globalConfig.RLock()
 	defer globalConfig.RUnlock()

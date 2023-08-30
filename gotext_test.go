@@ -32,11 +32,11 @@ func TestGettersSetters(t *testing.T) {
 
 	// Create Locale with full language code
 	l := NewLocale("fixtures/", "fr_FR")
-	SetStorage(l)
-	storage := GetStorage()
+	SetLocales([]*Locale{l})
+	locale := GetLocales()[0]
 
-	if storage != l {
-		t.Errorf("Expected GetStorage to return provided locale storage %v, but got '%v'", storage, l)
+	if locale != l {
+		t.Errorf("Expected GetLocale to return provided locale locale %v, but got '%v'", locale, l)
 	}
 }
 
@@ -436,7 +436,7 @@ msgstr[1] "Custom ctx translations"
 	}
 }
 
-func TestOverrideStorage(t *testing.T) {
+func TestOverrideLocale(t *testing.T) {
 	// Configure global translation
 	Configure("fixtures/", "de_DE", "default")
 
@@ -448,14 +448,14 @@ func TestOverrideStorage(t *testing.T) {
 	// Create and override with our new locale.
 	l := NewLocale("fixtures/", "fr")
 	l.SetDomain("default")
-	SetStorage(l)
+	SetLocales([]*Locale{l})
 
 	language = Get("language")
 	if language != "fr" {
 		t.Errorf("Expected default configuration to be overriden by locale 'fr' but got '%s'", language)
 	}
 
-	// Ensure properties were applied on globale configuration when Set.
+	// Ensure properties were applied on global configuration when Set.
 	dom := GetDomain()
 	if dom != "default" {
 		t.Errorf("Expected GetDomain to return 'default', but got '%s'", dom)
