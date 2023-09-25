@@ -10,8 +10,6 @@ import (
 	"strings"
 	"sync"
 
-	"golang.org/x/text/language"
-
 	"github.com/leonelquinteros/gotext/plurals"
 )
 
@@ -22,7 +20,6 @@ type Domain struct {
 
 	// Language header
 	Language string
-	tag      language.Tag
 
 	// Plural-Forms header
 	PluralForms string
@@ -143,7 +140,6 @@ func (do *Domain) parseHeaders() {
 
 	// Get/save needed headers
 	do.Language = do.Headers.Get(languageKey)
-	do.tag = language.Make(do.Language)
 	do.PluralForms = do.Headers.Get(pluralFormsKey)
 
 	// Parse Plural-Forms formula
