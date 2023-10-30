@@ -26,13 +26,17 @@ func (t *Translation) AddLocations(locations []string) {
 }
 
 // Dump translation as string
-func (t *Translation) Dump() string {
-	data := make([]string, 0, len(t.SourceLocations)+5)
-
-	locations := t.SourceLocations
-	sort.Strings(locations)
-	for _, location := range locations {
-		data = append(data, "#: "+location)
+func (t *Translation) Dump(locations bool) string {
+	var data []string
+	if locations {
+		data = make([]string, 0, len(t.SourceLocations)+5)
+		locations := t.SourceLocations
+		sort.Strings(locations)
+		for _, location := range locations {
+			data = append(data, "#: "+location)
+		}
+	} else {
+		data = make([]string, 0, 5)
 	}
 
 	if t.Context != "" {
@@ -89,7 +93,7 @@ func toMsgIDString(prefix, msgID string) []string {
 type TranslationMap map[string]*Translation
 
 // Dump the translation map as string
-func (m TranslationMap) Dump() string {
+func (m TranslationMap) Dump(locations bool) string {
 	// sort by translation id for consistence output
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -99,7 +103,7 @@ func (m TranslationMap) Dump() string {
 
 	data := make([]string, 0, len(m))
 	for _, key := range keys {
-		data = append(data, (m)[key].Dump())
+		data = append(data, (m)[key].Dump(locations))
 	}
 	return strings.Join(data, "\n\n")
 }
@@ -137,9 +141,9 @@ func (d *Domain) AddTranslation(translation *Translation) {
 }
 
 // Dump the domain as string
-func (d *Domain) Dump() string {
+func (d *Domain) Dump(locations bool) string {
 	data := make([]string, 0, len(d.ContextTranslations)+1)
-	data = append(data, d.Translations.Dump())
+	data = append(data, d.Translations.Dump(locations))
 
 	// sort context translations by context for consistence output
 	keys := make([]string, 0, len(d.ContextTranslations))
@@ -149,13 +153,13 @@ func (d *Domain) Dump() string {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		data = append(data, d.ContextTranslations[key].Dump())
+		data = append(data, d.ContextTranslations[key].Dump(locations))
 	}
 	return strings.Join(data, "\n\n")
 }
 
 // Save domain to file
-func (d *Domain) Save(path string) error {
+func (d *Domain) Save(path string, locations bool) error {
 	file, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("failed to domain: %v", err)
@@ -178,7 +182,7 @@ msgstr ""
 	}
 
 	// write domain content
-	_, err = file.WriteString(d.Dump())
+	_, err = file.WriteString(d.Dump(locations))
 	return err
 }
 
@@ -211,7 +215,7 @@ func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
 }
 
 // Save domains to directory
-func (m *DomainMap) Save(directory string) error {
+func (m *DomainMap) Save(directory string, locations bool) error {
 	// ensure output directory exist
 	err := os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
@@ -220,7 +224,7 @@ func (m *DomainMap) Save(directory string) error {
 
 	// save each domain in a separate po file
 	for name, domain := range m.Domains {
-		err := domain.Save(filepath.Join(directory, name+".pot"))
+		err := domain.Save(filepath.Join(directory, name+".pot"), locations)
 		if err != nil {
 			return fmt.Errorf("failed to save domain %s: %v", name, err)
 		}

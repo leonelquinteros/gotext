@@ -11,12 +11,13 @@ import (
 )
 
 var (
-	pkgTree       = flag.String("pkg-tree", "", "main path: /path/to/go/pkg")
-	dirName       = flag.String("in", "", "input dir: /path/to/go/pkg")
-	outputDir     = flag.String("out", "", "output dir: /path/to/i18n/files")
+	pkgTree       = flag.String("pkg-tree", "", "Main path: /path/to/go/pkg")
+	dirName       = flag.String("in", "", "Input dir: /path/to/go/pkg")
+	outputDir     = flag.String("out", "", "Output dir: /path/to/i18n/files")
 	defaultDomain = flag.String("default", "default", "Name of default domain")
 	excludeDirs   = flag.String("exclude", ".git", "Comma separated list of directories to exclude")
-	verbose       = flag.Bool("v", false, "print currently handled directory")
+	noLocations   = flag.Bool("no-locations", false, "Do not write translation locations")
+	verbose       = flag.Bool("v", false, "Print currently handled directory")
 )
 
 func main() {
@@ -51,7 +52,7 @@ func main() {
 		}
 	}
 
-	err := data.Save(*outputDir)
+	err := data.Save(*outputDir, !*noLocations)
 	if err != nil {
 		log.Fatal(err)
 	}
