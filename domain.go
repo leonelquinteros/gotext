@@ -427,7 +427,6 @@ func (do *Domain) IsTranslatedN(str string, n int) bool {
 	if !ok {
 		return false
 	}
-
 	return tr.IsTranslatedN(do.pluralForm(n))
 }
 

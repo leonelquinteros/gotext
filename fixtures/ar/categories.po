@@ -17,3 +17,28 @@ msgstr[2] "حمّل مستندين إضافيين"
 msgstr[3] "حمّل %d مستندات إضافيّة"
 msgstr[4] "حمّل %d مستندا إضافيّا"
 msgstr[5] "حمّل %d مستند إضافي"
+
+
+msgid "If n is 0, you should use msgstr[0]"
+msgid_plural "If n is 0, you should use msgstr[0]"
+msgstr[0] "لا توجد تفاحة"
+
+msgid "If n is 1, you should use msgstr[1]"
+msgid_plural "If n is 0, you should use msgstr[1]"
+msgstr[1] "هناك تفاحة واحدة"
+
+msgid "If n is 2, you should use msgstr[2]"
+msgid_plural "If n is 0, you should use msgstr[2]"
+msgstr[2] "هناك تفاحتان"
+
+msgid "If n is between 3 and 10, you should use msgstr[3]"
+msgid_plural "If n is 0, you should use msgstr[3]"
+msgstr[3] "هناك عدة تفاحات"
+
+msgid "If n is between 11 and 99, you should use msgstr[4]"
+msgid_plural "If n is 0, you should use msgstr[4]"
+msgstr[4] "هناك الكثير من التفاح"
+
+msgid "For any other value of n, msgstr[5] should be used."
+msgid_plural "For any other value of n, msgstr[5] should be used."
+msgstr[5] "هناك التفاح"
