@@ -190,3 +190,12 @@ msgstr ""
 		t.Errorf("Exported PO format does not match. Received:\n\n%v\n\n\nExpected:\n\n%v", string(poBytes), expectedOutput)
 	}
 }
+
+func TestDomain_SetN(t *testing.T) {
+	englishPo := NewPo()
+	englishPo.ParseFile(enUSFixture)
+	english := englishPo.GetDomain()
+
+	english.SetN("sinular.key", "plural.key", 0, "test string")
+	english.SetN("sinular.key", "plural.key", 1, "test string")
+}

@@ -1,7 +1,13 @@
-module github.com/leonelquinteros/gotext
+module github.com/donseba/gotext
 
-// go: no requirements found in Gopkg.lock
+go 1.21.6
 
-require golang.org/x/tools v0.1.12
+require (
+	github.com/leonelquinteros/gotext v1.5.2
+	golang.org/x/tools v0.17.0
+)
 
-go 1.13
+require (
+	golang.org/x/mod v0.14.0 // indirect
+	golang.org/x/text v0.3.8 // indirect
+)
