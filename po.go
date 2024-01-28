@@ -20,7 +20,7 @@ Example:
 
 	import (
 		"fmt"
-		"github.com/leonelquinteros/gotext"
+		"github.com/donseba/gotext"
 	)
 
 	func main() {
@@ -33,7 +33,6 @@ Example:
 		// Get Translation
 		fmt.Println(po.Get("Translate this"))
 	}
-
 */
 type Po struct {
 	//these three public members are for backwards compatibility. they are just set to the value in the domain
@@ -55,7 +54,7 @@ const (
 	msgStr
 )
 
-//NewPo should always be used to instantiate a new Po object
+// NewPo should always be used to instantiate a new Po object
 func NewPo() *Po {
 	po := new(Po)
 	po.domain = NewDomain()

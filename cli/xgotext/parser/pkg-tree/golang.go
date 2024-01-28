@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
+	"github.com/donseba/gotext/cli/xgotext/parser"
 )
 
-const gotextPkgPath = "github.com/leonelquinteros/gotext"
+const gotextPkgPath = "github.com/donseba/gotext"
 
 type GetterDef struct {
 	Id      int
@@ -59,7 +59,6 @@ func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
 	}
 	return pkgParser(pkgPath, basePath, data, verbose)
 }
-
 
 func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) error {
 	mainPkg, err := loadPackage(dirPath)
@@ -140,7 +139,6 @@ func filterPkgsRec(pkg *packages.Package) []*packages.Package {
 	}
 	return result
 }
-
 
 // GoFile handles the parsing of one go file
 type GoFile struct {
@@ -311,5 +309,3 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 
 	g.data.AddTranslation(domain, &trans)
 }
-
-

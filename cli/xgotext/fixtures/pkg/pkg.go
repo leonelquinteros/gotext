@@ -1,6 +1,6 @@
 package pkg
 
-import "github.com/leonelquinteros/gotext"
+import "github.com/donseba/gotext"
 
 type SubTranslate struct {
 	L gotext.Locale

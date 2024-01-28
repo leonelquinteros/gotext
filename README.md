@@ -1,8 +1,8 @@
-[![GitHub release](https://img.shields.io/github/release/leonelquinteros/gotext.svg)](https://github.com/leonelquinteros/gotext)
+[![GitHub release](https://img.shields.io/github/release/leonelquinteros/gotext.svg)](https://github.com/donseba/gotext)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Gotext build](https://github.com/leonelquinteros/gotext/workflows/Gotext%20build/badge.svg?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/leonelquinteros/gotext)](https://goreportcard.com/report/github.com/leonelquinteros/gotext)
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/leonelquinteros/gotext)](https://pkg.go.dev/github.com/leonelquinteros/gotext)
+![Gotext build](https://github.com/donseba/gotext/workflows/Gotext%20build/badge.svg?branch=master)
+[![Go Report Card](https://goreportcard.com/badge/github.com/donseba/gotext)](https://goreportcard.com/report/github.com/donseba/gotext)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/donseba/gotext)](https://pkg.go.dev/github.com/donseba/gotext)
 
 
 # Gotext
@@ -35,13 +35,13 @@
 
 # Documentation
 
-Refer to the Godoc package documentation at (https://godoc.org/github.com/leonelquinteros/gotext)
+Refer to the Godoc package documentation at (https://godoc.org/github.com/donseba/gotext)
 
 
 # Installation
 
 ```
-go get github.com/leonelquinteros/gotext
+go get github.com/donseba/gotext
 ```
 
 - There are no requirements or dependencies to use this package.
@@ -55,17 +55,17 @@ Stable releases use [semantic versioning](http://semver.org/spec/v2.0.0.html) ta
 
 You can rely on this to use your preferred vendoring tool or to manually retrieve the corresponding release tag from the GitHub repository.
 
-**NOTE:** v1.5.0 contains a breaking change on how `Po` objects are initialised, see (https://github.com/leonelquinteros/gotext/issues/56)
+**NOTE:** v1.5.0 contains a breaking change on how `Po` objects are initialised, see (https://github.com/donseba/gotext/issues/56)
 
 
 ### Vendoring with [Go Modules](https://github.com/golang/go/wiki/Modules) (Recommended)
 
-Add `github.com/leonelquinteros/gotext` inside the  `require` section in your `go.mod` file.
+Add `github.com/donseba/gotext` inside the  `require` section in your `go.mod` file.
 
 i.e.
 ```
 require (
-    github.com/leonelquinteros/gotext v1.4.0
+    github.com/donseba/gotext v1.4.0
 )
 ```
 
@@ -142,7 +142,7 @@ For quick/simple translations you can use the package level functions directly.
 ```go
 import (
     "fmt"
-    "github.com/leonelquinteros/gotext"
+    "github.com/donseba/gotext"
 )
 
 func main() {
@@ -166,7 +166,7 @@ Use the fmt.Printf syntax (from Go's "fmt" package) to specify how to print the 
 ```go
 import (
     "fmt"
-    "github.com/leonelquinteros/gotext"
+    "github.com/donseba/gotext"
 )
 
 func main() {
@@ -191,7 +191,7 @@ so you can handle each settings on their own.
 ```go
 import (
     "fmt"
-    "github.com/leonelquinteros/gotext"
+    "github.com/donseba/gotext"
 )
 
 func main() {
@@ -228,7 +228,7 @@ you can directly use the Po object to parse it and access the translations in th
 ```go
 import (
     "fmt"
-    "github.com/leonelquinteros/gotext"
+    "github.com/donseba/gotext"
 )
 
 func main() {
@@ -262,7 +262,7 @@ as defined in (https://www.gnu.org/savannah-checkouts/gnu/gettext/manual/html_no
 ```go
 import (
     "fmt"
-    "github.com/leonelquinteros/gotext"
+    "github.com/donseba/gotext"
 )
 
 func main() {

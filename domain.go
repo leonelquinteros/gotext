@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/leonelquinteros/gotext/plurals"
+	"github.com/donseba/gotext/plurals"
 )
 
 // Domain has all the common functions for dealing with a gettext domain
