@@ -74,6 +74,14 @@ func (po *Po) GetDomain() *Domain {
 }
 
 // Convenience interfaces
+func (po *Po) GetTranslations() map[string]*Translation {
+	return po.domain.GetTranslations()
+}
+
+func (po *Po) GetCtxTranslations() map[string]map[string]*Translation {
+	return po.domain.GetCtxTranslations()
+}
+
 func (po *Po) DropStaleTranslations() {
 	po.domain.DropStaleTranslations()
 }

@@ -271,7 +271,7 @@ func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) str
 
 // IsTranslated reports whether a string is translated
 func IsTranslated(str string) bool {
-	return IsTranslatedND(GetDomain(), str, 0)
+	return IsTranslatedND(GetDomain(), str, 1)
 }
 
 // IsTranslatedN reports whether a plural string is translated
@@ -281,7 +281,7 @@ func IsTranslatedN(str string, n int) bool {
 
 // IsTranslatedD reports whether a domain string is translated
 func IsTranslatedD(dom, str string) bool {
-	return IsTranslatedND(dom, str, 0)
+	return IsTranslatedND(dom, str, 1)
 }
 
 // IsTranslatedND reports whether a plural domain string is translated
@@ -300,7 +300,7 @@ func IsTranslatedND(dom, str string, n int) bool {
 
 // IsTranslatedC reports whether a context string is translated
 func IsTranslatedC(str, ctx string) bool {
-	return IsTranslatedNDC(GetDomain(), str, 0, ctx)
+	return IsTranslatedNDC(GetDomain(), str, 1, ctx)
 }
 
 // IsTranslatedNC reports whether a plural context string is translated
@@ -310,7 +310,7 @@ func IsTranslatedNC(str string, n int, ctx string) bool {
 
 // IsTranslatedDC reports whether a domain context string is translated
 func IsTranslatedDC(dom, str, ctx string) bool {
-	return IsTranslatedNDC(dom, str, 0, ctx)
+	return IsTranslatedNDC(dom, str, 1, ctx)
 }
 
 // IsTranslatedNDC reports whether a plural domain context string is translated

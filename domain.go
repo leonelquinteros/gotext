@@ -88,8 +88,7 @@ func NewDomain() *Domain {
 	return domain
 }
 
-func (do *Domain) pluralForm(n int) int {
-	// do we really need locking here? not sure how this plurals.Expression works, so sticking with it for now
+func (do *Domain) PluralForm(n int) int {
 	do.pluralMutex.RLock()
 	defer do.pluralMutex.RUnlock()
 
@@ -264,7 +263,7 @@ func (do *Domain) Get(str string, vars ...interface{}) string {
 // Set the (N)th plural form for the given string
 func (do *Domain) SetN(id, plural string, n int, str string) {
 	// Get plural form _before_ lock down
-	pluralForm := do.pluralForm(n)
+	pluralForm := do.PluralForm(n)
 
 	do.trMutex.Lock()
 	do.pluralMutex.Lock()
@@ -291,12 +290,12 @@ func (do *Domain) GetN(str, plural string, n int, vars ...interface{}) string {
 
 	if do.translations != nil {
 		if _, ok := do.translations[str]; ok {
-			return Printf(do.translations[str].GetN(do.pluralForm(n)), vars...)
+			return Printf(do.translations[str].GetN(do.PluralForm(n)), vars...)
 		}
 	}
 
 	// Parse plural forms to distinguish between plural and singular
-	if do.pluralForm(n) == 0 {
+	if do.PluralForm(n) == 0 {
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)
@@ -351,7 +350,7 @@ func (do *Domain) GetC(str, ctx string, vars ...interface{}) string {
 // Set the (N)th plural form for the given string in the given context
 func (do *Domain) SetNC(id, plural, ctx string, n int, str string) {
 	// Get plural form _before_ lock down
-	pluralForm := do.pluralForm(n)
+	pluralForm := do.PluralForm(n)
 
 	do.trMutex.Lock()
 	do.pluralMutex.Lock()
@@ -387,7 +386,7 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 		if _, ok := do.contextTranslations[ctx]; ok {
 			if do.contextTranslations[ctx] != nil {
 				if _, ok := do.contextTranslations[ctx][str]; ok {
-					return Printf(do.contextTranslations[ctx][str].GetN(do.pluralForm(n)), vars...)
+					return Printf(do.contextTranslations[ctx][str].GetN(do.PluralForm(n)), vars...)
 				}
 			}
 		}
@@ -427,7 +426,7 @@ func (do *Domain) IsTranslatedN(str string, n int) bool {
 	if !ok {
 		return false
 	}
-	return tr.IsTranslatedN(do.pluralForm(n))
+	return tr.IsTranslatedN(do.PluralForm(n))
 }
 
 // IsTranslatedC reports whether a context string is translated
@@ -465,7 +464,7 @@ func (do *Domain) IsTranslatedNC(str string, n int, ctx string) bool {
 	if !ok {
 		return false
 	}
-	return tr.IsTranslatedN(do.pluralForm(n))
+	return tr.IsTranslatedN(do.PluralForm(n))
 }
 
 // GetTranslations returns a copy of every translation in the domain. It does not support contexts.
@@ -488,6 +487,38 @@ func (do *Domain) GetTranslations() map[string]*Translation {
 			newTrans.Trs[k] = v
 		}
 		all[msgID] = newTrans
+	}
+
+	return all
+}
+
+func (do *Domain) GetCtxTranslations() map[string]map[string]*Translation {
+	all := make(map[string]map[string]*Translation, len(do.contextTranslations))
+
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	for ctx, translations := range do.contextTranslations {
+		for msgID, trans := range translations {
+			newTrans := NewTranslation()
+			newTrans.ID = trans.ID
+			newTrans.PluralID = trans.PluralID
+			newTrans.dirty = trans.dirty
+			if len(trans.Refs) > 0 {
+				newTrans.Refs = make([]string, len(trans.Refs))
+				copy(newTrans.Refs, trans.Refs)
+			}
+			for k, v := range trans.Trs {
+				newTrans.Trs[k] = v
+			}
+
+			if all[ctx] == nil {
+				all[ctx] = make(map[string]*Translation)
+			}
+
+			all[ctx][msgID] = newTrans
+		}
+
 	}
 
 	return all

@@ -58,33 +58,8 @@ You can rely on this to use your preferred vendoring tool or to manually retriev
 **NOTE:** v1.5.0 contains a breaking change on how `Po` objects are initialised, see (https://github.com/donseba/gotext/issues/56)
 
 
-### Vendoring with [Go Modules](https://github.com/golang/go/wiki/Modules) (Recommended)
-
-Add `github.com/donseba/gotext` inside the  `require` section in your `go.mod` file.
-
-i.e.
-```
-require (
-    github.com/donseba/gotext v1.4.0
-)
-```
 
 
-### Vendoring with [gopkg.in](http://labix.org/gopkg.in)
-
-[http://gopkg.in/leonelquinteros/gotext.v1](http://gopkg.in/leonelquinteros/gotext.v1)
-
-To get the latest v1 package stable release, execute:
-
-```
-go get gopkg.in/leonelquinteros/gotext.v1
-```
-
-Import as
-
-```go
-import "gopkg.in/leonelquinteros/gotext.v1"
-```
 
 Refer to it as gotext.
 
