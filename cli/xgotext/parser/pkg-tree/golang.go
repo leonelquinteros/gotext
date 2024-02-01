@@ -2,6 +2,7 @@ package pkg_tree
 
 import (
 	"fmt"
+	"github.com/donseba/gotext/cli/xgotext/parser"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -10,9 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
-
-	"github.com/donseba/gotext/cli/xgotext/parser"
 )
 
 const gotextPkgPath = "github.com/donseba/gotext"
@@ -112,13 +110,13 @@ func loadPackage(name string) (*packages.Package, error) {
 	return pkgs[0], nil
 }
 
-func getPkgPath(pkg *packages.Package) string {
-	if len(pkg.GoFiles) == 0 {
-		return pkg.PkgPath
-	}
-	pkgPath, _ := filepath.Split(pkg.GoFiles[0])
-	return strings.TrimRight(pkgPath, "/")
-}
+//func getPkgPath(pkg *packages.Package) string {
+//	if len(pkg.GoFiles) == 0 {
+//		return pkg.PkgPath
+//	}
+//	pkgPath, _ := filepath.Split(pkg.GoFiles[0])
+//	return strings.TrimRight(pkgPath, "/")
+//}
 
 func filterPkgs(pkg *packages.Package) []*packages.Package {
 	result := filterPkgsRec(pkg)
@@ -147,7 +145,7 @@ type GoFile struct {
 	data     *parser.DomainMap
 
 	fileSet *token.FileSet
-	pkgConf *packages.Config
+	//pkgConf *packages.Config
 
 	importedPackages map[string]*packages.Package
 }

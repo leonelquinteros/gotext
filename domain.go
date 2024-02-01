@@ -572,7 +572,7 @@ func (do *Domain) MarshalText() ([]byte, error) {
 
 	headerKeys := make([]string, 0, len(do.Headers))
 
-	for k, _ := range do.Headers {
+	for k := range do.Headers {
 		headerKeys = append(headerKeys, k)
 	}
 

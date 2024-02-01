@@ -361,7 +361,7 @@ func pluralExpected(t *testing.T, pluralTests []pluralTest, domain *Domain) {
 	for _, pt := range pluralTests {
 		pt := pt
 		t.Run(fmt.Sprintf("pluralForm(%d)", pt.num), func(t *testing.T) {
-			n := domain.pluralForm(pt.num)
+			n := domain.PluralForm(pt.num)
 			if n != pt.form {
 				t.Errorf("Expected %d for pluralForm(%d), got %d", pt.form, pt.num, n)
 			}

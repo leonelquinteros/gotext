@@ -8,7 +8,6 @@ package gotext
 import (
 	"errors"
 	"io/fs"
-	"io/ioutil"
 	"os"
 )
 
@@ -83,5 +82,5 @@ func getFileData(f string, filesystem fs.FS) ([]byte, error) {
 		return nil, errors.New("cannot parse a directory")
 	}
 
-	return ioutil.ReadFile(f)
+	return os.ReadFile(f)
 }
