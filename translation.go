@@ -30,7 +30,7 @@ func NewTranslationWithRefs(refs []string) *Translation {
 }
 
 func (t *Translation) IsStale() bool {
-	return t.dirty == false
+	return !t.dirty
 }
 
 func (t *Translation) SetRefs(refs []string) {

@@ -32,7 +32,7 @@ Example:
 
 	import (
 		"fmt"
-		"github.com/leonelquinteros/gotext"
+		"github.com/donseba/gotext"
 	)
 
 	func main() {
@@ -45,7 +45,6 @@ Example:
 		// Get Translation
 		fmt.Println(mo.Get("Translate this"))
 	}
-
 */
 type Mo struct {
 	//these three public members are for backwards compatibility. they are just set to the value in the domain
@@ -56,7 +55,7 @@ type Mo struct {
 	fs          fs.FS
 }
 
-//NewMo should always be used to instantiate a new Mo object
+// NewMo should always be used to instantiate a new Mo object
 func NewMo() *Mo {
 	mo := new(Mo)
 	mo.domain = NewDomain()
@@ -75,7 +74,7 @@ func (mo *Mo) GetDomain() *Domain {
 	return mo.domain
 }
 
-//all of the Get functions are for convenience and aid in backwards compatibility
+// all of the Get functions are for convenience and aid in backwards compatibility
 func (mo *Mo) Get(str string, vars ...interface{}) string {
 	return mo.domain.Get(str, vars...)
 }

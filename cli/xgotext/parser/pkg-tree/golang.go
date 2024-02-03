@@ -2,6 +2,7 @@ package pkg_tree
 
 import (
 	"fmt"
+	"github.com/donseba/gotext/cli/xgotext/parser"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -10,12 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
-
-	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
 
-const gotextPkgPath = "github.com/leonelquinteros/gotext"
+const gotextPkgPath = "github.com/donseba/gotext"
 
 type GetterDef struct {
 	Id      int
@@ -59,7 +57,6 @@ func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
 	}
 	return pkgParser(pkgPath, basePath, data, verbose)
 }
-
 
 func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) error {
 	mainPkg, err := loadPackage(dirPath)
@@ -113,13 +110,13 @@ func loadPackage(name string) (*packages.Package, error) {
 	return pkgs[0], nil
 }
 
-func getPkgPath(pkg *packages.Package) string {
-	if len(pkg.GoFiles) == 0 {
-		return pkg.PkgPath
-	}
-	pkgPath, _ := filepath.Split(pkg.GoFiles[0])
-	return strings.TrimRight(pkgPath, "/")
-}
+//func getPkgPath(pkg *packages.Package) string {
+//	if len(pkg.GoFiles) == 0 {
+//		return pkg.PkgPath
+//	}
+//	pkgPath, _ := filepath.Split(pkg.GoFiles[0])
+//	return strings.TrimRight(pkgPath, "/")
+//}
 
 func filterPkgs(pkg *packages.Package) []*packages.Package {
 	result := filterPkgsRec(pkg)
@@ -141,7 +138,6 @@ func filterPkgsRec(pkg *packages.Package) []*packages.Package {
 	return result
 }
 
-
 // GoFile handles the parsing of one go file
 type GoFile struct {
 	filePath string
@@ -149,7 +145,7 @@ type GoFile struct {
 	data     *parser.DomainMap
 
 	fileSet *token.FileSet
-	pkgConf *packages.Config
+	//pkgConf *packages.Config
 
 	importedPackages map[string]*packages.Package
 }
@@ -311,5 +307,3 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 
 	g.data.AddTranslation(domain, &trans)
 }
-
-

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
+	"github.com/donseba/gotext/cli/xgotext/parser"
 )
 
 // ParseDirFunc parses one directory
