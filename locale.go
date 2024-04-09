@@ -111,6 +111,40 @@ func (l *Locale) findExt(dom, ext string) string {
 	return ""
 }
 
+// GetActualLanguage inspects the filesystem and decides whether to strip
+// a CC part of the ll_CC locale string.
+func (l *Locale) GetActualLanguage(dom string) string {
+	extensions := []string{"mo", "po"}
+	var fp string
+	for _, ext := range extensions {
+		// 'll' (or 'll_CC') exists, and it was specified as-is
+		fp = path.Join(l.path, l.lang, "LC_MESSAGES", dom+"."+ext)
+		if l.fileExists(fp) {
+			return l.lang
+		}
+		// 'll' exists, but 'll_CC' was specified
+		if len(l.lang) > 2 {
+			fp = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+"."+ext)
+			if l.fileExists(fp) {
+				return l.lang[:2]
+			}
+		}
+		// 'll' (or 'll_CC') exists outside of LC_category, and it was specified as-is
+		fp = path.Join(l.path, l.lang, dom+"."+ext)
+		if l.fileExists(fp) {
+			return l.lang
+		}
+		// 'll' exists outside of LC_category, but 'll_CC' was specified
+		if len(l.lang) > 2 {
+			fp = path.Join(l.path, l.lang[:2], dom+"."+ext)
+			if l.fileExists(fp) {
+				return l.lang[:2]
+			}
+		}
+	}
+	return ""
+}
+
 func (l *Locale) fileExists(filename string) bool {
 	if l.fs != nil {
 		_, err := fs.Stat(l.fs, filename)

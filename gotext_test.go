@@ -32,11 +32,11 @@ func TestGettersSetters(t *testing.T) {
 
 	// Create Locale with full language code
 	l := NewLocale("fixtures/", "fr_FR")
-	SetStorage(l)
-	storage := GetStorage()
+	SetLocales([]*Locale{l})
+	locale := GetLocales()[0]
 
-	if storage != l {
-		t.Errorf("Expected GetStorage to return provided locale storage %v, but got '%v'", storage, l)
+	if locale != l {
+		t.Errorf("Expected GetLocale to return provided locale locale %v, but got '%v'", locale, l)
 	}
 }
 
@@ -186,13 +186,29 @@ msgstr "Another text on another domain"
 		t.Errorf("Expected 'Another text on another domain' but got '%s'", tr)
 	}
 
-	// Test IsTranslation functions
+	// IsTranslated tests for when the string is translated in English.
 	if !IsTranslated("My text") {
-		t.Error("'My text' should be reported as translated.")
+		t.Error("'My text' should be reported as translated when 'langs' is omitted.")
 	}
+	if !IsTranslated("My text", "en_US") {
+		t.Error("'My text' should be reported as translated when 'langs' is 'en_US'.")
+	}
+	if IsTranslated("My text", "cs_CZ") {
+		t.Error("'My text' should be reported as not translated when 'langs' is 'cs_CZ'.")
+	}
+	if !IsTranslated("My text", "en_US", "cs_CZ") {
+		t.Error("'My text' should be reported as translated when 'langs' is 'en_US, cs_CZ'.")
+	}
+
+	// IsTranslated tests for when the string is not translated in English
 	if IsTranslated("Another string") {
 		t.Error("'Another string' should be reported as not translated.")
 	}
+	if IsTranslated("String not in .po") {
+		t.Error("'String not in .po' should be reported as not translated.")
+	}
+
+	// IsTranslated tests for plurals and contexts
 	plural := "One with var: %s"
 	if !IsTranslated(plural) {
 		t.Errorf("'%s' should be reported as translated for singular.", plural)
@@ -420,7 +436,7 @@ msgstr[1] "Custom ctx translations"
 	}
 }
 
-func TestOverrideStorage(t *testing.T) {
+func TestOverrideLocale(t *testing.T) {
 	// Configure global translation
 	Configure("fixtures/", "de_DE", "default")
 
@@ -432,14 +448,14 @@ func TestOverrideStorage(t *testing.T) {
 	// Create and override with our new locale.
 	l := NewLocale("fixtures/", "fr")
 	l.SetDomain("default")
-	SetStorage(l)
+	SetLocales([]*Locale{l})
 
 	language = Get("language")
 	if language != "fr" {
 		t.Errorf("Expected default configuration to be overriden by locale 'fr' but got '%s'", language)
 	}
 
-	// Ensure properties were applied on globale configuration when Set.
+	// Ensure properties were applied on global configuration when Set.
 	dom := GetDomain()
 	if dom != "default" {
 		t.Errorf("Expected GetDomain to return 'default', but got '%s'", dom)
