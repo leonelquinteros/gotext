@@ -401,7 +401,7 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 
 // IsTranslated reports whether a string is translated
 func (do *Domain) IsTranslated(str string) bool {
-	return do.IsTranslatedN(str, 0)
+	return do.IsTranslatedN(str, 1)
 }
 
 // IsTranslatedN reports whether a plural string is translated
@@ -416,12 +416,12 @@ func (do *Domain) IsTranslatedN(str string, n int) bool {
 	if !ok {
 		return false
 	}
-	return tr.IsTranslatedN(n)
+	return tr.IsTranslatedN(do.pluralForm(n))
 }
 
 // IsTranslatedC reports whether a context string is translated
 func (do *Domain) IsTranslatedC(str, ctx string) bool {
-	return do.IsTranslatedNC(str, 0, ctx)
+	return do.IsTranslatedNC(str, 1, ctx)
 }
 
 // IsTranslatedNC reports whether a plural context string is translated
@@ -440,7 +440,7 @@ func (do *Domain) IsTranslatedNC(str string, n int, ctx string) bool {
 	if !ok {
 		return false
 	}
-	return tr.IsTranslatedN(n)
+	return tr.IsTranslatedN(do.pluralForm(n))
 }
 
 // GetTranslations returns a copy of every translation in the domain. It does not support contexts.
