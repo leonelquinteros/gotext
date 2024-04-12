@@ -33,10 +33,9 @@ Example:
 		// Get Translation
 		fmt.Println(po.Get("Translate this"))
 	}
-
 */
 type Po struct {
-	//these three public members are for backwards compatibility. they are just set to the value in the domain
+	// these three public members are for backwards compatibility. they are just set to the value in the domain
 	Headers     HeaderMap
 	Language    string
 	PluralForms string
@@ -55,7 +54,7 @@ const (
 	msgStr
 )
 
-//NewPo should always be used to instantiate a new Po object
+// NewPo should always be used to instantiate a new Po object
 func NewPo() *Po {
 	po := new(Po)
 	po.domain = NewDomain()
@@ -92,12 +91,18 @@ func (po *Po) Set(id, str string) {
 func (po *Po) Get(str string, vars ...interface{}) string {
 	return po.domain.Get(str, vars...)
 }
+func (po *Po) Append(b []byte, str string, vars ...interface{}) []byte {
+	return po.domain.Append(b, str, vars...)
+}
 
 func (po *Po) SetN(id, plural string, n int, str string) {
 	po.domain.SetN(id, plural, n, str)
 }
 func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
 	return po.domain.GetN(str, plural, n, vars...)
+}
+func (po *Po) AppendN(b []byte, str, plural string, n int, vars ...interface{}) []byte {
+	return po.domain.AppendN(b, str, plural, n, vars...)
 }
 
 func (po *Po) SetC(id, ctx, str string) {
@@ -106,12 +111,18 @@ func (po *Po) SetC(id, ctx, str string) {
 func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
 	return po.domain.GetC(str, ctx, vars...)
 }
+func (po *Po) AppendC(b []byte, str, ctx string, vars ...interface{}) []byte {
+	return po.domain.AppendC(b, str, ctx, vars...)
+}
 
 func (po *Po) SetNC(id, plural, ctx string, n int, str string) {
 	po.domain.SetNC(id, plural, ctx, n, str)
 }
 func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
 	return po.domain.GetNC(str, plural, n, ctx, vars...)
+}
+func (po *Po) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...interface{}) []byte {
+	return po.domain.AppendNC(b, str, plural, n, ctx, vars...)
 }
 
 func (po *Po) IsTranslated(str string) bool {

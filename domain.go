@@ -261,6 +261,21 @@ func (do *Domain) Get(str string, vars ...interface{}) string {
 	return Printf(str, vars...)
 }
 
+func (do *Domain) Append(b []byte, str string, vars ...interface{}) []byte {
+	// Sync read
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.translations != nil {
+		if _, ok := do.translations[str]; ok {
+			return Appendf(b, do.translations[str].Get(), vars...)
+		}
+	}
+
+	// Return the same we received by default
+	return Appendf(b, str, vars...)
+}
+
 // Set the (N)th plural form for the given string
 func (do *Domain) SetN(id, plural string, n int, str string) {
 	// Get plural form _before_ lock down
@@ -300,6 +315,26 @@ func (do *Domain) GetN(str, plural string, n int, vars ...interface{}) string {
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)
+}
+
+// GetN retrieves the (N)th plural form of Translation for the given string.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) AppendN(b []byte, str, plural string, n int, vars ...interface{}) []byte {
+	// Sync read
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.translations != nil {
+		if _, ok := do.translations[str]; ok {
+			return Appendf(b, do.translations[str].GetN(do.pluralForm(n)), vars...)
+		}
+	}
+
+	// Parse plural forms to distinguish between plural and singular
+	if do.pluralForm(n) == 0 {
+		return Appendf(b, str, vars...)
+	}
+	return Appendf(b, plural, vars...)
 }
 
 // Set the translation for the given string in the given context
@@ -346,6 +381,26 @@ func (do *Domain) GetC(str, ctx string, vars ...interface{}) string {
 
 	// Return the string we received by default
 	return Printf(str, vars...)
+}
+
+// AppendC retrieves the corresponding Translation for a given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) AppendC(b []byte, str, ctx string, vars ...interface{}) []byte {
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.contextTranslations != nil {
+		if _, ok := do.contextTranslations[ctx]; ok {
+			if do.contextTranslations[ctx] != nil {
+				if _, ok := do.contextTranslations[ctx][str]; ok {
+					return Appendf(b, do.contextTranslations[ctx][str].Get(), vars...)
+				}
+			}
+		}
+	}
+
+	// Return the string we received by default
+	return Appendf(b, str, vars...)
 }
 
 // Set the (N)th plural form for the given string in the given context
@@ -397,6 +452,28 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 		return Printf(str, vars...)
 	}
 	return Printf(plural, vars...)
+}
+
+// AppendNC retrieves the (N)th plural form of Translation for the given string in the given context.
+// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...interface{}) []byte {
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.contextTranslations != nil {
+		if _, ok := do.contextTranslations[ctx]; ok {
+			if do.contextTranslations[ctx] != nil {
+				if _, ok := do.contextTranslations[ctx][str]; ok {
+					return Appendf(b, do.contextTranslations[ctx][str].GetN(do.pluralForm(n)), vars...)
+				}
+			}
+		}
+	}
+
+	if n == 1 {
+		return Appendf(b, str, vars...)
+	}
+	return Appendf(b, plural, vars...)
 }
 
 // IsTranslated reports whether a string is translated
