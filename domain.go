@@ -45,6 +45,8 @@ type Domain struct {
 	trBuffer  *Translation
 	ctxBuffer string
 	refBuffer string
+
+	customPluralResolver func(int) int
 }
 
 // Preserve MIMEHeader behaviour, without the canonicalisation
@@ -88,6 +90,10 @@ func NewDomain() *Domain {
 	return domain
 }
 
+func (do *Domain) SetPluralResolver(f func(int) int) {
+	do.customPluralResolver = f
+}
+
 func (do *Domain) pluralForm(n int) int {
 	// do we really need locking here? not sure how this plurals.Expression works, so sticking with it for now
 	do.pluralMutex.RLock()
@@ -95,6 +101,10 @@ func (do *Domain) pluralForm(n int) int {
 
 	// Failure fallback
 	if do.pluralforms == nil {
+		if do.customPluralResolver != nil {
+			return do.customPluralResolver(n)
+		}
+
 		/* Use the Germanic plural rule.  */
 		if n == 1 {
 			return 0

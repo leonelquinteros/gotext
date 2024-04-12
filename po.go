@@ -85,6 +85,10 @@ func (po *Po) GetRefs(str string) []string {
 	return po.domain.GetRefs(str)
 }
 
+func (po *Po) SetPluralResolver(f func(int) int) {
+	po.domain.customPluralResolver = f
+}
+
 func (po *Po) Set(id, str string) {
 	po.domain.Set(id, str)
 }
