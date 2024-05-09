@@ -6,6 +6,7 @@
 package gotext
 
 import (
+	"embed"
 	"os"
 	"path"
 	"testing"
@@ -703,6 +704,9 @@ func TestLocaleBinaryEncoding(t *testing.T) {
 	}
 }
 
+//go:embed fixtures
+var localeFS embed.FS
+
 func TestLocale_GetTranslations(t *testing.T) {
 	var locales []*Locale
 	{ // test os
@@ -710,6 +714,9 @@ func TestLocale_GetTranslations(t *testing.T) {
 	}
 	{ // test fs
 		locales = append(locales, NewLocaleFS("en_US", os.DirFS("fixtures")))
+	}
+	{ // test embed
+		locales = append(locales, NewLocaleFSWithPath("en_US", localeFS, "fixtures"))
 	}
 
 	for _, l := range locales {
