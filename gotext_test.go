@@ -555,7 +555,7 @@ func TestPackageArabicTranslation(t *testing.T) {
 		t.Errorf("Expected to get '%%d selected', but got '%s'", tr)
 	}
 
-	//Plurals formula present + Plural translation string present and complete
+	// Plurals formula present + Plural translation string present and complete
 	tr = GetND("categories", "Load %d more document", "Load %d more documents", 0)
 	if tr != "حمّل %d مستندات إضافيّة" {
 		t.Errorf("Expected to get 'msgstr[0]', but got '%s'", tr)
@@ -595,4 +595,115 @@ func TestPackageArabicMissingPluralForm(t *testing.T) {
 	if tr != "الكحول والتبغ" {
 		t.Errorf("Expected to get 'الكحول والتبغ', but got '%s'", tr)
 	}
+}
+
+func BenchmarkGoText(b *testing.B) {
+
+	l := NewLocale("fixtures", "de_DE")
+	l.AddDomain("default")
+	l.SetDomain("default")
+	d := l.Domains["default"].(AppendTranslator)
+
+	b.ResetTimer()
+
+	b.Run("strings", func(b *testing.B) {
+
+		for i := 0; i < b.N; i++ {
+			tr := d.Get("My text")
+			if tr != "Translated text" {
+				b.Errorf("Expected to get 'Translated text', but got '%s'", tr)
+			}
+
+			tr = d.Get("Some random")
+			if tr != "Some random translation" {
+				b.Errorf("Expected to get 'Some random translation', but got '%s'", tr)
+			}
+
+			tr = d.Get("More")
+			if tr != "More translation" {
+				b.Errorf("Expected to get 'More translation', but got '%s'", tr)
+			}
+
+			tr = d.Get("Multi-line")
+			if tr != "Multi \nline" {
+				b.Errorf("Expected to get 'Multi \nline', but got '%s'", tr)
+			}
+
+			tr = d.Get("Another string")
+			if tr != "Another string" {
+				b.Errorf("Expected to get 'Another string', but got '%s'", tr)
+			}
+
+			tr = d.GetN("One with var: %s", "Several with vars: %s", 1, "1")
+			if tr != "This one is the singular: 1" {
+				b.Errorf("Expected to get 'This one is the singular: 1', but got '%s'", tr)
+			}
+
+			tr = d.GetN("One with var: %s", "Several with vars: %s", 2, "2")
+			if tr != "This one is the plural: 2" {
+				b.Errorf("Expected to get 'This one is the plural: 2', but got '%s'", tr)
+			}
+
+			tr = d.GetN("Empty plural form singular", "Empty plural form", 1)
+			if tr != "Singular translated" {
+				b.Errorf("Expected to get 'Singular translated', but got '%s'", tr)
+			}
+
+			tr = d.GetNC("One with var: %s", "Several with vars: %s", 1, "Ctx", "1")
+			if tr != "This one is the singular in a Ctx context: 1" {
+				b.Errorf("Expected to get This one is the singular in a Ctx context: 1', but got '%s'", tr)
+			}
+		}
+	})
+
+	p := make([]byte, 256)
+	b.Run("byte-slices", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			tr := d.Append(p[:0], "My text")
+			if string(tr) != "Translated text" {
+				b.Errorf("Expected to get 'Translated text', but got '%s'", tr)
+			}
+
+			tr = d.Append(p[:0], "Some random")
+			if string(tr) != "Some random translation" {
+				b.Errorf("Expected to get 'Some random translation', but got '%s'", tr)
+			}
+
+			tr = d.Append(p[:0], "More")
+			if string(tr) != "More translation" {
+				b.Errorf("Expected to get 'More translation', but got '%s'", tr)
+			}
+
+			tr = d.Append(p[:0], "Multi-line")
+			if string(tr) != "Multi \nline" {
+				b.Errorf("Expected to get 'Multi \nline', but got '%s'", tr)
+			}
+
+			tr = d.Append(p[:0], "Another string")
+			if string(tr) != "Another string" {
+				b.Errorf("Expected to get 'Another string', but got '%s'", tr)
+			}
+
+			tr = d.AppendN(p[:0], "One with var: %s", "Several with vars: %s", 1, "1")
+			if string(tr) != "This one is the singular: 1" {
+				b.Errorf("Expected to get 'This one is the singular: 1', but got '%s'", tr)
+			}
+
+			tr = d.AppendN(p[:0], "One with var: %s", "Several with vars: %s", 2, "2")
+			if string(tr) != "This one is the plural: 2" {
+				b.Errorf("Expected to get 'This one is the plural: 2', but got '%s'", tr)
+			}
+
+			tr = d.AppendN(p[:0], "Empty plural form singular", "Empty plural form", 1)
+			if string(tr) != "Singular translated" {
+				b.Errorf("Expected to get 'Singular translated', but got '%s'", tr)
+			}
+
+			tr = d.AppendNC(p[:0], "One with var: %s", "Several with vars: %s", 1, "Ctx", "1")
+			if string(tr) != "This one is the singular in a Ctx context: 1" {
+				b.Errorf("Expected to get This one is the singular in a Ctx context: 1', but got '%s'", tr)
+			}
+		}
+	})
+
 }
