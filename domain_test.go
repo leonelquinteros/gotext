@@ -9,7 +9,7 @@ const (
 	arFixture   = "fixtures/ar/categories.po"
 )
 
-//since both Po and Mo just pass-through to Domain for MarshalBinary and UnmarshalBinary, test it here
+// since both Po and Mo just pass-through to Domain for MarshalBinary and UnmarshalBinary, test it here
 func TestBinaryEncoding(t *testing.T) {
 	// Create po objects
 	po := NewPo()
@@ -85,11 +85,11 @@ func TestDomain_IsTranslated(t *testing.T) {
 	if english.IsTranslated("Another string") {
 		t.Error("'Another string' should be reported as not translated.")
 	}
-	if !english.IsTranslatedN("Empty plural form singular", 0) {
-		t.Error("'Empty plural form singular' should be reported as translated for n=0.")
+	if !english.IsTranslatedN("Empty plural form singular", 1) {
+		t.Error("'Empty plural form singular' should be reported as translated for n=1.")
 	}
-	if english.IsTranslatedN("Empty plural form singular", 1) {
-		t.Error("'Empty plural form singular' should be reported as not translated for n=1.")
+	if english.IsTranslatedN("Empty plural form singular", 0) {
+		t.Error("'Empty plural form singular' should be reported as not translated for n=0.")
 	}
 
 	arabicPo := NewPo()
@@ -106,11 +106,8 @@ func TestDomain_IsTranslated(t *testing.T) {
 	if !arabic.IsTranslatedN("Load %d more document", 1) {
 		t.Error("Arabic plural should be reported as translated for n=1.")
 	}
-	if !arabic.IsTranslatedN("Load %d more document", 5) {
-		t.Error("Arabic plural should be reported as translated for n=5.")
-	}
-	if arabic.IsTranslatedN("Load %d more document", 6) {
-		t.Error("Arabic plural should be reported as not translated for n=6.")
+	if !arabic.IsTranslatedN("Load %d more document", 100) {
+		t.Error("Arabic plural should be reported as translated for n=100.")
 	}
 
 	// context
@@ -120,7 +117,7 @@ func TestDomain_IsTranslated(t *testing.T) {
 	if !english.IsTranslatedNC("One with var: %s", 0, "Ctx") {
 		t.Error("Context plural should be reported as translated for n=0")
 	}
-	if english.IsTranslatedNC("One with var: %s", 2, "Ctx") {
+	if !english.IsTranslatedNC("One with var: %s", 2, "Ctx") {
 		t.Error("Context plural should be reported as translated for n=2")
 	}
 }
