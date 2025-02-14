@@ -28,8 +28,12 @@ jobs:
     - name: Build package
       run: go build -v .
 
+    - name: Test
+      run: go test -v -race ./...
+
     - name: Install xgotext CLI
       run: go install -v github.com/leonelquinteros/gotext/cli/xgotext
 
-    - name: Test
-      run: go test -v -race ./...
+    - name: Run xgotext CLI
+      run: go run cli/xgotext/main.go -default test -in cli/xgotext/fixtures/pkg -out cli/xgotext/fixtures/out
+      
