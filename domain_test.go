@@ -73,6 +73,46 @@ func TestDomain_GetTranslations(t *testing.T) {
 	}
 }
 
+func TestDomain_GetCtxTranslations(t *testing.T) {
+	po := NewPo()
+	po.ParseFile(enUSFixture)
+
+	domain := po.GetDomain()
+	all := domain.GetCtxTranslations()
+
+	if len(all) != len(domain.contextTranslations) {
+		t.Error("lengths should match")
+	}
+
+	if domain.contextTranslations["Ctx"] == nil {
+		t.Error("Context 'Ctx' should exist")
+	}
+
+	for k, v := range domain.contextTranslations {
+		for kk, vv := range v {
+			if all[k][kk] == vv {
+				t.Error("GetCtxTranslations should be returning a copy, but pointers are equal")
+			}
+			if all[k][kk].ID != vv.ID {
+				t.Error("IDs should match")
+			}
+			if all[k][kk].PluralID != vv.PluralID {
+				t.Error("PluralIDs should match")
+			}
+			if all[k][kk].dirty != vv.dirty {
+				t.Error("dirty flag should match")
+			}
+			if len(all[k][kk].Trs) != len(vv.Trs) {
+				t.Errorf("Trs length does not match: %d != %d", len(all[k][kk].Trs), len(vv.Trs))
+			}
+			if len(all[k][kk].Refs) != len(vv.Refs) {
+				t.Errorf("Refs length does not match: %d != %d", len(all[k][kk].Refs), len(vv.Refs))
+			}
+		}
+
+	}
+}
+
 func TestDomain_IsTranslated(t *testing.T) {
 	englishPo := NewPo()
 	englishPo.ParseFile(enUSFixture)
