@@ -555,6 +555,39 @@ func (do *Domain) GetTranslations() map[string]*Translation {
 	return all
 }
 
+//GetCtxTranslations returns a copy of every translation in the domain with context
+func (do *Domain) GetCtxTranslations() map[string]map[string]*Translation {
+	all := make(map[string]map[string]*Translation, len(do.contextTranslations))
+
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	for ctx, translations := range do.contextTranslations {
+		for msgID, trans := range translations {
+			newTrans := NewTranslation()
+			newTrans.ID = trans.ID
+			newTrans.PluralID = trans.PluralID
+			newTrans.dirty = trans.dirty
+			if len(trans.Refs) > 0 {
+				newTrans.Refs = make([]string, len(trans.Refs))
+				copy(newTrans.Refs, trans.Refs)
+			}
+			for k, v := range trans.Trs {
+				newTrans.Trs[k] = v
+			}
+
+			if all[ctx] == nil {
+				all[ctx] = make(map[string]*Translation)
+			}
+
+			all[ctx][msgID] = newTrans
+		}
+
+	}
+
+	return all
+}
+
 type SourceReference struct {
 	path    string
 	line    int
