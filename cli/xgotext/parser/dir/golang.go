@@ -24,17 +24,7 @@ type GetterDef struct {
 
 // maxArgIndex returns the largest argument index
 func (d *GetterDef) maxArgIndex() int {
-	m := d.Id
-	if d.Plural > m {
-		m = d.Plural
-	}
-	if d.Context > m {
-		m = d.Context
-	}
-	if d.Domain > m {
-		m = d.Domain
-	}
-	return m
+	return max(d.Id, d.Plural, d.Context, d.Domain)
 }
 
 // list of supported getter

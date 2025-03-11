@@ -39,12 +39,12 @@ func (t *Translation) Dump() string {
 		data = append(data, "msgctxt "+t.Context)
 	}
 
-	data = append(data, toMsgIDString("msgid", t.MsgId)...)
+	data = append(data, toMsgIDString("msgid", t.MsgId))
 
 	if t.MsgIdPlural == "" {
 		data = append(data, "msgstr \"\"")
 	} else {
-		data = append(data, toMsgIDString("msgid_plural", t.MsgIdPlural)...)
+		data = append(data, toMsgIDString("msgid_plural", t.MsgIdPlural))
 		data = append(data,
 			"msgstr[0] \"\"",
 			"msgstr[1] \"\"")
@@ -53,36 +53,47 @@ func (t *Translation) Dump() string {
 	return strings.Join(data, "\n")
 }
 
-// toMsgIDString returns the spec implementation of multi line support of po files by aligning msgid on it.
-func toMsgIDString(prefix, msgID string) []string {
-	elems := strings.Split(msgID, "\n")
-	// Main case: single line.
-	if len(elems) == 1 {
-		return []string{fmt.Sprintf(`%s "%s"`, prefix, msgID)}
-	}
+// formatMultiline formats a string as a PO-compatible multiline string.
+// Line breaks are escaped with `\n`.
+func formatMultiline(str string) string {
+	var builder strings.Builder
+	builder.Grow(len(str) * 2)
 
-	// Only one line, but finishing with \n
-	if strings.Count(msgID, "\n") == 1 && strings.HasSuffix(msgID, "\n") {
-		return []string{fmt.Sprintf(`%s "%s\n"`, prefix, strings.TrimSuffix(msgID, "\n"))}
-	}
+	builder.WriteRune('"')
 
-	// Skip last element for multiline which is an empty
-	var shouldEndWithEOL bool
-	if elems[len(elems)-1] == "" {
-		elems = elems[:len(elems)-1]
-		shouldEndWithEOL = true
-	}
-	data := []string{fmt.Sprintf(`%s ""`, prefix)}
-	for i, v := range elems {
-		l := fmt.Sprintf(`"%s\n"`, v)
-		// Last element without EOL
-		if i == len(elems)-1 && !shouldEndWithEOL {
-			l = fmt.Sprintf(`"%s"`, v)
+	for _, char := range str {
+		if char == '\n' {
+			builder.WriteString("\\n")
+			continue
 		}
-		data = append(data, l)
+		builder.WriteRune(char)
 	}
 
-	return data
+	builder.WriteRune('"')
+
+	return builder.String()
+}
+
+// fixSpecialChars escapes special characters (`"` and `\`) in a string.
+func fixSpecialChars(str string) string {
+	var builder strings.Builder
+	builder.Grow(len(str) * 2)
+
+	for _, char := range str {
+		if char == '"' || char == '\\' {
+			builder.WriteRune('\\')
+		}
+		builder.WriteRune(char)
+	}
+
+	return builder.String()
+}
+
+// toMsgIDString returns the spec implementation of multi line support of po files by aligning msgid on it.
+func toMsgIDString(prefix, msgID string) string {
+	id := formatMultiline(fixSpecialChars(msgID))
+
+	return fmt.Sprintf("%s %s", prefix, id)
 }
 
 // TranslationMap contains a map of translations with the ID as key
