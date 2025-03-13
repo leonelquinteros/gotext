@@ -170,6 +170,10 @@ func (g *GoFile) checkType(rawType types.Type) bool {
 		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != "github.com/leonelquinteros/gotext" {
 			return false
 		}
+
+	case *types.Alias:
+		return g.checkType(t.Rhs())
+
 	default:
 		return false
 	}
