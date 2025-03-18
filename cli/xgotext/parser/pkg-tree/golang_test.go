@@ -33,8 +33,7 @@ string`,
 line
 string
 ending with
-EOL`,
-		"multline\nending with EOL\n",
+EOL`, "multline\nending with EOL\n", "type alias",
 	}
 
 	if len(translations) != len(data.Domains[defaultDomain].Translations) {

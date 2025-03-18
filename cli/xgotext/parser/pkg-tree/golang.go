@@ -5,12 +5,13 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/go/packages"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"golang.org/x/tools/go/packages"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
@@ -212,6 +213,10 @@ func (g *GoFile) checkType(rawType types.Type) bool {
 		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != gotextPkgPath {
 			return false
 		}
+
+	case *types.Alias:
+		return g.checkType(t.Rhs())
+
 	default:
 		return false
 	}
