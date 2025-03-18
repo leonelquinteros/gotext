@@ -1,43 +1,15 @@
 package dir
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
-	"go/types"
 	"log"
-	"path/filepath"
 	"strconv"
 
 	"golang.org/x/tools/go/packages"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
-
-// GetterDef describes a getter
-type GetterDef struct {
-	Id      int
-	Plural  int
-	Context int
-	Domain  int
-}
-
-// maxArgIndex returns the largest argument index
-func (d *GetterDef) maxArgIndex() int {
-	return max(d.Id, d.Plural, d.Context, d.Domain)
-}
-
-// list of supported getter
-var gotextGetter = map[string]GetterDef{
-	"Get":    {0, -1, -1, -1},
-	"GetN":   {0, 1, -1, -1},
-	"GetD":   {1, -1, -1, 0},
-	"GetND":  {1, 2, -1, 0},
-	"GetC":   {0, -1, 1, -1},
-	"GetNC":  {0, 1, 3, -1},
-	"GetDC":  {1, -1, 2, 0},
-	"GetNDC": {1, 2, 4, 0},
-}
 
 // register go parser
 func init() {
@@ -72,37 +44,32 @@ func goParser(dirPath, basePath string, data *parser.DomainMap) error {
 	// handle each file
 	for _, node := range pkgs[0].Syntax {
 		file := GoFile{
-			pkgConf:  &conf,
-			filePath: fileSet.Position(node.Package).Filename,
-			basePath: basePath,
-			data:     data,
-			fileSet:  fileSet,
+			parser.GoFile{
+				PkgConf:  &conf,
+				FilePath: fileSet.Position(node.Package).Filename,
+				BasePath: basePath,
+				Data:     data,
+				FileSet:  fileSet,
 
-			importedPackages: map[string]*packages.Package{
-				pkgs[0].Name: pkgs[0],
+				ImportedPackages: map[string]*packages.Package{
+					pkgs[0].Name: pkgs[0],
+				},
 			},
 		}
 
-		ast.Inspect(node, file.inspectFile)
+		ast.Inspect(node, file.InspectFile)
 	}
 	return nil
 }
 
 // GoFile handles the parsing of one go file
 type GoFile struct {
-	filePath string
-	basePath string
-	data     *parser.DomainMap
-
-	fileSet *token.FileSet
-	pkgConf *packages.Config
-
-	importedPackages map[string]*packages.Package
+	parser.GoFile
 }
 
 // getPackage loads module by name
-func (g *GoFile) getPackage(name string) (*packages.Package, error) {
-	pkgs, err := packages.Load(g.pkgConf, name)
+func (g *GoFile) GetPackage(name string) (*packages.Package, error) {
+	pkgs, err := packages.Load(g.PkgConf, name)
 	if err != nil {
 		return nil, err
 	}
@@ -112,158 +79,30 @@ func (g *GoFile) getPackage(name string) (*packages.Package, error) {
 	return pkgs[0], nil
 }
 
-// getType from ident object
-func (g *GoFile) getType(ident *ast.Ident) types.Object {
-	for _, pkg := range g.importedPackages {
-		if obj, ok := pkg.TypesInfo.Uses[ident]; ok {
-			return obj
-		}
-	}
-	return nil
-}
-
-func (g *GoFile) inspectFile(n ast.Node) bool {
+func (g *GoFile) InspectFile(n ast.Node) bool {
 	switch x := n.(type) {
 	// get names of imported packages
 	case *ast.ImportSpec:
 		packageName, _ := strconv.Unquote(x.Path.Value)
 
-		pkg, err := g.getPackage(packageName)
+		pkg, err := g.GetPackage(packageName)
 		if err != nil {
 			log.Printf("failed to load package %s: %s", packageName, err)
 		} else {
 			if x.Name == nil {
-				g.importedPackages[pkg.Name] = pkg
+				g.ImportedPackages[pkg.Name] = pkg
 			} else {
-				g.importedPackages[x.Name.Name] = pkg
+				g.ImportedPackages[x.Name.Name] = pkg
 			}
 		}
 
 	// check each function call
 	case *ast.CallExpr:
-		g.inspectCallExpr(x)
+		g.InspectCallExpr(x)
 
 	default:
 		print()
 	}
 
 	return true
-}
-
-// checkType for gotext object
-func (g *GoFile) checkType(rawType types.Type) bool {
-	switch t := rawType.(type) {
-	case *types.Pointer:
-		return g.checkType(t.Elem())
-
-	case *types.Named:
-		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != "github.com/leonelquinteros/gotext" {
-			return false
-		}
-
-	case *types.Alias:
-		return g.checkType(t.Rhs())
-
-	default:
-		return false
-	}
-	return true
-}
-
-func (g *GoFile) inspectCallExpr(n *ast.CallExpr) {
-	// must be a selector expression otherwise it is a local function call
-	expr, ok := n.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return
-	}
-
-	switch e := expr.X.(type) {
-	// direct call
-	case *ast.Ident:
-		// object is a package if the Obj is not set
-		if e.Obj == nil {
-			pkg, ok := g.importedPackages[e.Name]
-			if !ok || pkg.PkgPath != "github.com/leonelquinteros/gotext" {
-				return
-			}
-
-		} else {
-			// validate type of object
-			t := g.getType(e)
-			if t == nil || !g.checkType(t.Type()) {
-				return
-			}
-		}
-
-	// call to attribute
-	case *ast.SelectorExpr:
-		// validate type of object
-		t := g.getType(e.Sel)
-		if t == nil || !g.checkType(t.Type()) {
-			return
-		}
-
-	default:
-		return
-	}
-
-	// convert args
-	args := make([]*ast.BasicLit, len(n.Args))
-	for idx, arg := range n.Args {
-		args[idx], _ = arg.(*ast.BasicLit)
-	}
-
-	// get position
-	path, _ := filepath.Rel(g.basePath, g.filePath)
-	position := fmt.Sprintf("%s:%d", path, g.fileSet.Position(n.Lparen).Line)
-
-	// handle getters
-	if def, ok := gotextGetter[expr.Sel.String()]; ok {
-		g.parseGetter(def, args, position)
-		return
-	}
-}
-
-func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
-	// check if enough arguments are given
-	if len(args) < def.maxArgIndex() {
-		return
-	}
-
-	// get domain
-	var domain string
-	if def.Domain != -1 {
-		domain, _ = strconv.Unquote(args[def.Domain].Value)
-	}
-
-	// only handle function calls with strings as ID
-	if args[def.Id] == nil || args[def.Id].Kind != token.STRING {
-		log.Printf("ERR: Unsupported call at %s (ID not a string)", pos)
-		return
-	}
-
-	msgID, _ := strconv.Unquote(args[def.Id].Value)
-	trans := parser.Translation{
-		MsgId:           msgID,
-		SourceLocations: []string{pos},
-	}
-	if def.Plural > 0 {
-		// plural ID must be a string
-		if args[def.Plural] == nil || args[def.Plural].Kind != token.STRING {
-			log.Printf("ERR: Unsupported call at %s (Plural not a string)", pos)
-			return
-		}
-		msgIDPlural, _ := strconv.Unquote(args[def.Plural].Value)
-		trans.MsgIdPlural = msgIDPlural
-	}
-	if def.Context > 0 {
-		// Context must be a string
-		if args[def.Context] == nil || args[def.Context].Kind != token.STRING {
-			log.Printf("ERR: Unsupported call at %s (Context not a string)", pos)
-			return
-		}
-		trans.Context = args[def.Context].Value
-	}
-
-	g.data.AddTranslation(domain, &trans)
 }
