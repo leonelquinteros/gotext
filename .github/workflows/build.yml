@@ -35,5 +35,5 @@ jobs:
       run: go install -v github.com/leonelquinteros/gotext/cli/xgotext
 
     - name: Run xgotext CLI
-      run: go run cli/xgotext/main.go -default test -in cli/xgotext/fixtures/pkg -out cli/xgotext/fixtures/out
+      run: go run cli/xgotext/main.go -default test -in cli/xgotext/fixtures -out cli/xgotext/fixtures/out
       

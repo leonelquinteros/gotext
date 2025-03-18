@@ -27,6 +27,14 @@ func (f Fake2) Get(s string) string {
 	return s
 }
 
+// Type alias
+type MyPo = *gotext.Po
+
+// Function return type
+var NL = func() *gotext.Locale {
+	return gotext.NewLocale("/path/to/locales/root/dir", "es_UY")
+}
+
 func main() {
 	// Configure package
 	gotext.Configure("/path/to/locales/root/dir", "en_UK", "domain-name")
@@ -62,7 +70,10 @@ EOL`))
 	fmt.Println(gotext.GetD("domain2", "Another text on a different domain"))
 
 	// Create Locale with library path and language code
-	l := gotext.NewLocale("/path/to/locales/root/dir", "es_UY")
+	l := NL()
+
+	// dummy call
+	dummy(l)
 
 	// Load domain '/path/to/locales/root/dir/es_UY/default.po'
 	l.AddDomain("translations")
@@ -81,10 +92,10 @@ EOL`))
 
 	// try fake structs
 	f := Fake{}
-	f.Get(3)
+	_ = f.Get(3)
 
 	f2 := Fake2{}
-	f2.Get("3")
+	_ = f2.Get("3")
 
 	// use translator of sub object
 	t := pkg.Translate{}
@@ -93,10 +104,17 @@ EOL`))
 
 	// redefine alias with fake struct
 	alias := Fake2{}
-	alias.Get("3")
+	_ = alias.Get("3")
 
 	err := errors.New("test")
 	fmt.Print(err.Error())
+
+	// Get from type alias
+	var po MyPo
+	_ = po.Get("type alias")
+
+	// Locale constructor call
+	NL().Get("locale constructor call")
 }
 
 // dummy function

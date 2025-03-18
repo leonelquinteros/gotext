@@ -5,12 +5,13 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/go/packages"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"golang.org/x/tools/go/packages"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
 )
@@ -59,7 +60,6 @@ func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
 	}
 	return pkgParser(pkgPath, basePath, data, verbose)
 }
-
 
 func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) error {
 	mainPkg, err := loadPackage(dirPath)
@@ -141,7 +141,6 @@ func filterPkgsRec(pkg *packages.Package) []*packages.Package {
 	return result
 }
 
-
 // GoFile handles the parsing of one go file
 type GoFile struct {
 	filePath string
@@ -214,6 +213,10 @@ func (g *GoFile) checkType(rawType types.Type) bool {
 		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != gotextPkgPath {
 			return false
 		}
+
+	case *types.Alias:
+		return g.checkType(t.Rhs())
+
 	default:
 		return false
 	}
@@ -311,5 +314,3 @@ func (g *GoFile) parseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 
 	g.data.AddTranslation(domain, &trans)
 }
-
-

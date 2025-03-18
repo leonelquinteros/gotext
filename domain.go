@@ -555,7 +555,7 @@ func (do *Domain) GetTranslations() map[string]*Translation {
 	return all
 }
 
-//GetCtxTranslations returns a copy of every translation in the domain with context
+// GetCtxTranslations returns a copy of every translation in the domain with context
 func (do *Domain) GetCtxTranslations() map[string]map[string]*Translation {
 	all := make(map[string]map[string]*Translation, len(do.contextTranslations))
 
