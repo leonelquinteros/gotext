@@ -1,0 +1,33 @@
+name: Gotext code check
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Go Stable version
+      uses: actions/setup-go@v5
+      with:
+        go-version: stable
+      id: go
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
+
+    - name: Run vet
+      run: go vet ./...
+      
+    - name: Run golint
+      run: go get -u golang.org/x/lint/golint && go install golang.org/x/lint/golint && golint ./...
+
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v7
+      with:
+        version: v2.0
+      
