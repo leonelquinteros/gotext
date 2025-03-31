@@ -1,4 +1,4 @@
-package pkg_tree
+package pkgtree
 
 import (
 	"os"

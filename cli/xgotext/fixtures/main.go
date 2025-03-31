@@ -18,7 +18,7 @@ func (f Fake) Get(id int) int {
 	return 42
 }
 
-// Fake object with same methods as gotext
+// Fake2 object with same methods as gotext
 type Fake2 struct {
 }
 
@@ -27,10 +27,10 @@ func (f Fake2) Get(s string) string {
 	return s
 }
 
-// Type alias
+// MyPo type alias
 type MyPo = *gotext.Po
 
-// Function return type
+// NL is a function return type
 var NL = func() *gotext.Locale {
 	return gotext.NewLocale("/path/to/locales/root/dir", "es_UY")
 }

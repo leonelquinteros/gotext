@@ -14,15 +14,15 @@ import (
 
 // GetterDef describes a getter
 type GetterDef struct {
-	Id      int
+	ID      int
 	Plural  int
 	Context int
 	Domain  int
 }
 
-// maxArgIndex returns the largest argument index
+// MaxArgIndex returns the largest argument index
 func (d *GetterDef) MaxArgIndex() int {
-	return max(d.Id, d.Plural, d.Context, d.Domain)
+	return max(d.ID, d.Plural, d.Context, d.Domain)
 }
 
 // list of supported getter
@@ -62,7 +62,7 @@ func (g *GoFile) GetType(ident *ast.Ident) types.Object {
 	return nil
 }
 
-// checkType for gotext object
+// CheckType for gotext object
 func (g *GoFile) CheckType(rawType types.Type) bool {
 	switch t := rawType.(type) {
 	case *types.Pointer:
@@ -82,6 +82,7 @@ func (g *GoFile) CheckType(rawType types.Type) bool {
 	return true
 }
 
+// InspectCallExpr inspects the call expression
 func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	// must be a selector expression otherwise it is a local function call
 	expr, ok := n.Fun.(*ast.SelectorExpr)
@@ -136,6 +137,7 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	}
 }
 
+// ParseGetter parses the getter function
 func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 	// check if enough arguments are given
 	if len(args) < def.MaxArgIndex() {
@@ -149,14 +151,14 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 	}
 
 	// only handle function calls with strings as ID
-	if args[def.Id] == nil || args[def.Id].Kind != token.STRING {
+	if args[def.ID] == nil || args[def.ID].Kind != token.STRING {
 		log.Printf("ERR: Unsupported call at %s (ID not a string)", pos)
 		return
 	}
 
-	msgID, _ := strconv.Unquote(args[def.Id].Value)
+	msgID, _ := strconv.Unquote(args[def.ID].Value)
 	trans := Translation{
-		MsgId:           msgID,
+		MsgID:           msgID,
 		SourceLocations: []string{pos},
 	}
 	if def.Plural > 0 {
@@ -166,7 +168,7 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 			return
 		}
 		msgIDPlural, _ := strconv.Unquote(args[def.Plural].Value)
-		trans.MsgIdPlural = msgIDPlural
+		trans.MsgIDPlural = msgIDPlural
 	}
 	if def.Context > 0 {
 		// Context must be a string

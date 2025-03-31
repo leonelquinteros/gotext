@@ -27,6 +27,9 @@ type Translator interface {
 	UnmarshalBinary([]byte) error
 	GetDomain() *Domain
 }
+
+// AppendTranslator interface is used by Locale and Po objects.
+// It contains all methods needed to parse translation sources and to append entries to the object.
 type AppendTranslator interface {
 	Translator
 	Append(b []byte, str string, vars ...interface{}) []byte

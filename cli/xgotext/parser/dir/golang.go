@@ -67,7 +67,7 @@ type GoFile struct {
 	parser.GoFile
 }
 
-// getPackage loads module by name
+// GetPackage loads module by name
 func (g *GoFile) GetPackage(name string) (*packages.Package, error) {
 	pkgs, err := packages.Load(g.PkgConf, name)
 	if err != nil {
@@ -79,6 +79,7 @@ func (g *GoFile) GetPackage(name string) (*packages.Package, error) {
 	return pkgs[0], nil
 }
 
+// InspectFile inspects the file node
 func (g *GoFile) InspectFile(n ast.Node) bool {
 	switch x := n.(type) {
 	// get names of imported packages

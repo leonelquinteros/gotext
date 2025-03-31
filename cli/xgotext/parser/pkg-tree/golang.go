@@ -1,4 +1,4 @@
-package pkg_tree
+package pkgtree
 
 import (
 	"fmt"
@@ -110,6 +110,7 @@ func (g *GoFile) GetPackage(name string) (*packages.Package, error) {
 	return pkg, nil
 }
 
+// InspectFile inspects the AST node
 func (g *GoFile) InspectFile(n ast.Node) bool {
 	switch x := n.(type) {
 	// get names of imported packages

@@ -10,8 +10,8 @@ import (
 
 // Translation for a text to translate
 type Translation struct {
-	MsgId           string
-	MsgIdPlural     string
+	MsgID           string
+	MsgIDPlural     string
 	Context         string
 	SourceLocations []string
 }
@@ -39,12 +39,12 @@ func (t *Translation) Dump() string {
 		data = append(data, "msgctxt "+t.Context)
 	}
 
-	data = append(data, toMsgIDString("msgid", t.MsgId))
+	data = append(data, toMsgIDString("msgid", t.MsgID))
 
-	if t.MsgIdPlural == "" {
+	if t.MsgIDPlural == "" {
 		data = append(data, "msgstr \"\"")
 	} else {
-		data = append(data, toMsgIDString("msgid_plural", t.MsgIdPlural))
+		data = append(data, toMsgIDString("msgid_plural", t.MsgIDPlural))
 		data = append(data,
 			"msgstr[0] \"\"",
 			"msgstr[1] \"\"")
@@ -129,20 +129,20 @@ func (d *Domain) AddTranslation(translation *Translation) {
 	}
 
 	if translation.Context == "" {
-		if t, ok := d.Translations[translation.MsgId]; ok {
+		if t, ok := d.Translations[translation.MsgID]; ok {
 			t.AddLocations(translation.SourceLocations)
 		} else {
-			d.Translations[translation.MsgId] = translation
+			d.Translations[translation.MsgID] = translation
 		}
 	} else {
 		if _, ok := d.ContextTranslations[translation.Context]; !ok {
 			d.ContextTranslations[translation.Context] = make(TranslationMap)
 		}
 
-		if t, ok := d.ContextTranslations[translation.Context][translation.MsgId]; ok {
+		if t, ok := d.ContextTranslations[translation.Context][translation.MsgID]; ok {
 			t.AddLocations(translation.SourceLocations)
 		} else {
-			d.ContextTranslations[translation.Context][translation.MsgId] = translation
+			d.ContextTranslations[translation.Context][translation.MsgID] = translation
 		}
 	}
 }

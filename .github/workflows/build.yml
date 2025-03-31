@@ -31,6 +31,12 @@ jobs:
     - name: Test
       run: go test -v -race ./...
 
+    - name: Run vet
+      run: go vet ./...
+      
+    - name: Run golint
+      run: go get -u golang.org/x/lint/golint && golint ./...
+      
     - name: Install xgotext CLI
       run: go install -v github.com/leonelquinteros/gotext/cli/xgotext
 
