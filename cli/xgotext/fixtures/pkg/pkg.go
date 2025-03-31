@@ -16,3 +16,8 @@ type Translate struct {
 func test() {
 	gotext.Get("inside sub package")
 }
+
+// Test function call
+func (*Translate) Test() {
+	test()
+}

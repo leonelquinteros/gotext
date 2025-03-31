@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/leonelquinteros/gotext"
-	alias "github.com/leonelquinteros/gotext"
+	"github.com/leonelquinteros/gotext"       //nolint:staticcheck
+	alias "github.com/leonelquinteros/gotext" //nolint:staticcheck
 	"github.com/leonelquinteros/gotext/cli/xgotext/fixtures/pkg"
 )
 

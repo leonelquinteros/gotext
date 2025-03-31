@@ -79,7 +79,9 @@ msgstr "More Translation"
 		if err != nil {
 			t.Fatalf("Can't create test file: %s", err.Error())
 		}
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 
 		_, err = f.WriteString(str)
 		if err != nil {
@@ -217,7 +219,9 @@ msgstr "More Translation"
 	if err != nil {
 		t.Fatalf("Can't create test file: %s", err.Error())
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = f.WriteString(str)
 	if err != nil {
@@ -482,7 +486,9 @@ msgstr[2] "And this is the second plural form: %s"
 		if err != nil {
 			t.Fatalf("Can't create test file: %s", err.Error())
 		}
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 
 		_, err = f.WriteString(str)
 		if err != nil {

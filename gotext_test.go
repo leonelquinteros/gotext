@@ -140,8 +140,8 @@ msgstr "Another text on another domain"
 	}
 
 	// Move file close to write the file, so we can use it in the next step
-	f.Close()
-	af.Close()
+	_ = f.Close()
+	_ = af.Close()
 
 	// Set package configuration
 	Configure("/tmp", "en_US", "default")
@@ -263,7 +263,9 @@ msgstr[1] ""
 	if err != nil {
 		t.Fatalf("Can't create test file: %s", err.Error())
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = f.WriteString(str)
 	if err != nil {
@@ -379,13 +381,17 @@ msgstr[1] "Custom ctx translations"
 	if err != nil {
 		t.Fatalf("Can't create test file: %s", err.Error())
 	}
-	defer fDefault.Close()
+	defer func() {
+		_ = fDefault.Close()
+	}()
 
 	fCustom, err := os.Create(path.Join(dirname, "custom.po"))
 	if err != nil {
 		t.Fatalf("Can't create test file: %s", err.Error())
 	}
-	defer fCustom.Close()
+	defer func() {
+		_ = fCustom.Close()
+	}()
 
 	_, err = fDefault.WriteString(strDefault)
 	if err != nil {
@@ -508,7 +514,9 @@ msgstr "Some random Translation in a context"
 	if err != nil {
 		t.Fatalf("Can't create test file: %s", err.Error())
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = f.WriteString(str)
 	if err != nil {
