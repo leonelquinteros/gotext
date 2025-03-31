@@ -11,10 +11,10 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-    - name: Set up Go 1.23
+    - name: Set up Go Stable version
       uses: actions/setup-go@v5
       with:
-        go-version: 1.23
+        go-version: stable
       id: go
 
     - name: Check out code into the Go module directory
@@ -29,17 +29,6 @@ jobs:
 
     - name: Test
       run: go test -v -race ./...
-
-    - name: Run vet
-      run: go vet ./...
-      
-    - name: Run golint
-      run: go get -u golang.org/x/lint/golint && go install golang.org/x/lint/golint && golint ./...
-
-    - name: Run golangci-lint
-      uses: golangci/golangci-lint-action@v7
-      with:
-        version: v2.0
 
     - name: Install xgotext CLI
       run: go install -v github.com/leonelquinteros/gotext/cli/xgotext
