@@ -179,3 +179,22 @@ msgstr ""
 		t.Errorf("Exported PO format does not match. Received:\n\n%v\n\n\nExpected:\n\n%v", string(poBytes), expectedOutput)
 	}
 }
+
+func TestDomain_GetWithVar(t *testing.T) {
+	po := NewPo()
+	po.ParseFile(enUSFixture)
+
+	domain := po.GetDomain()
+
+	// Test singular with variable
+	v := "My Text"
+	tr := domain.Get(v)
+	if tr != "My Text" {
+		t.Errorf("Expected 'MyText' but got '%s'", tr)
+	}
+
+	tr = po.Get(v)
+	if tr != "My Text" {
+		t.Errorf("Expected 'MyText' but got '%s'", tr)
+	}
+}

@@ -34,6 +34,13 @@ func TestPo_Get(t *testing.T) {
 		if tr != translatedText {
 			t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
 		}
+
+		v := "My text"
+		tr = po.Get(v)
+		if tr != translatedText {
+			t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
+		}
+
 		// Test translations
 		tr = po.Get("language")
 		if tr != "en_US" {
