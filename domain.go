@@ -275,12 +275,12 @@ func (do *Domain) Get(str string, vars ...interface{}) string {
 
 	if do.translations != nil {
 		if _, ok := do.translations[str]; ok {
-			return Printf(do.translations[str].Get(), vars...)
+			return FormatString(do.translations[str].Get(), vars...)
 		}
 	}
 
 	// Return the same we received by default
-	return Printf(str, vars...)
+	return FormatString(str, vars...)
 }
 
 // Append retrieves the Translation for the given string.
@@ -330,15 +330,15 @@ func (do *Domain) GetN(str, plural string, n int, vars ...interface{}) string {
 
 	if do.translations != nil {
 		if _, ok := do.translations[str]; ok {
-			return Printf(do.translations[str].GetN(do.pluralForm(n)), vars...)
+			return FormatString(do.translations[str].GetN(do.pluralForm(n)), vars...)
 		}
 	}
 
 	// Parse plural forms to distinguish between plural and singular
 	if do.pluralForm(n) == 0 {
-		return Printf(str, vars...)
+		return FormatString(str, vars...)
 	}
-	return Printf(plural, vars...)
+	return FormatString(plural, vars...)
 }
 
 // AppendN adds the (N)th plural form of Translation for the given string.
@@ -397,14 +397,14 @@ func (do *Domain) GetC(str, ctx string, vars ...interface{}) string {
 		if _, ok := do.contextTranslations[ctx]; ok {
 			if do.contextTranslations[ctx] != nil {
 				if _, ok := do.contextTranslations[ctx][str]; ok {
-					return Printf(do.contextTranslations[ctx][str].Get(), vars...)
+					return FormatString(do.contextTranslations[ctx][str].Get(), vars...)
 				}
 			}
 		}
 	}
 
 	// Return the string we received by default
-	return Printf(str, vars...)
+	return FormatString(str, vars...)
 }
 
 // AppendC retrieves the corresponding Translation for a given string in the given context.
@@ -466,16 +466,16 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 		if _, ok := do.contextTranslations[ctx]; ok {
 			if do.contextTranslations[ctx] != nil {
 				if _, ok := do.contextTranslations[ctx][str]; ok {
-					return Printf(do.contextTranslations[ctx][str].GetN(do.pluralForm(n)), vars...)
+					return FormatString(do.contextTranslations[ctx][str].GetN(do.pluralForm(n)), vars...)
 				}
 			}
 		}
 	}
 
 	if n == 1 {
-		return Printf(str, vars...)
+		return FormatString(str, vars...)
 	}
-	return Printf(plural, vars...)
+	return FormatString(plural, vars...)
 }
 
 // AppendNC retrieves the (N)th plural form of Translation for the given string in the given context.
