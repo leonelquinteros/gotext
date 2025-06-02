@@ -357,7 +357,7 @@ func (l *Locale) GetTranslations() map[string]*Translation {
 
 // IsTranslated reports whether a string is translated
 func (l *Locale) IsTranslated(str string) bool {
-	return l.IsTranslatedND(l.GetDomain(), str, 0)
+	return l.IsTranslatedND(l.GetDomain(), str, 1)
 }
 
 // IsTranslatedN reports whether a plural string is translated
@@ -367,7 +367,7 @@ func (l *Locale) IsTranslatedN(str string, n int) bool {
 
 // IsTranslatedD reports whether a domain string is translated
 func (l *Locale) IsTranslatedD(dom, str string) bool {
-	return l.IsTranslatedND(dom, str, 0)
+	return l.IsTranslatedND(dom, str, 1)
 }
 
 // IsTranslatedND reports whether a plural domain string is translated
@@ -387,7 +387,7 @@ func (l *Locale) IsTranslatedND(dom, str string, n int) bool {
 
 // IsTranslatedC reports whether a context string is translated
 func (l *Locale) IsTranslatedC(str, ctx string) bool {
-	return l.IsTranslatedNDC(l.GetDomain(), str, 0, ctx)
+	return l.IsTranslatedNDC(l.GetDomain(), str, 1, ctx)
 }
 
 // IsTranslatedNC reports whether a plural context string is translated
@@ -397,7 +397,7 @@ func (l *Locale) IsTranslatedNC(str string, n int, ctx string) bool {
 
 // IsTranslatedDC reports whether a domain context string is translated
 func (l *Locale) IsTranslatedDC(dom, str, ctx string) bool {
-	return l.IsTranslatedNDC(dom, str, 0, ctx)
+	return l.IsTranslatedNDC(dom, str, 1, ctx)
 }
 
 // IsTranslatedNDC reports whether a plural domain context string is translated
