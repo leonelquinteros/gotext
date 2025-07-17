@@ -198,3 +198,51 @@ func TestDomain_GetWithVar(t *testing.T) {
 		t.Errorf("Expected 'MyText' but got '%s'", tr)
 	}
 }
+
+/*
+ * BENCHMARKS
+ */
+
+func BenchmarkGetC(b *testing.B) {
+	// Setup test domain
+	do := NewDomain()
+
+	// Add test translations
+	for i := range 1000 {
+		do.SetC("test"+string(rune(i)), "ctx"+string(rune(i)), "translation"+string(rune(i)))
+	}
+
+	b.ResetTimer()
+
+	b.Run("existing translation", func(b *testing.B) {
+		for i := range b.N {
+			do.GetC("test"+string(rune(i)), "ctx"+string(rune(i)))
+		}
+	})
+
+	b.Run("missing translation", func(b *testing.B) {
+		for i := range b.N {
+			do.GetC("missing"+string(rune(i)), "missing")
+		}
+	})
+}
+
+func BenchmarkSetC(b *testing.B) {
+	do := NewDomain()
+
+	b.ResetTimer()
+
+	b.Run("new translation", func(b *testing.B) {
+		for i := range b.N {
+			do.SetC("test"+string(rune(i)), "ctx"+string(rune(i)), "translation"+string(rune(i)))
+		}
+	})
+
+	b.Run("update translation", func(b *testing.B) {
+		do.SetC("test", "ctx", "original")
+		b.ResetTimer()
+		for i := range b.N {
+			do.SetC("test", "ctx", "updated"+string(rune(i)))
+		}
+	})
+}

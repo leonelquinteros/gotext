@@ -394,10 +394,10 @@ func (do *Domain) GetC(str, ctx string, vars ...interface{}) string {
 	defer do.trMutex.RUnlock()
 
 	if do.contextTranslations != nil {
-		if _, ok := do.contextTranslations[ctx]; ok {
-			if do.contextTranslations[ctx] != nil {
-				if _, ok := do.contextTranslations[ctx][str]; ok {
-					return FormatString(do.contextTranslations[ctx][str].Get(), vars...)
+		if translations, ok := do.contextTranslations[ctx]; ok {
+			if translations != nil {
+				if tr, ok := translations[str]; ok {
+					return FormatString(tr.Get(), vars...)
 				}
 			}
 		}
