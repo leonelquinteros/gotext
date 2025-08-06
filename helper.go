@@ -31,10 +31,14 @@ func SimplifiedLocale(lang string) string {
 // FormatString applies text formatting only when needed to parse variables.
 func FormatString(str string, vars ...interface{}) string {
 	if len(vars) > 0 {
-		return fmt.Sprintf(str, vars...)
+		return FormatStringWithArgs(str, vars)
 	}
 
 	return str
+}
+
+func FormatStringWithArgs(str string, vars []interface{}) string {
+	return fmt.Sprintf(str, vars...)
 }
 
 // Appendf applies text formatting only when needed to parse variables.
