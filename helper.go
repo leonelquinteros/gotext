@@ -37,6 +37,7 @@ func FormatString(str string, vars ...interface{}) string {
 	return str
 }
 
+// FormatStringWithArgs applies text formatting as a proxy for fmt.Sprintf.
 func FormatStringWithArgs(str string, vars []interface{}) string {
 	return fmt.Sprintf(str, vars...)
 }
