@@ -10,7 +10,7 @@ import (
 )
 
 // ParseDirFunc parses one directory
-type ParseDirFunc func(filePath, basePath string, data *parser.DomainMap) error
+type ParseDirFunc func(filePath, basePath, importPath string, data *parser.DomainMap) error
 
 var knownParser []ParseDirFunc
 
@@ -24,12 +24,12 @@ func AddParser(parser ParseDirFunc) {
 }
 
 // ParseDir calls all known parser for each directory
-func ParseDir(dirPath, basePath string, data *parser.DomainMap) error {
+func ParseDir(dirPath, basePath, importPath string, data *parser.DomainMap) error {
 	dirPath, _ = filepath.Abs(dirPath)
 	basePath, _ = filepath.Abs(basePath)
 
 	for _, parser := range knownParser {
-		err := parser(dirPath, basePath, data)
+		err := parser(dirPath, basePath, importPath, data)
 		if err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ func ParseDir(dirPath, basePath string, data *parser.DomainMap) error {
 }
 
 // ParseDirRec calls all known parser for each directory
-func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbose bool) error {
+func ParseDirRec(dirPath, importPath string, exclude []string, data *parser.DomainMap, verbose bool) error {
 	dirPath, _ = filepath.Abs(dirPath)
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
@@ -58,7 +58,7 @@ func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbo
 				log.Print(path)
 			}
 
-			err := ParseDir(path, dirPath, data)
+			err := ParseDir(path, dirPath, importPath, data)
 			if err != nil {
 				return err
 			}

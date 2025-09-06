@@ -17,7 +17,7 @@ func init() {
 }
 
 // parse go package
-func goParser(dirPath, basePath string, data *parser.DomainMap) error {
+func goParser(dirPath, basePath, importPath string, data *parser.DomainMap) error {
 	fileSet := token.NewFileSet()
 
 	conf := packages.Config{
@@ -54,6 +54,7 @@ func goParser(dirPath, basePath string, data *parser.DomainMap) error {
 				ImportedPackages: map[string]*packages.Package{
 					pkgs[0].Name: pkgs[0],
 				},
+				ImportPath: importPath,
 			},
 		}
 

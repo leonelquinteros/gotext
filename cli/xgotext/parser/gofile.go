@@ -47,6 +47,7 @@ type GoFile struct {
 	PkgConf *packages.Config
 
 	ImportedPackages map[string]*packages.Package
+	ImportPath       string
 }
 
 // GetType from ident object
@@ -69,7 +70,7 @@ func (g *GoFile) CheckType(rawType types.Type) bool {
 		return g.CheckType(t.Elem())
 
 	case *types.Named:
-		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != "github.com/leonelquinteros/gotext" {
+		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != g.ImportPath {
 			return false
 		}
 
@@ -96,7 +97,7 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 		// object is a package if the Obj is not set
 		if e.Obj == nil {
 			pkg, ok := g.ImportedPackages[e.Name]
-			if !ok || pkg.PkgPath != "github.com/leonelquinteros/gotext" {
+			if !ok || pkg.PkgPath != g.ImportPath {
 				return
 			}
 
