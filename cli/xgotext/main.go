@@ -12,6 +12,7 @@ import (
 
 var (
 	pkgTree       = flag.String("pkg-tree", "", "main path: /path/to/go/pkg")
+	importPath    = flag.String("import-path", "github.com/leonelquinteros/gotext", "import path: foo.org/myproject/i18n")
 	dirName       = flag.String("in", "", "input dir: /path/to/go/pkg")
 	outputDir     = flag.String("out", "", "output dir: /path/to/i18n/files")
 	defaultDomain = flag.String("default", "default", "Name of default domain")
@@ -40,12 +41,12 @@ func main() {
 	}
 
 	if *pkgTree != "" {
-		err := pkg_tree.ParsePkgTree(*pkgTree, data, *verbose)
+		err := pkg_tree.ParsePkgTree(*pkgTree, *importPath, data, *verbose)
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		err := dir.ParseDirRec(*dirName, strings.Split(*excludeDirs, ","), data, *verbose)
+		err := dir.ParseDirRec(*dirName, *importPath, strings.Split(*excludeDirs, ","), data, *verbose)
 		if err != nil {
 			log.Fatal(err)
 		}

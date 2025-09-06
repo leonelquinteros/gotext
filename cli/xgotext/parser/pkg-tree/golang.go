@@ -14,21 +14,21 @@ import (
 )
 
 // ParsePkgTree parse go package tree
-func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
+func ParsePkgTree(pkgPath, importPath string, data *parser.DomainMap, verbose bool) error {
 	basePath, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
 	}
-	return pkgParser(pkgPath, basePath, data, verbose)
+	return pkgParser(pkgPath, basePath, importPath, data, verbose)
 }
 
-func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) error {
+func pkgParser(dirPath, basePath, importPath string, data *parser.DomainMap, verbose bool) error {
 	mainPkg, err := loadPackage(dirPath)
 	if err != nil {
 		return err
 	}
 
-	for _, pkg := range filterPkgs(mainPkg) {
+	for _, pkg := range filterPkgs(mainPkg, importPath) {
 		if verbose {
 			fmt.Println(pkg.ID)
 		}
@@ -76,22 +76,22 @@ func loadPackage(name string) (*packages.Package, error) {
 	return pkgs[0], nil
 }
 
-func filterPkgs(pkg *packages.Package) []*packages.Package {
-	result := filterPkgsRec(pkg)
+func filterPkgs(pkg *packages.Package, importPath string) []*packages.Package {
+	result := filterPkgsRec(pkg, importPath)
 	return result
 }
 
-func filterPkgsRec(pkg *packages.Package) []*packages.Package {
+func filterPkgsRec(pkg *packages.Package, importPath string) []*packages.Package {
 	result := make([]*packages.Package, 0, 100)
 	pkgCache[pkg.ID] = pkg
 	for _, importedPkg := range pkg.Imports {
-		if importedPkg.ID == "github.com/leonelquinteros/gotext" {
+		if importedPkg.ID == importPath {
 			result = append(result, pkg)
 		}
 		if _, ok := pkgCache[importedPkg.ID]; ok {
 			continue
 		}
-		result = append(result, filterPkgsRec(importedPkg)...)
+		result = append(result, filterPkgsRec(importedPkg, importPath)...)
 	}
 	return result
 }
