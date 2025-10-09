@@ -25,6 +25,15 @@ func (d *GetterDef) MaxArgIndex() int {
 	return max(d.ID, d.Plural, d.Context, d.Domain)
 }
 
+// OptionalVarsIndex returns the index of the first optioal message variable
+// argument.
+func (d *GetterDef) OptionalVarsIndex() int {
+	// Plural string argument is allways followed by plural form number `n`
+	// argument. Most of the time it is next parameter after max index, but
+	// if our max index is d.Plural we need to account for the extra `n`.
+	return max(d.MaxArgIndex()+1, d.Plural+2)
+}
+
 // list of supported getter
 var gotextGetter = map[string]GetterDef{
 	"Get":    {0, -1, -1, -1},
@@ -177,6 +186,9 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 			return
 		}
 		trans.Context = args[def.Context].Value
+	}
+	if len(args) > def.OptionalVarsIndex() {
+		trans.Flags = append(trans.Flags, "go-format")
 	}
 
 	g.Data.AddTranslation(domain, &trans)

@@ -14,6 +14,7 @@ type Translation struct {
 	MsgIDPlural     string
 	Context         string
 	SourceLocations []string
+	Flags           []string
 }
 
 // AddLocations to translation
@@ -33,6 +34,10 @@ func (t *Translation) Dump() string {
 	sort.Strings(locations)
 	for _, location := range locations {
 		data = append(data, "#: "+location)
+	}
+
+	for _, flag := range t.Flags {
+		data = append(data, "#, "+flag)
 	}
 
 	if t.Context != "" {
