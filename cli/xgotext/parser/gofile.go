@@ -131,7 +131,32 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	// convert args
 	args := make([]*ast.BasicLit, len(n.Args))
 	for idx, arg := range n.Args {
-		args[idx], _ = arg.(*ast.BasicLit)
+		var (
+			basicLitOk, identOk, assignStmtOk bool
+			ident                             *ast.Ident
+			assignStmt                        *ast.AssignStmt
+		)
+
+		basicLit, basicLitOk := arg.(*ast.BasicLit)
+		if !basicLitOk {
+			ident, identOk = arg.(*ast.Ident)
+		}
+
+		if identOk && ident.Obj != nil {
+			assignStmt, assignStmtOk = ident.Obj.Decl.(*ast.AssignStmt)
+		}
+
+		if assignStmtOk {
+			for _, rh := range assignStmt.Rhs {
+				bl2, bl2Ok := rh.(*ast.BasicLit)
+				if bl2Ok && bl2.Kind == token.STRING {
+					basicLit = bl2
+					break
+				}
+			}
+		}
+
+		args[idx] = basicLit
 	}
 
 	// get position
