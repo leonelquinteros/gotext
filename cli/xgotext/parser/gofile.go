@@ -132,9 +132,9 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	args := make([]*ast.BasicLit, len(n.Args))
 	for idx, arg := range n.Args {
 		var (
-			basicLitOk, identOk, assignStmtOk bool
-			ident                             *ast.Ident
-			assignStmt                        *ast.AssignStmt
+			basicLitOk, identOk bool
+			ident               *ast.Ident
+			exprList            []ast.Expr
 		)
 
 		basicLit, basicLitOk := arg.(*ast.BasicLit)
@@ -143,12 +143,17 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 		}
 
 		if identOk && ident.Obj != nil {
-			assignStmt, assignStmtOk = ident.Obj.Decl.(*ast.AssignStmt)
+			switch decl := ident.Obj.Decl.(type) {
+			case *ast.AssignStmt:
+				exprList = decl.Rhs
+			case *ast.ValueSpec:
+				exprList = decl.Values
+			}
 		}
 
-		if assignStmtOk {
-			for _, rh := range assignStmt.Rhs {
-				bl2, bl2Ok := rh.(*ast.BasicLit)
+		if basicLit == nil {
+			for _, e := range exprList {
+				bl2, bl2Ok := e.(*ast.BasicLit)
 				if bl2Ok && bl2.Kind == token.STRING {
 					basicLit = bl2
 					break
