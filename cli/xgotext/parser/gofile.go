@@ -131,37 +131,32 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	// convert args
 	args := make([]*ast.BasicLit, len(n.Args))
 	for idx, arg := range n.Args {
-		var (
-			basicLitOk, identOk bool
-			ident               *ast.Ident
-			exprList            []ast.Expr
-		)
-
-		basicLit, basicLitOk := arg.(*ast.BasicLit)
-		if !basicLitOk {
-			ident, identOk = arg.(*ast.Ident)
+		args[idx] = nil // create default value
+		basicLit, ok := arg.(*ast.BasicLit)
+		if ok {
+			args[idx] = basicLit
+			continue
 		}
 
-		if identOk && ident.Obj != nil {
-			switch decl := ident.Obj.Decl.(type) {
-			case *ast.AssignStmt:
-				exprList = decl.Rhs
-			case *ast.ValueSpec:
-				exprList = decl.Values
+		ident, ok := arg.(*ast.Ident)
+		if !ok || ident.Obj == nil {
+			continue
+		}
+
+		var exprList []ast.Expr
+		switch decl := ident.Obj.Decl.(type) {
+		case *ast.AssignStmt:
+			exprList = decl.Rhs
+		case *ast.ValueSpec:
+			exprList = decl.Values
+		}
+
+		for _, e := range exprList {
+			if bl, ok := e.(*ast.BasicLit); ok && bl.Kind == token.STRING {
+				args[idx] = bl
+				break
 			}
 		}
-
-		if basicLit == nil {
-			for _, e := range exprList {
-				bl2, bl2Ok := e.(*ast.BasicLit)
-				if bl2Ok && bl2.Kind == token.STRING {
-					basicLit = bl2
-					break
-				}
-			}
-		}
-
-		args[idx] = basicLit
 	}
 
 	// get position
