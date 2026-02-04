@@ -35,6 +35,9 @@ string
 ending with
 EOL`, "multline\nending with EOL\n", "type alias", "locale constructor call",
 		"chained locale", "chained po", "chained from func", "from interface",
+		"this is constant testing",
+		"this is variable testing",
+		"some string to translate",
 	}
 
 	if len(translations) != len(data.Domains[defaultDomain].Translations) {
