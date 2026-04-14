@@ -7,4 +7,4 @@ require (
 	golang.org/x/sync v0.12.0 // indirect
 )
 
-go 1.24
+go 1.25
