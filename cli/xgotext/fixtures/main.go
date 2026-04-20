@@ -13,6 +13,14 @@ import (
 type Fake struct {
 }
 
+const (
+	ConstantTesting = "this is constant testing"
+)
+
+var (
+	variableTesting = "this is variable testing"
+)
+
 // Get by id
 func (f Fake) Get(id int) int {
 	return 42
@@ -38,6 +46,12 @@ var NL = func() *gotext.Locale {
 func main() {
 	// Configure package
 	gotext.Configure("/path/to/locales/root/dir", "en_UK", "domain-name")
+
+	// constant testing
+	fmt.Println(gotext.Get(ConstantTesting))
+
+	// variable testing
+	fmt.Println(gotext.Get(variableTesting))
 
 	// Translate text from default domain
 	fmt.Println(gotext.Get("My text on 'domain-name' domain"))

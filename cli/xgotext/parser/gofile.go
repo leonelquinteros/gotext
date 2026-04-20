@@ -123,7 +123,32 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	// convert args
 	args := make([]*ast.BasicLit, len(n.Args))
 	for idx, arg := range n.Args {
-		args[idx], _ = arg.(*ast.BasicLit)
+		args[idx] = nil // create default value
+		basicLit, ok := arg.(*ast.BasicLit)
+		if ok {
+			args[idx] = basicLit
+			continue
+		}
+
+		ident, ok := arg.(*ast.Ident)
+		if !ok || ident.Obj == nil {
+			continue
+		}
+
+		var exprList []ast.Expr
+		switch decl := ident.Obj.Decl.(type) {
+		case *ast.AssignStmt:
+			exprList = decl.Rhs
+		case *ast.ValueSpec:
+			exprList = decl.Values
+		}
+
+		for _, e := range exprList {
+			if bl, ok := e.(*ast.BasicLit); ok && bl.Kind == token.STRING {
+				args[idx] = bl
+				break
+			}
+		}
 	}
 
 	// get position
