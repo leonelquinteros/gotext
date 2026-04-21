@@ -106,7 +106,9 @@ func TestDomainMap_Save(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	dm := &DomainMap{}
 	dm.AddTranslation("test", &Translation{MsgID: "msg", SourceLocations: []string{"loc:1"}})
