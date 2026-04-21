@@ -744,3 +744,51 @@ func TestLocale_GetTranslations(t *testing.T) {
 		}
 	}
 }
+
+func TestDomain_GetD_Missing(t *testing.T) {
+	// Covering the case where Domains map is nil or domain is missing
+	l := NewLocale("path", "en")
+	res := l.GetD("missing", "test")
+	if res != "test" {
+		t.Errorf("Expected 'test', got '%s'", res)
+	}
+
+	res = l.GetND("missing", "one", "many", 1)
+	if res != "one" {
+		t.Errorf("Expected 'one', got '%s'", res)
+	}
+	res = l.GetND("missing", "one", "many", 2)
+	if res != "many" {
+		t.Errorf("Expected 'many', got '%s'", res)
+	}
+
+	res = l.GetDC("missing", "test", "ctx")
+	if res != "test" {
+		t.Errorf("Expected 'test', got '%s'", res)
+	}
+
+	res = l.GetNDC("missing", "one", "many", 1, "ctx")
+	if res != "one" {
+		t.Errorf("Expected 'one', got '%s'", res)
+	}
+	res = l.GetNDC("missing", "one", "many", 2, "ctx")
+	if res != "many" {
+		t.Errorf("Expected 'many', got '%s'", res)
+	}
+}
+
+func TestLocale_MissingIsTranslatedWrappers(t *testing.T) {
+	l := NewLocale("path", "en")
+	if l.IsTranslated("test") {
+		t.Error("Expected false for missing domain")
+	}
+	if l.IsTranslatedN("test", 1) {
+		t.Error("Expected false for missing domain")
+	}
+	if l.IsTranslatedC("test", "ctx") {
+		t.Error("Expected false for missing domain")
+	}
+	if l.IsTranslatedNC("test", 1, "ctx") {
+		t.Error("Expected false for missing domain")
+	}
+}

@@ -234,3 +234,39 @@ func TestMoBinaryEncoding(t *testing.T) {
 		t.Errorf("Expected 'en_US' but got '%s'", tr)
 	}
 }
+
+func TestMo_MissingWrappers(t *testing.T) {
+	mo := NewMo()
+	res := mo.Append(nil, "test")
+	if string(res) != "test" {
+		t.Error("Mo.Append failed")
+	}
+
+	res = mo.AppendN(nil, "one", "many", 1)
+	if string(res) != "one" {
+		t.Error("Mo.AppendN failed")
+	}
+
+	res = mo.AppendC(nil, "id", "ctx")
+	if string(res) != "id" {
+		t.Error("Mo.AppendC failed")
+	}
+
+	res = mo.AppendNC(nil, "id", "plural", 1, "ctx")
+	if string(res) != "id" {
+		t.Error("Mo.AppendNC failed")
+	}
+
+	if mo.IsTranslated("id") {
+		t.Error("Mo.IsTranslated failed")
+	}
+	if mo.IsTranslatedN("id", 1) {
+		t.Error("Mo.IsTranslatedN failed")
+	}
+	if mo.IsTranslatedC("id", "ctx") {
+		t.Error("Mo.IsTranslatedC failed")
+	}
+	if mo.IsTranslatedNC("id", 1, "ctx") {
+		t.Error("Mo.IsTranslatedNC failed")
+	}
+}

@@ -748,3 +748,51 @@ func TestPoTextEncoding(t *testing.T) {
 		t.Errorf("Expected 'This one is plural in a Ctx context: Test' but got '%s'", tr)
 	}
 }
+
+func TestPo_MissingWrappers(t *testing.T) {
+	po := NewPo()
+	// Coverage for SetRefs, GetRefs, SetPluralResolver, etc in Po
+	po.SetRefs("id", []string{"ref"})
+	refs := po.GetRefs("id")
+	if len(refs) != 1 || refs[0] != "ref" {
+		t.Error("Po.SetRefs/GetRefs failed")
+	}
+
+	po.SetPluralResolver(func(n int) int { return 1 })
+
+	res := po.Append(nil, "test")
+	if string(res) != "test" {
+		t.Error("Po.Append failed")
+	}
+
+	po.SetN("one", "many", 1, "singular")
+	res = po.AppendN(nil, "one", "many", 1)
+	if string(res) != "singular" {
+		t.Error("Po.AppendN failed")
+	}
+
+	po.SetC("id", "ctx", "val")
+	res = po.AppendC(nil, "id", "ctx")
+	if string(res) != "val" {
+		t.Error("Po.AppendC failed")
+	}
+
+	po.SetNC("id", "plural", "ctx", 1, "val_nc")
+	res = po.AppendNC(nil, "id", "plural", 1, "ctx")
+	if string(res) != "val_nc" {
+		t.Error("Po.AppendNC failed")
+	}
+
+	if po.IsTranslated("missing") {
+		t.Error("Po.IsTranslated failed")
+	}
+	if po.IsTranslatedN("missing", 1) {
+		t.Error("Po.IsTranslatedN failed")
+	}
+	if po.IsTranslatedC("missing", "ctx") {
+		t.Error("Po.IsTranslatedC failed")
+	}
+	if po.IsTranslatedNC("missing", 1, "ctx") {
+		t.Error("Po.IsTranslatedNC failed")
+	}
+}
