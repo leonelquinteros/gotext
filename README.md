@@ -13,6 +13,10 @@
 
 ---
 
+**📖 [Read the Full Documentation](https://leonelquinteros.github.io/gotext/)**
+
+---
+
 ### Table of Contents
 - [Features](#features)
 - [Installation](#installation)
