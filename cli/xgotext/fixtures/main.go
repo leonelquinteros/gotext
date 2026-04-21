@@ -119,6 +119,8 @@ EOL`))
 	// Even more complex chains
 	gotext.NewLocale("/path", "en").Get("chained locale")
 	gotext.NewPo().Get("chained po")
+
+	complexChains()
 }
 
 // GetTranslator returns a Translator
