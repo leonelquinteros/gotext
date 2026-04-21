@@ -95,8 +95,8 @@ func (g *GoFile) CheckType(rawType types.Type) bool {
 
 	case *types.Interface:
 		// Check if it's the Translator interface from our package
-		// This is a bit more complex, but usually it's wrapped in a Named type
-		return false
+		// This is used for interfaces like 'Translator'
+		return t.NumMethods() > 0 && t.Method(0).Pkg() != nil && t.Method(0).Pkg().Path() == "github.com/leonelquinteros/gotext"
 
 	default:
 		return false
