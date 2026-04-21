@@ -33,7 +33,8 @@ string`,
 line
 string
 ending with
-EOL`, "multline\nending with EOL\n", "type alias",
+EOL`, "multline\nending with EOL\n", "type alias", "locale constructor call",
+		"chained locale", "chained po", "chained from func", "from interface",
 	}
 
 	if len(translations) != len(data.Domains[defaultDomain].Translations) {

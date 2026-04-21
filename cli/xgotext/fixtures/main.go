@@ -115,6 +115,24 @@ EOL`))
 
 	// Locale constructor call
 	NL().Get("locale constructor call")
+
+	// Even more complex chains
+	gotext.NewLocale("/path", "en").Get("chained locale")
+	gotext.NewPo().Get("chained po")
+
+	complexChains()
+}
+
+// GetTranslator returns a Translator
+func GetTranslator() gotext.Translator {
+	return gotext.NewPo()
+}
+
+func complexChains() {
+	GetTranslator().Get("chained from func")
+
+	var tr gotext.Translator = gotext.NewPo()
+	tr.Get("from interface")
 }
 
 // dummy function

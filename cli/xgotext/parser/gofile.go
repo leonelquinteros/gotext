@@ -52,7 +52,7 @@ type GoFile struct {
 // GetType from ident object
 func (g *GoFile) GetType(ident *ast.Ident) types.Object {
 	for _, pkg := range g.ImportedPackages {
-		if pkg.Types == nil {
+		if pkg.TypesInfo == nil {
 			continue
 		}
 		if obj, ok := pkg.TypesInfo.Uses[ident]; ok {
@@ -62,8 +62,25 @@ func (g *GoFile) GetType(ident *ast.Ident) types.Object {
 	return nil
 }
 
+// getExprType from any expression
+func (g *GoFile) getExprType(expr ast.Expr) types.Type {
+	for _, pkg := range g.ImportedPackages {
+		if pkg.TypesInfo == nil {
+			continue
+		}
+		if tv, ok := pkg.TypesInfo.Types[expr]; ok {
+			return tv.Type
+		}
+	}
+	return nil
+}
+
 // CheckType for gotext object
 func (g *GoFile) CheckType(rawType types.Type) bool {
+	if rawType == nil {
+		return false
+	}
+
 	switch t := rawType.(type) {
 	case *types.Pointer:
 		return g.CheckType(t.Elem())
@@ -75,6 +92,11 @@ func (g *GoFile) CheckType(rawType types.Type) bool {
 
 	case *types.Alias:
 		return g.CheckType(t.Rhs())
+
+	case *types.Interface:
+		// Check if it's the Translator interface from our package
+		// This is used for interfaces like 'Translator'
+		return t.NumMethods() > 0 && t.Method(0).Pkg() != nil && t.Method(0).Pkg().Path() == "github.com/leonelquinteros/gotext"
 
 	default:
 		return false
@@ -90,33 +112,19 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 		return
 	}
 
-	switch e := expr.X.(type) {
-	// direct call
-	case *ast.Ident:
-		// object is a package if the Obj is not set
-		if e.Obj == nil {
-			pkg, ok := g.ImportedPackages[e.Name]
+	// Resolve the type of the receiver (expr.X)
+	receiverType := g.getExprType(expr.X)
+	if receiverType == nil {
+		// Fallback for package calls if types didn't resolve it
+		if id, ok := expr.X.(*ast.Ident); ok && id.Obj == nil {
+			pkg, ok := g.ImportedPackages[id.Name]
 			if !ok || pkg.PkgPath != "github.com/leonelquinteros/gotext" {
 				return
 			}
-
 		} else {
-			// validate type of object
-			t := g.GetType(e)
-			if t == nil || !g.CheckType(t.Type()) {
-				return
-			}
-		}
-
-	// call to attribute
-	case *ast.SelectorExpr:
-		// validate type of object
-		t := g.GetType(e.Sel)
-		if t == nil || !g.CheckType(t.Type()) {
 			return
 		}
-
-	default:
+	} else if !g.CheckType(receiverType) {
 		return
 	}
 
