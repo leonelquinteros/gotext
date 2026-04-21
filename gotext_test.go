@@ -715,3 +715,24 @@ func BenchmarkGoText(b *testing.B) {
 	})
 
 }
+
+func TestGotext_MissingWrappers(t *testing.T) {
+	// These are just wrappers around the global config
+	if IsTranslatedD("missing", "id") {
+		t.Error("IsTranslatedD failed")
+	}
+	if IsTranslatedDC("missing", "id", "ctx") {
+		t.Error("IsTranslatedDC failed")
+	}
+	
+	if GetStorage() == nil {
+		t.Error("GetStorage should not be nil")
+	}
+	
+	SetStorage(GetStorage()) // Coverage
+	
+	Configure("fixtures", "en_US", "default")
+	if GetD("default", "My text") != translatedText {
+		t.Error("GetD failed")
+	}
+}

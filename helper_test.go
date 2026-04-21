@@ -110,3 +110,11 @@ func TestSprintfFloatsWithPrecision(t *testing.T) {
 		t.Errorf("result should be (%v) but is (%v)", expectedresult, s)
 	}
 }
+
+func TestHelper_Appendf(t *testing.T) {
+	b := []byte("test: ")
+	res := Appendf(b, "Hello %s", "World")
+	if string(res) != "test: Hello World" {
+		t.Errorf("Expected 'test: Hello World', got '%s'", string(res))
+	}
+}
