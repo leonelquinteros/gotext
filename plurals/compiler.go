@@ -22,7 +22,7 @@ type match struct {
 	closePos int
 }
 
-var pat = regexp.MustCompile(`(\?|:|\|\||&&|==|!=|>=|>|<=|<|%|\d+|n)`)
+var pat = regexp.MustCompile(`(\?|:|\|\||&&|==|!=|>=|>|<=|<|%|\d+|n|\(|\))`)
 
 type testToken interface {
 	compile(tokens []string) (test test, err error)
@@ -161,29 +161,37 @@ func compileEquality(tokens []string, sep string, builder cmpTestBuilder) (test 
 	if err != nil {
 		return test, err
 	}
-	if len(split.Left) == 1 && split.Left[0] == "n" {
-		if len(split.Right) != 1 {
-			return test, errors.New("test can only compare n to integers")
-		}
-		i, err := parseUint32(split.Right[0])
+	if contains(split.Left, "n") && !contains(split.Left, "%") && len(split.Left) == 1 {
+		i, err := parseUint32(strings.Join(split.Right, ""))
 		if err != nil {
+			// Try to compile it as a full expression if it's not a simple integer
+			// but for now we follow the existing pattern of expecting integers here
+			// unless it's a mod operation.
 			return test, err
 		}
 		return builder(i, false), nil
-	} else if len(split.Right) == 1 && split.Right[0] == "n" {
-		if len(split.Left) != 1 {
-			return test, errors.New("test can only compare n to integers")
-		}
-		i, err := parseUint32(split.Left[0])
+	} else if contains(split.Right, "n") && !contains(split.Right, "%") && len(split.Right) == 1 {
+		i, err := parseUint32(strings.Join(split.Left, ""))
 		if err != nil {
 			return test, err
 		}
 		return builder(i, true), nil
 	} else if contains(split.Left, "n") && contains(split.Left, "%") {
 		return subPipe(split.Left, split.Right, builder, false)
+	} else if contains(split.Right, "n") && contains(split.Right, "%") {
+		return subPipe(split.Right, split.Left, builder, true)
 	}
-	return test, errors.New("equality test must have 'n' as one of the two tests")
 
+	// Fallback for parenthesized expressions or more complex ones
+	if contains(split.Left, "n") || contains(split.Right, "n") {
+		// If it's something like (n==1) == (n==2), it's probably weird but let's try to parse it
+		// This is a bit of a stretch for the current architecture but better than failing
+		// for standard cases.
+		// However, most gettext plural forms are simple: (n%10==1 && n%100!=11)
+		// The issue is that tokenize might be returning tokens with parentheses.
+	}
+
+	return test, errors.New("equality test must have 'n' as one of the two tests")
 }
 
 var eqToken eqStruct
@@ -353,7 +361,7 @@ func split(s string) <-chan string {
 
 // Tokenizes a string into a list of strings, tokens grouped by parenthesis are
 // not split! If the string starts with ( and ends in ), those are stripped.
-func tokenize(s string) []string {
+func tokenize(s string) ([]string, error) {
 	/*
 		TODO: Properly detect if the string starts with a ( and ends with a )
 		and that those two form a matching pair.
@@ -361,7 +369,7 @@ func tokenize(s string) []string {
 		Eg: (foo) -> true; (foo)(bar) -> false;
 	*/
 	if len(s) == 0 {
-		return []string{}
+		return []string{}, nil
 	}
 	if s[0] == '(' && s[len(s)-1] == ')' {
 		s = s[1 : len(s)-1]
@@ -372,15 +380,22 @@ func tokenize(s string) []string {
 			if chunk[0] == '(' && chunk[len(chunk)-1] == ')' {
 				ret = append(ret, chunk)
 			} else {
-				for _, token := range pat.FindAllStringSubmatch(chunk, -1) {
+				// Verify all characters in chunk are matched by our pattern
+				matches := pat.FindAllStringSubmatch(chunk, -1)
+				matchedLen := 0
+				for _, token := range matches {
 					ret = append(ret, token[0])
+					matchedLen += len(token[0])
+				}
+				if matchedLen != len(chunk) {
+					return nil, fmt.Errorf("invalid character in expression chunk: %s", chunk)
 				}
 			}
 		} else {
 			fmt.Printf("Empty chunk in string '%s'\n", s)
 		}
 	}
-	return ret
+	return ret, nil
 }
 
 // Compile a string containing a plural form expression to a Expression object.
@@ -406,7 +421,10 @@ func contains(haystack []string, needle string) bool {
 
 // Compiles an expression (ternary or constant)
 func compileExpression(s string) (expr Expression, err error) {
-	tokens := tokenize(s)
+	tokens, err := tokenize(s)
+	if err != nil {
+		return nil, err
+	}
 	if contains(tokens, "?") {
 		return ternaryToken.compile(tokens)
 	}
@@ -415,11 +433,27 @@ func compileExpression(s string) (expr Expression, err error) {
 
 // Compiles a test (comparison)
 func compileTest(s string) (test test, err error) {
-	tokens := tokenize(s)
+	tokens, err := tokenize(s)
+	if err != nil {
+		return nil, err
+	}
 	for _, tokenDef := range precedence {
 		if contains(tokens, tokenDef.op) {
 			return tokenDef.token.compile(tokens)
 		}
+	}
+	if contains(tokens, "%") {
+		m, err := compileMod(tokens)
+		if err != nil {
+			return nil, err
+		}
+		return pipe{
+			modifier: m,
+			action:   equal{value: 0}, // default to testing for 0
+		}, nil
+	}
+	if len(tokens) == 1 && tokens[0] == "n" {
+		return equal{value: 1}, nil
 	}
 	return test, errors.New("cannot compile")
 }
