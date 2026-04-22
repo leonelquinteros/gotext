@@ -68,12 +68,24 @@ func TestGoFile_ParseGetter_Errors(t *testing.T) {
 		Data: data,
 	}
 
-	// Not enough args for GetN (needs 2: ID and Plural)
+	// Not enough args for GetN (needs 2: ID and Plural, which are index 0 and 1. MaxArgIndex is 1)
 	defN := gotextGetter["GetN"]
-	args := []*ast.BasicLit{} // Zero args
+	args := []*ast.BasicLit{
+		{Kind: token.STRING, Value: "\"singular\""},
+	} // only 1 arg, index 0. len(args) == 1. 1 <= 1 is true. Should return.
 	g.ParseGetter(defN, args, "file.go:10")
 	if len(data.Domains) != 0 {
-		t.Error("ParseGetter should have failed for not enough args")
+		t.Error("ParseGetter should have failed for not enough args (len 1 for GetN)")
+	}
+
+	// Not enough args for GetD (needs 2: Domain and ID, index 0 and 1. MaxArgIndex is 1)
+	defD := gotextGetter["GetD"]
+	argsD := []*ast.BasicLit{
+		{Kind: token.STRING, Value: "\"domain1\""},
+	}
+	g.ParseGetter(defD, argsD, "file.go:15")
+	if len(data.Domains) != 0 {
+		t.Error("ParseGetter should have failed for not enough args (len 1 for GetD)")
 	}
 
 	// ID not a string
@@ -83,3 +95,4 @@ func TestGoFile_ParseGetter_Errors(t *testing.T) {
 	}
 	g.ParseGetter(defGet, args2, "file.go:20")
 }
+

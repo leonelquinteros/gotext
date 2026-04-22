@@ -148,7 +148,7 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 // ParseGetter parses the getter function
 func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 	// check if enough arguments are given
-	if len(args) < def.MaxArgIndex() {
+	if len(args) <= def.MaxArgIndex() {
 		return
 	}
 

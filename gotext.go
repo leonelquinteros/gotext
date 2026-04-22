@@ -55,7 +55,7 @@ func init() {
 		domain:    "default",
 		languages: []string{FallbackLocale},
 		library:   "/usr/local/share/locale",
-		locales:   nil,
+		locales:   make([]*Locale, 0),
 	}
 
 	// Register Translator types for gob encoding
