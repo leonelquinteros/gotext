@@ -182,15 +182,6 @@ func compileEquality(tokens []string, sep string, builder cmpTestBuilder) (test 
 		return subPipe(split.Right, split.Left, builder, true)
 	}
 
-	// Fallback for parenthesized expressions or more complex ones
-	if contains(split.Left, "n") || contains(split.Right, "n") {
-		// If it's something like (n==1) == (n==2), it's probably weird but let's try to parse it
-		// This is a bit of a stretch for the current architecture but better than failing
-		// for standard cases.
-		// However, most gettext plural forms are simple: (n%10==1 && n%100!=11)
-		// The issue is that tokenize might be returning tokens with parentheses.
-	}
-
 	return test, errors.New("equality test must have 'n' as one of the two tests")
 }
 
