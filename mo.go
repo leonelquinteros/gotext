@@ -76,42 +76,42 @@ func (mo *Mo) GetDomain() *Domain {
 }
 
 // Get returns the translation for the given string
-func (mo *Mo) Get(str string, vars ...interface{}) string {
+func (mo *Mo) Get(str string, vars ...any) string {
 	return mo.domain.Get(str, vars...)
 }
 
 // Append a translation string into the domain
-func (mo *Mo) Append(b []byte, str string, vars ...interface{}) []byte {
+func (mo *Mo) Append(b []byte, str string, vars ...any) []byte {
 	return mo.domain.Append(b, str, vars...)
 }
 
 // GetN returns the translation for the given string and plural form
-func (mo *Mo) GetN(str, plural string, n int, vars ...interface{}) string {
+func (mo *Mo) GetN(str, plural string, n int, vars ...any) string {
 	return mo.domain.GetN(str, plural, n, vars...)
 }
 
 // AppendN appends a translation string for the given plural form into the domain
-func (mo *Mo) AppendN(b []byte, str, plural string, n int, vars ...interface{}) []byte {
+func (mo *Mo) AppendN(b []byte, str, plural string, n int, vars ...any) []byte {
 	return mo.domain.AppendN(b, str, plural, n, vars...)
 }
 
 // GetC returns the translation for the given string and context
-func (mo *Mo) GetC(str, ctx string, vars ...interface{}) string {
+func (mo *Mo) GetC(str, ctx string, vars ...any) string {
 	return mo.domain.GetC(str, ctx, vars...)
 }
 
 // AppendC appends a translation string for the given context into the domain
-func (mo *Mo) AppendC(b []byte, str, ctx string, vars ...interface{}) []byte {
+func (mo *Mo) AppendC(b []byte, str, ctx string, vars ...any) []byte {
 	return mo.domain.AppendC(b, str, ctx, vars...)
 }
 
 // GetNC returns the translation for the given string, plural form and context
-func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+func (mo *Mo) GetNC(str, plural string, n int, ctx string, vars ...any) string {
 	return mo.domain.GetNC(str, plural, n, ctx, vars...)
 }
 
 // AppendNC appends a translation string for the given plural form and context into the domain
-func (mo *Mo) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...interface{}) []byte {
+func (mo *Mo) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...any) []byte {
 	return mo.domain.AppendNC(b, str, plural, n, ctx, vars...)
 }
 

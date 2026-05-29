@@ -71,7 +71,7 @@ func TestReformattingRepeatedNamedPattern(t *testing.T) {
 
 func TestSprintf(t *testing.T) {
 	pat := "%(brother)s loves %(sister)s. %(sister)s also loves %(brother)s."
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sister":  "Susan",
 		"brother": "Louis",
 	}
@@ -85,7 +85,7 @@ func TestSprintf(t *testing.T) {
 
 func TestNPrintf(t *testing.T) {
 	pat := "%(brother)s loves %(sister)s. %(sister)s also loves %(brother)s.\n"
-	params := map[string]interface{}{
+	params := map[string]any{
 		"sister":  "Susan",
 		"brother": "Louis",
 	}
@@ -96,7 +96,7 @@ func TestNPrintf(t *testing.T) {
 
 func TestSprintfFloatsWithPrecision(t *testing.T) {
 	pat := "%(float)f / %(floatprecision).1f / %(long)g / %(longprecision).3g"
-	params := map[string]interface{}{
+	params := map[string]any{
 		"float":          5.034560,
 		"floatprecision": 5.03456,
 		"long":           5.03456,

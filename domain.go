@@ -268,7 +268,7 @@ func (do *Domain) Set(id, str string) {
 }
 
 // Get retrieves the Translation for the given string.
-func (do *Domain) Get(str string, vars ...interface{}) string {
+func (do *Domain) Get(str string, vars ...any) string {
 	// Sync read
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
@@ -284,8 +284,8 @@ func (do *Domain) Get(str string, vars ...interface{}) string {
 }
 
 // Append retrieves the Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) Append(b []byte, str string, vars ...interface{}) []byte {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) Append(b []byte, str string, vars ...any) []byte {
 	// Sync read
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
@@ -322,8 +322,8 @@ func (do *Domain) SetN(id, plural string, n int, str string) {
 }
 
 // GetN retrieves the (N)th plural form of Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) GetN(str, plural string, n int, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) GetN(str, plural string, n int, vars ...any) string {
 	// Sync read
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
@@ -342,8 +342,8 @@ func (do *Domain) GetN(str, plural string, n int, vars ...interface{}) string {
 }
 
 // AppendN adds the (N)th plural form of Translation for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) AppendN(b []byte, str, plural string, n int, vars ...interface{}) []byte {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) AppendN(b []byte, str, plural string, n int, vars ...any) []byte {
 	// Sync read
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
@@ -388,8 +388,8 @@ func (do *Domain) SetC(id, ctx, str string) {
 }
 
 // GetC retrieves the corresponding Translation for a given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) GetC(str, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) GetC(str, ctx string, vars ...any) string {
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
@@ -408,8 +408,8 @@ func (do *Domain) GetC(str, ctx string, vars ...interface{}) string {
 }
 
 // AppendC retrieves the corresponding Translation for a given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) AppendC(b []byte, str, ctx string, vars ...interface{}) []byte {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) AppendC(b []byte, str, ctx string, vars ...any) []byte {
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
@@ -457,8 +457,8 @@ func (do *Domain) SetNC(id, plural, ctx string, n int, str string) {
 }
 
 // GetNC retrieves the (N)th plural form of Translation for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...any) string {
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
@@ -479,8 +479,8 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...interface
 }
 
 // AppendNC retrieves the (N)th plural form of Translation for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (do *Domain) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...interface{}) []byte {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (do *Domain) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...any) []byte {
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
