@@ -17,10 +17,10 @@ import (
 type Translator interface {
 	ParseFile(f string)
 	Parse(buf []byte)
-	Get(str string, vars ...interface{}) string
-	GetN(str, plural string, n int, vars ...interface{}) string
-	GetC(str, ctx string, vars ...interface{}) string
-	GetNC(str, plural string, n int, ctx string, vars ...interface{}) string
+	Get(str string, vars ...any) string
+	GetN(str, plural string, n int, vars ...any) string
+	GetC(str, ctx string, vars ...any) string
+	GetNC(str, plural string, n int, ctx string, vars ...any) string
 
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary([]byte) error
@@ -31,10 +31,10 @@ type Translator interface {
 // It contains all methods needed to parse translation sources and to append entries to the object.
 type AppendTranslator interface {
 	Translator
-	Append(b []byte, str string, vars ...interface{}) []byte
-	AppendN(b []byte, str, plural string, n int, vars ...interface{}) []byte
-	AppendC(b []byte, str, ctx string, vars ...interface{}) []byte
-	AppendNC(b []byte, str, plural string, n int, ctx string, vars ...interface{}) []byte
+	Append(b []byte, str string, vars ...any) []byte
+	AppendN(b []byte, str, plural string, n int, vars ...any) []byte
+	AppendC(b []byte, str, ctx string, vars ...any) []byte
+	AppendNC(b []byte, str, plural string, n int, ctx string, vars ...any) []byte
 }
 
 // TranslatorEncoding is used as intermediary storage to encode Translator objects to Gob.

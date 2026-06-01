@@ -29,7 +29,7 @@ func SimplifiedLocale(lang string) string {
 }
 
 // FormatString applies text formatting only when needed to parse variables.
-func FormatString(str string, vars ...interface{}) string {
+func FormatString(str string, vars ...any) string {
 	if len(vars) > 0 {
 		return FormatStringWithArgs(str, vars)
 	}
@@ -38,12 +38,12 @@ func FormatString(str string, vars ...interface{}) string {
 }
 
 // FormatStringWithArgs applies text formatting as a proxy for fmt.Sprintf.
-func FormatStringWithArgs(str string, vars []interface{}) string {
+func FormatStringWithArgs(str string, vars []any) string {
 	return fmt.Sprintf(str, vars...)
 }
 
 // Appendf applies text formatting only when needed to parse variables.
-func Appendf(b []byte, str string, vars ...interface{}) []byte {
+func Appendf(b []byte, str string, vars ...any) []byte {
 	if len(vars) > 0 {
 		return fmt.Appendf(b, str, vars...)
 	}
@@ -52,23 +52,23 @@ func Appendf(b []byte, str string, vars ...interface{}) []byte {
 }
 
 // NPrintf support named format
-// NPrintf("%(name)s is Type %(type)s", map[string]interface{}{"name": "Gotext", "type": "struct"})
-func NPrintf(format string, params map[string]interface{}) {
+// NPrintf("%(name)s is Type %(type)s", map[string]any{"name": "Gotext", "type": "struct"})
+func NPrintf(format string, params map[string]any) {
 	f, p := parseSprintf(format, params)
 	fmt.Printf(f, p...)
 }
 
 // Sprintf support named format
 //
-//	Sprintf("%(name)s is Type %(type)s", map[string]interface{}{"name": "Gotext", "type": "struct"})
-func Sprintf(format string, params map[string]interface{}) string {
+//	Sprintf("%(name)s is Type %(type)s", map[string]any{"name": "Gotext", "type": "struct"})
+func Sprintf(format string, params map[string]any) string {
 	f, p := parseSprintf(format, params)
 	return fmt.Sprintf(f, p...)
 }
 
-func parseSprintf(format string, params map[string]interface{}) (string, []interface{}) {
+func parseSprintf(format string, params map[string]any) (string, []any) {
 	f, n := reformatSprintf(format)
-	var p []interface{}
+	var p []any
 	for _, v := range n {
 		p = append(p, params[v])
 	}

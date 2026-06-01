@@ -103,12 +103,12 @@ func (po *Po) Set(id, str string) {
 }
 
 // Get translation
-func (po *Po) Get(str string, vars ...interface{}) string {
+func (po *Po) Get(str string, vars ...any) string {
 	return po.domain.Get(str, vars...)
 }
 
 // Append translation
-func (po *Po) Append(b []byte, str string, vars ...interface{}) []byte {
+func (po *Po) Append(b []byte, str string, vars ...any) []byte {
 	return po.domain.Append(b, str, vars...)
 }
 
@@ -118,12 +118,12 @@ func (po *Po) SetN(id, plural string, n int, str string) {
 }
 
 // GetN gets the plural translation
-func (po *Po) GetN(str, plural string, n int, vars ...interface{}) string {
+func (po *Po) GetN(str, plural string, n int, vars ...any) string {
 	return po.domain.GetN(str, plural, n, vars...)
 }
 
 // AppendN appends the plural translation
-func (po *Po) AppendN(b []byte, str, plural string, n int, vars ...interface{}) []byte {
+func (po *Po) AppendN(b []byte, str, plural string, n int, vars ...any) []byte {
 	return po.domain.AppendN(b, str, plural, n, vars...)
 }
 
@@ -133,12 +133,12 @@ func (po *Po) SetC(id, ctx, str string) {
 }
 
 // GetC gets the translation for a given context
-func (po *Po) GetC(str, ctx string, vars ...interface{}) string {
+func (po *Po) GetC(str, ctx string, vars ...any) string {
 	return po.domain.GetC(str, ctx, vars...)
 }
 
 // AppendC appends the translation for a given context
-func (po *Po) AppendC(b []byte, str, ctx string, vars ...interface{}) []byte {
+func (po *Po) AppendC(b []byte, str, ctx string, vars ...any) []byte {
 	return po.domain.AppendC(b, str, ctx, vars...)
 }
 
@@ -148,12 +148,12 @@ func (po *Po) SetNC(id, plural, ctx string, n int, str string) {
 }
 
 // GetNC gets the plural translation for a given context
-func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+func (po *Po) GetNC(str, plural string, n int, ctx string, vars ...any) string {
 	return po.domain.GetNC(str, plural, n, ctx, vars...)
 }
 
 // AppendNC appends the plural translation for a given context
-func (po *Po) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...interface{}) []byte {
+func (po *Po) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...any) []byte {
 	return po.domain.AppendNC(b, str, plural, n, ctx, vars...)
 }
 

@@ -230,20 +230,20 @@ func Configure(lib, lang, dom string) {
 }
 
 // Get uses the default domain globally set to return the corresponding Translation of a given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func Get(str string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func Get(str string, vars ...any) string {
 	return GetD(GetDomain(), str, vars...)
 }
 
 // GetN retrieves the (N)th plural form of Translation for the given string in the default domain.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetN(str, plural string, n int, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetN(str, plural string, n int, vars ...any) string {
 	return GetND(GetDomain(), str, plural, n, vars...)
 }
 
 // GetD returns the corresponding Translation in the given domain for a given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetD(dom, str string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetD(dom, str string, vars ...any) string {
 	// Try to load default package Locales
 	loadLocales(false)
 
@@ -265,8 +265,8 @@ func GetD(dom, str string, vars ...interface{}) string {
 }
 
 // GetND retrieves the (N)th plural form of Translation in the given domain for a given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetND(dom, str, plural string, n int, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetND(dom, str, plural string, n int, vars ...any) string {
 	// Try to load default package Locales
 	loadLocales(false)
 
@@ -288,20 +288,20 @@ func GetND(dom, str, plural string, n int, vars ...interface{}) string {
 }
 
 // GetC uses the default domain globally set to return the corresponding Translation of the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetC(str, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetC(str, ctx string, vars ...any) string {
 	return GetDC(GetDomain(), str, ctx, vars...)
 }
 
 // GetNC retrieves the (N)th plural form of Translation for the given string in the given context in the default domain.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetNC(str, plural string, n int, ctx string, vars ...any) string {
 	return GetNDC(GetDomain(), str, plural, n, ctx, vars...)
 }
 
 // GetDC returns the corresponding Translation in the given domain for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetDC(dom, str, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetDC(dom, str, ctx string, vars ...any) string {
 	// Try to load default package Locales
 	loadLocales(false)
 
@@ -320,8 +320,8 @@ func GetDC(dom, str, ctx string, vars ...interface{}) string {
 }
 
 // GetNDC retrieves the (N)th plural form of Translation in the given domain for a given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func GetNDC(dom, str, plural string, n int, ctx string, vars ...any) string {
 	// Try to load default package Locales
 	loadLocales(false)
 

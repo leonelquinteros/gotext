@@ -237,20 +237,20 @@ func (l *Locale) GetLanguage() string {
 }
 
 // Get uses a domain "default" to return the corresponding Translation of a given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) Get(str string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) Get(str string, vars ...any) string {
 	return l.GetD(l.GetDomain(), str, vars...)
 }
 
 // GetN retrieves the (N)th plural form of Translation for the given string in the "default" domain.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetN(str, plural string, n int, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetN(str, plural string, n int, vars ...any) string {
 	return l.GetND(l.GetDomain(), str, plural, n, vars...)
 }
 
 // GetD returns the corresponding Translation in the given domain for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetD(dom, str string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetD(dom, str string, vars ...any) string {
 	// Sync read
 	l.RLock()
 	defer l.RUnlock()
@@ -267,8 +267,8 @@ func (l *Locale) GetD(dom, str string, vars ...interface{}) string {
 }
 
 // GetND retrieves the (N)th plural form of Translation in the given domain for the given string.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetND(dom, str, plural string, n int, vars ...any) string {
 	// Sync read
 	l.RLock()
 	defer l.RUnlock()
@@ -289,20 +289,20 @@ func (l *Locale) GetND(dom, str, plural string, n int, vars ...interface{}) stri
 }
 
 // GetC uses a domain "default" to return the corresponding Translation of the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetC(str, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetC(str, ctx string, vars ...any) string {
 	return l.GetDC(l.GetDomain(), str, ctx, vars...)
 }
 
 // GetNC retrieves the (N)th plural form of Translation for the given string in the given context in the "default" domain.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetNC(str, plural string, n int, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetNC(str, plural string, n int, ctx string, vars ...any) string {
 	return l.GetNDC(l.GetDomain(), str, plural, n, ctx, vars...)
 }
 
 // GetDC returns the corresponding Translation in the given domain for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetDC(dom, str, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetDC(dom, str, ctx string, vars ...any) string {
 	// Sync read
 	l.RLock()
 	defer l.RUnlock()
@@ -319,8 +319,8 @@ func (l *Locale) GetDC(dom, str, ctx string, vars ...interface{}) string {
 }
 
 // GetNDC retrieves the (N)th plural form of Translation in the given domain for the given string in the given context.
-// Supports optional parameters (vars... interface{}) to be inserted on the formatted string using the fmt.Printf syntax.
-func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...interface{}) string {
+// Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
+func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...any) string {
 	// Sync read
 	l.RLock()
 	defer l.RUnlock()
