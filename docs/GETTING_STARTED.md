@@ -71,4 +71,4 @@ func main() {
 - Learn how to extract strings from your code using [xgotext](xgotext.md).
 - Explore [Plural Forms](PLURALS.md) for complex pluralization rules.
 - Follow [Best Practices](BEST_PRACTICES.md) to keep your translations maintainable.
-- See more examples in the [README](../README.md#advanced-usage).
+- See more examples in the [Advanced Usage guide](ADVANCED.md).
