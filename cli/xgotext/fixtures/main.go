@@ -74,6 +74,7 @@ func main() {
 	fmt.Println(gotext.Get(multiVar1))
 	fmt.Println(gotext.Get(multiVar2))
 	mutatedMessage := "message before mutation"
+	fmt.Println(mutatedMessage)
 	mutatedMessage = "message after mutation"
 	fmt.Println(gotext.Get(mutatedMessage))
 	dynamicDomain := os.Getenv("GOTEXT_DOMAIN")
