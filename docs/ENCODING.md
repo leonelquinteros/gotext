@@ -25,7 +25,13 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 ```
 
-When `gotext` parses these files, it respects the `charset` defined in the `Content-Type` header if possible. However, since Go strings are natively UTF-8, some older encodings may require manual handling or are implicitly converted when read.
+`gotext` does **not** perform any charset conversion. File bytes are read and treated as raw UTF-8 strings, regardless of the `charset` declared in the `Content-Type` header. If you must ship files in a legacy encoding (e.g., ISO-8859-1), convert them to UTF-8 before use — for example with `iconv`:
+
+```bash
+iconv -f ISO-8859-1 -t UTF-8 old.po > new.po
+```
+
+The same applies to `.mo` files: they must be UTF-8 encoded.
 
 ## Troubleshooting Encoding Issues
 

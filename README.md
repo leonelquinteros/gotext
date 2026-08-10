@@ -33,7 +33,7 @@
 ---
 
 ## Features
-- Native Go implementation of Gettext (no external dependencies).
+- Native Go implementation of Gettext (the core library has no external dependencies).
 - Full support for **PO and MO files**.
 - **Pluralization rules** support via GNU Gettext plural-form expressions.
 - **Message context** support (`msgctxt`).
@@ -41,7 +41,7 @@
 - Works with UTF-8 by default.
 - Integrated CLI tool (`xgotext`) for string extraction.
 - Serializable objects for caching.
-- Seamless integration with Go's `text/template` and `html/template`.
+- Plain-string results that plug directly into Go's `text/template` and `html/template` pipelines.
 
 ---
 
@@ -123,6 +123,11 @@ name := "John"
 fmt.Println(gotext.Get("Hi, my name is %s", name))
 ```
 
+### More advanced scenarios
+- **Embedded translation files** (`embed.FS`) and named `%(name)s` formatting: see the [Advanced Usage Guide](docs/ADVANCED.md).
+- **Languages fallback**: pass multiple languages to `Configure` as a colon-separated list (`gotext.Configure("/path/to/locales", "es_UY:es:en_US", "default")`).
+- **Serialization/caching** of parsed locales: `Locale.MarshalBinary` / `UnmarshalBinary`.
+
 ---
 
 ## Locales directories structure
@@ -133,8 +138,11 @@ The package expects a standard Gettext directory structure:
     /LC_MESSAGES
       default.po
   /es_ES
-    default.po
+    /LC_MESSAGES
+      default.po
 ```
+Translation files can live either inside an `LC_MESSAGES` subdirectory or directly under the language code (`/es_ES/default.po`); both layouts are supported.
+
 It supports automatic language simplification (e.g., falling back from `en_UK` to `en`).
 
 ---

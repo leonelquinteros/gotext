@@ -23,6 +23,7 @@ nav:
       - Plural Forms: PLURALS.md
       - xgotext CLI: xgotext.md
       - Character Encoding: ENCODING.md
+      - Advanced Usage: ADVANCED.md
       - Best Practices: BEST_PRACTICES.md
   - API Reference: https://pkg.go.dev/github.com/leonelquinteros/gotext
   - Contributing:
