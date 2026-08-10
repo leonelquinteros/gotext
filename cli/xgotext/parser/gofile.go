@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"log"
@@ -131,32 +132,7 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 	// convert args
 	args := make([]*ast.BasicLit, len(n.Args))
 	for idx, arg := range n.Args {
-		args[idx] = nil // create default value
-		basicLit, ok := arg.(*ast.BasicLit)
-		if ok {
-			args[idx] = basicLit
-			continue
-		}
-
-		ident, ok := arg.(*ast.Ident)
-		if !ok || ident.Obj == nil {
-			continue
-		}
-
-		var exprList []ast.Expr
-		switch decl := ident.Obj.Decl.(type) {
-		case *ast.AssignStmt:
-			exprList = decl.Rhs
-		case *ast.ValueSpec:
-			exprList = decl.Values
-		}
-
-		for _, e := range exprList {
-			if bl, ok := e.(*ast.BasicLit); ok && bl.Kind == token.STRING {
-				args[idx] = bl
-				break
-			}
-		}
+		args[idx] = g.resolveStringLiteral(arg, n.Pos(), make(map[types.Object]bool))
 	}
 
 	// get position
@@ -180,37 +156,162 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 	// get domain
 	var domain string
 	if def.Domain != -1 {
-		domain, _ = strconv.Unquote(args[def.Domain].Value)
+		var ok bool
+		domain, ok = getStringArgument(args, def.Domain, "domain", pos)
+		if !ok {
+			return
+		}
 	}
 
 	// only handle function calls with strings as ID
-	if args[def.ID] == nil || args[def.ID].Kind != token.STRING {
-		log.Printf("ERR: Unsupported call at %s (ID not a string)", pos)
+	msgID, ok := getStringArgument(args, def.ID, "ID", pos)
+	if !ok {
 		return
 	}
 
-	msgID, _ := strconv.Unquote(args[def.ID].Value)
 	trans := Translation{
 		MsgID:           msgID,
 		SourceLocations: []string{pos},
 	}
 	if def.Plural > 0 {
 		// plural ID must be a string
-		if args[def.Plural] == nil || args[def.Plural].Kind != token.STRING {
-			log.Printf("ERR: Unsupported call at %s (Plural not a string)", pos)
+		msgIDPlural, ok := getStringArgument(args, def.Plural, "plural", pos)
+		if !ok {
 			return
 		}
-		msgIDPlural, _ := strconv.Unquote(args[def.Plural].Value)
 		trans.MsgIDPlural = msgIDPlural
 	}
 	if def.Context > 0 {
 		// Context must be a string
-		if args[def.Context] == nil || args[def.Context].Kind != token.STRING {
-			log.Printf("ERR: Unsupported call at %s (Context not a string)", pos)
+		if !isStringArgument(args, def.Context, "context", pos) {
 			return
 		}
 		trans.Context = args[def.Context].Value
 	}
 
 	g.Data.AddTranslation(domain, &trans)
+}
+
+func getStringArgument(args []*ast.BasicLit, index int, name, pos string) (string, bool) {
+	if !isStringArgument(args, index, name, pos) {
+		return "", false
+	}
+
+	value, err := strconv.Unquote(args[index].Value)
+	if err != nil {
+		log.Printf("ERR: Unsupported call at %s (%s is not a valid string)", pos, name)
+		return "", false
+	}
+	return value, true
+}
+
+func isStringArgument(args []*ast.BasicLit, index int, name, pos string) bool {
+	if index < 0 || index >= len(args) || args[index] == nil || args[index].Kind != token.STRING {
+		log.Printf("ERR: Unsupported call at %s (%s is not a string)", pos, name)
+		return false
+	}
+	return true
+}
+
+func (g *GoFile) resolveStringLiteral(expr ast.Expr, before token.Pos, resolving map[types.Object]bool) *ast.BasicLit {
+	if literal, ok := expr.(*ast.BasicLit); ok && literal.Kind == token.STRING {
+		return literal
+	}
+
+	if literal := g.constantStringLiteral(expr); literal != nil {
+		return literal
+	}
+
+	ident, ok := expr.(*ast.Ident)
+	if !ok || ident.Obj == nil {
+		return nil
+	}
+	object := g.getObject(ident)
+	if object != nil {
+		if resolving[object] || g.isMutatedBefore(object, before) {
+			return nil
+		}
+		resolving[object] = true
+		defer delete(resolving, object)
+	}
+
+	switch decl := ident.Obj.Decl.(type) {
+	case *ast.ValueSpec:
+		for i, name := range decl.Names {
+			if name.Name == ident.Name && i < len(decl.Values) {
+				return g.resolveStringLiteral(decl.Values[i], decl.Pos(), resolving)
+			}
+		}
+	case *ast.AssignStmt:
+		for i, lhs := range decl.Lhs {
+			if id, ok := lhs.(*ast.Ident); ok && id.Name == ident.Name && i < len(decl.Rhs) {
+				return g.resolveStringLiteral(decl.Rhs[i], decl.Pos(), resolving)
+			}
+		}
+	}
+	return nil
+}
+
+// getLiteralFromIdent resolves a declaration without package type information.
+// It is retained for focused AST tests; production extraction uses resolveStringLiteral.
+func getLiteralFromIdent(ident *ast.Ident) *ast.BasicLit {
+	return (&GoFile{}).resolveStringLiteral(ident, token.NoPos, make(map[types.Object]bool))
+}
+
+func (g *GoFile) constantStringLiteral(expr ast.Expr) *ast.BasicLit {
+	for _, pkg := range g.ImportedPackages {
+		if pkg.TypesInfo == nil {
+			continue
+		}
+		if value, ok := pkg.TypesInfo.Types[expr]; ok && value.Value != nil && value.Value.Kind() == constant.String {
+			return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(constant.StringVal(value.Value))}
+		}
+	}
+	return nil
+}
+
+func (g *GoFile) getObject(ident *ast.Ident) types.Object {
+	for _, pkg := range g.ImportedPackages {
+		if pkg.TypesInfo == nil {
+			continue
+		}
+		if object := pkg.TypesInfo.Uses[ident]; object != nil {
+			return object
+		}
+	}
+	return nil
+}
+
+// isMutatedBefore reports whether a variable has been assigned a new value before its use.
+func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
+	if _, ok := object.(*types.Var); !ok {
+		return false
+	}
+
+	for _, pkg := range g.ImportedPackages {
+		if pkg.TypesInfo == nil {
+			continue
+		}
+		for _, file := range pkg.Syntax {
+			mutated := false
+			ast.Inspect(file, func(node ast.Node) bool {
+				assign, ok := node.(*ast.AssignStmt)
+				if !ok || assign.Pos() >= before {
+					return true
+				}
+				for _, lhs := range assign.Lhs {
+					ident, ok := lhs.(*ast.Ident)
+					if ok && pkg.TypesInfo.Uses[ident] == object {
+						mutated = true
+						return false
+					}
+				}
+				return true
+			})
+			if mutated {
+				return true
+			}
+		}
+	}
+	return false
 }

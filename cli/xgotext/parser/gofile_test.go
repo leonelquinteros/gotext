@@ -94,6 +94,10 @@ func TestGoFile_ParseGetter_Errors(t *testing.T) {
 		{Kind: token.INT, Value: "123"},
 	}
 	g.ParseGetter(defGet, args2, "file.go:20")
+
+	// Missing or unsupported arguments must not cause an index-out-of-range panic.
+	g.ParseGetter(defGet, nil, "file.go:30")
+	g.ParseGetter(gotextGetter["GetD"], []*ast.BasicLit{nil}, "file.go:40")
 }
 
 func TestGetLiteralFromIdent(t *testing.T) {
