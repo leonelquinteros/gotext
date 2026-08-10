@@ -94,5 +94,54 @@ func TestGoFile_ParseGetter_Errors(t *testing.T) {
 		{Kind: token.INT, Value: "123"},
 	}
 	g.ParseGetter(defGet, args2, "file.go:20")
+
+	// Missing or unsupported arguments must not cause an index-out-of-range panic.
+	g.ParseGetter(defGet, nil, "file.go:30")
+	g.ParseGetter(gotextGetter["GetD"], []*ast.BasicLit{nil}, "file.go:40")
 }
 
+func TestGetLiteralFromIdent(t *testing.T) {
+	// ValueSpec multi-var: const (A = "valA"; B = "valB")
+	valA := &ast.BasicLit{Kind: token.STRING, Value: `"valA"`}
+	valB := &ast.BasicLit{Kind: token.STRING, Value: `"valB"`}
+	identA := &ast.Ident{Name: "A"}
+	identB := &ast.Ident{Name: "B"}
+	spec := &ast.ValueSpec{
+		Names:  []*ast.Ident{identA, identB},
+		Values: []ast.Expr{valA, valB},
+	}
+	identA.Obj = &ast.Object{Decl: spec} //nolint:staticcheck
+	identB.Obj = &ast.Object{Decl: spec} //nolint:staticcheck
+
+	litA := getLiteralFromIdent(identA)
+	if litA == nil || litA.Value != `"valA"` {
+		t.Errorf("expected valA, got %v", litA)
+	}
+
+	litB := getLiteralFromIdent(identB)
+	if litB == nil || litB.Value != `"valB"` {
+		t.Errorf("expected valB, got %v", litB)
+	}
+
+	// AssignStmt multi-var: x, y := "valX", "valY"
+	valX := &ast.BasicLit{Kind: token.STRING, Value: `"valX"`}
+	valY := &ast.BasicLit{Kind: token.STRING, Value: `"valY"`}
+	identX := &ast.Ident{Name: "x"}
+	identY := &ast.Ident{Name: "y"}
+	assign := &ast.AssignStmt{
+		Lhs: []ast.Expr{identX, identY},
+		Rhs: []ast.Expr{valX, valY},
+	}
+	identX.Obj = &ast.Object{Decl: assign} //nolint:staticcheck
+	identY.Obj = &ast.Object{Decl: assign} //nolint:staticcheck
+
+	litX := getLiteralFromIdent(identX)
+	if litX == nil || litX.Value != `"valX"` {
+		t.Errorf("expected valX, got %v", litX)
+	}
+
+	litY := getLiteralFromIdent(identY)
+	if litY == nil || litY.Value != `"valY"` {
+		t.Errorf("expected valY, got %v", litY)
+	}
+}

@@ -1,36 +1,80 @@
 # xgotext CLI Tool
 
-`xgotext` is a command-line tool designed to help you extract translatable strings from your Go source code and generate or update Gettext PO files.
+`xgotext` extracts translatable strings from Go source code and writes Gettext template (`.pot`) files. It recognizes the getters provided by this module, including calls through imported-package aliases and `gotext.Translator` implementations.
 
-## 1. Installation
-
-Install `xgotext` using `go install`:
+## Installation
 
 ```bash
 go install github.com/leonelquinteros/gotext/cli/xgotext@latest
 ```
 
-## 2. Usage
+## Basic usage
 
-To extract strings from your project and create a new PO file:
+Use `-in` to recursively scan one directory tree. One `.pot` file is created per domain in the output directory.
 
 ```bash
-xgotext -p . -o locales/en_US/default.po
+xgotext -in . -out locales/templates -default default
 ```
 
-### Options:
-- `-p <path>`: The directory path to scan for Go files (default: current directory).
-- `-o <output>`: The output path for the generated PO file.
-- `-d <domain>`: The domain to extract (default: "default").
-- `-k <keyword>`: Add custom keywords to look for (default: `Get`, `GetD`, `GetN`, `GetND`, `GetC`, `GetDC`, `GetNC`, `GetNDC`).
+Use `-pkg-tree` when the target is a Go package and its dependencies should also be considered:
 
-### 3. Example Workflow
+```bash
+xgotext -pkg-tree . -out locales/templates
+```
 
-1.  **Write your Go code** using `gotext.Get("Hello!")`.
-2.  **Run `xgotext`** to generate the initial `en_US/default.po` file.
-3.  **Translate** the PO file into other languages (e.g., `es_AR/default.po`).
-4.  **Update** your translations later as your code changes by re-running `xgotext` with the same output path.
+Exactly one of `-in` and `-pkg-tree` is required.
 
-## 4. How it works
+### Options
 
-`xgotext` parses your Go files looking for function calls that match the default keywords or any custom ones you've specified. It then collects all unique `msgid` and `msgctxt` pairs and writes them to the specified output file, preserving any existing translations if the file already exists.
+| Option | Description |
+| --- | --- |
+| `-in <directory>` | Recursively scan a source directory. |
+| `-pkg-tree <directory>` | Scan a Go package tree, including packages that import gotext. |
+| `-out <directory>` | Directory in which to create `<domain>.pot` files. Required. |
+| `-default <domain>` | Name used for calls without an explicit domain. Defaults to `default`. |
+| `-exclude <directories>` | Comma-separated directory prefixes to skip in `-in` mode. Defaults to `.git`. |
+| `-v` | Print paths/packages while they are processed. |
+
+## Supported calls
+
+The extractor supports `Get`, `GetN`, `GetD`, `GetND`, `GetC`, `GetNC`, `GetDC`, and `GetNDC` on the gotext package, locales, PO objects, and `Translator` values. It extracts the string-valued arguments: message ID, plural ID, domain, and context. Numeric plural counts may remain dynamic.
+
+```go
+gotext.Get("Save")
+gotext.GetN("%d file", "%d files", count)
+gotext.GetD("errors", "Unable to save")
+gotext.GetC("Open", "menu action")
+```
+
+## Constants and variables
+
+String constants are supported, including aliases and constant expressions. Variables are supported when their declaration-time value is statically resolvable and the variable is not assigned a new value before the getter call.
+
+```go
+const saveLabel = "Save"
+const menuContext = "menu action"
+
+var cancelLabel = "Cancel"
+
+gotext.Get(saveLabel)
+gotext.GetC(cancelLabel, menuContext)
+```
+
+For correctness, xgotext deliberately skips a mutable variable after it has been reassigned. For example, this does **not** extract either value:
+
+```go
+label := "Before"
+label = "After"
+gotext.Get(label)
+```
+
+Calls with dynamic strings—such as values returned from functions, environment variables, maps, or user input—are skipped. Use a constant or an unreassigned, literal-initialized variable when a message must be extracted.
+
+## Workflow
+
+1. Write your messages using gotext getters.
+2. Run xgotext to create/update the `.pot` templates.
+3. Create language-specific `.po` files from those templates and translate them.
+4. Re-run xgotext as source messages change, then merge the updated templates with your translation workflow.
+
+`xgotext` records source locations and de-duplicates matching messages within a domain/context.

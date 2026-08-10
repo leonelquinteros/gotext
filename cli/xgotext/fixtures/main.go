@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/leonelquinteros/gotext"       //nolint:staticcheck
 	alias "github.com/leonelquinteros/gotext" //nolint:staticcheck
@@ -12,6 +13,24 @@ import (
 // Fake object with methods similar to gotext
 type Fake struct {
 }
+
+const (
+	ConstantTesting = "this is constant testing"
+	MultiConst1     = "this is multi const 1"
+	MultiConst2     = "this is multi const 2"
+	DomainConst     = "constants"
+	MessageConst    = "message from a constant"
+	PluralSingular  = "singular from a constant"
+	Plural          = "plural from a constant"
+	ContextMessage  = "message with a constant context"
+	Context         = "constant context"
+	AliasMessage    = MessageConst
+	ConcatMessage   = "concatenated" + " constant"
+)
+
+var (
+	variableTesting = "this is variable testing"
+)
 
 // Get by id
 func (f Fake) Get(id int) int {
@@ -38,6 +57,28 @@ var NL = func() *gotext.Locale {
 func main() {
 	// Configure package
 	gotext.Configure("/path/to/locales/root/dir", "en_UK", "domain-name")
+
+	// constant testing
+	fmt.Println(gotext.Get(ConstantTesting))
+	fmt.Println(gotext.Get(MultiConst1))
+	fmt.Println(gotext.Get(MultiConst2))
+	fmt.Println(gotext.Get(AliasMessage))
+	fmt.Println(gotext.Get(ConcatMessage))
+	fmt.Println(gotext.GetD(DomainConst, MessageConst))
+	fmt.Println(gotext.GetN(PluralSingular, Plural, 2))
+	fmt.Println(gotext.GetC(ContextMessage, Context))
+
+	// variable testing
+	fmt.Println(gotext.Get(variableTesting))
+	multiVar1, multiVar2 := "this is multi var 1", "this is multi var 2"
+	fmt.Println(gotext.Get(multiVar1))
+	fmt.Println(gotext.Get(multiVar2))
+	mutatedMessage := "message before mutation"
+	fmt.Println(mutatedMessage)
+	mutatedMessage = "message after mutation"
+	fmt.Println(gotext.Get(mutatedMessage))
+	dynamicDomain := os.Getenv("GOTEXT_DOMAIN")
+	fmt.Println(gotext.GetD(dynamicDomain, "message with a dynamic domain"))
 
 	// Translate text from default domain
 	fmt.Println(gotext.Get("My text on 'domain-name' domain"))
