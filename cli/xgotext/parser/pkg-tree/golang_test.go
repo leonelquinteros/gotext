@@ -1,8 +1,10 @@
 package pkgtree
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
@@ -73,4 +75,32 @@ EOL`, "multline\nending with EOL\n", "type alias", "locale constructor call",
 	if _, ok := data.Domains[defaultDomain].Translations["message with a dynamic domain"]; ok {
 		t.Error("dynamic domain should not be extracted")
 	}
+}
+
+func TestFormatTag(t *testing.T) {
+	defaultDomain := "default"
+	data := &parser.DomainMap{
+		Default: defaultDomain,
+	}
+	pkgPath := "testdata/format"
+	err := ParsePkgTree(pkgPath, data, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for domain, translations := range data.Domains {
+		dumpFile := filepath.Join(pkgPath, fmt.Sprintf("%s.po", domain))
+		expectedBytes, err := os.ReadFile(dumpFile)
+		if err != nil {
+			t.Fatalf("reading %q: %s", dumpFile, err)
+		}
+		expected := strings.TrimSpace(string(expectedBytes))
+		actual := translations.Dump()
+		if expected != actual {
+			t.Logf("want:\n%s", expected)
+			t.Logf("got:\n%s", actual)
+			t.Errorf("domain %q dump does match", domain)
+		}
+	}
+
 }

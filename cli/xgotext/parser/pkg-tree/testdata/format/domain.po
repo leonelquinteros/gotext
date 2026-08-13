@@ -1,0 +1,47 @@
+#: testdata/format/main.go:22
+msgid "simple"
+msgstr ""
+
+#: testdata/format/main.go:12
+#, go-format
+msgid "simple %s"
+msgstr ""
+
+#: testdata/format/main.go:26
+msgid "singular"
+msgid_plural "plural"
+msgstr[0] ""
+msgstr[1] ""
+
+#: testdata/format/main.go:16
+#, go-format
+msgid "singular %s"
+msgid_plural "plural %s"
+msgstr[0] ""
+msgstr[1] ""
+
+#: testdata/format/main.go:24
+msgctxt "ctx"
+msgid "simple"
+msgstr ""
+
+#: testdata/format/main.go:14
+#, go-format
+msgctxt "ctx"
+msgid "simple %s"
+msgstr ""
+
+#: testdata/format/main.go:28
+msgctxt "ctx"
+msgid "singular"
+msgid_plural "plural"
+msgstr[0] ""
+msgstr[1] ""
+
+#: testdata/format/main.go:18
+#, go-format
+msgctxt "ctx"
+msgid "singular %s"
+msgid_plural "plural %s"
+msgstr[0] ""
+msgstr[1] ""
