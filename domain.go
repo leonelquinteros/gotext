@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -786,7 +785,18 @@ func (do *Domain) MarshalText() ([]byte, error) {
 
 // EscapeSpecialCharacters escapes special characters in a string
 func EscapeSpecialCharacters(s string) string {
-	s = regexp.MustCompile(`([^\\])(")`).ReplaceAllString(s, "$1\\\"") // Escape non-escaped double quotation marks
+	// Escape non-escaped double quotation marks
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '"' && (i == 0 || s[i-1] != '\\') {
+			b.WriteString(`\"`)
+		} else {
+			b.WriteByte(c)
+		}
+	}
+	s = b.String()
 
 	if strings.Count(s, "\n") == 0 {
 		return s

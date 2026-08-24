@@ -352,3 +352,35 @@ func TestDomain_SetPluralResolver(t *testing.T) {
 		t.Error("Custom plural resolver failed")
 	}
 }
+
+func TestEscapeSpecialCharacters(t *testing.T) {
+	// Plain string is unchanged.
+	s := EscapeSpecialCharacters("hello world")
+	if s != "hello world" {
+		t.Errorf("Expected 'hello world' but got '%s'", s)
+	}
+
+	// A double quotation mark is escaped.
+	s = EscapeSpecialCharacters(`say "hi" now`)
+	if s != `say \"hi\" now` {
+		t.Errorf("Expected 'say \\\"hi\\\" now' but got '%s'", s)
+	}
+
+	// A double quotation mark at the start of the string is escaped.
+	s = EscapeSpecialCharacters(`"leading`)
+	if s != `\"leading` {
+		t.Errorf("Expected '\\\"leading' but got '%s'", s)
+	}
+
+	// Consecutive double quotation marks are each escaped.
+	s = EscapeSpecialCharacters(`""`)
+	if s != `\"\"` {
+		t.Errorf("Expected '\\\"\\\"' but got '%s'", s)
+	}
+
+	// A double quotation mark preceded by a backslash is left as-is.
+	s = EscapeSpecialCharacters(`say \"hi\"`)
+	if s != `say \"hi\"` {
+		t.Errorf("Expected 'say \\\"hi\\\"' but got '%s'", s)
+	}
+}
