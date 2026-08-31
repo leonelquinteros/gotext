@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -726,6 +727,48 @@ func FuzzMoRejectedCatalogDoesNotMutate(f *testing.F) {
 		}
 		if got := mo.GetDomain().GetCtxTranslations(); !reflect.DeepEqual(got, wantContextTranslations) {
 			t.Fatalf("context translations changed: got %#v, want %#v", got, wantContextTranslations)
+		}
+	})
+}
+
+func FuzzMoSharedTranslationPayload(f *testing.F) {
+	f.Add("shared translation", uint8(0))
+	f.Add("geteilte Übersetzung", uint8(1))
+
+	f.Fuzz(func(t *testing.T, suffix string, mode uint8) {
+		if len(suffix) > 64<<10 || strings.IndexByte(suffix, 0) >= 0 {
+			return
+		}
+
+		var order binary.ByteOrder = binary.LittleEndian
+		if mode&1 != 0 {
+			order = binary.BigEndian
+		}
+		shared := []byte("shared:" + suffix)
+		buf := makeMoFixture(
+			order,
+			moFixtureEntry{msgid: []byte("first"), msgstr: shared},
+			moFixtureEntry{msgid: []byte("second"), msgstr: []byte("unused")},
+		)
+
+		const (
+			firstTranslationDescriptor  = 44
+			secondTranslationDescriptor = 52
+		)
+		copy(
+			buf[secondTranslationDescriptor:secondTranslationDescriptor+8],
+			buf[firstTranslationDescriptor:firstTranslationDescriptor+8],
+		)
+
+		mo := NewMo()
+		mo.Parse(buf)
+
+		want := string(shared)
+		if got := mo.Get("first"); got != want {
+			t.Fatalf("first translation = %q, want %q", got, want)
+		}
+		if got := mo.Get("second"); got != want {
+			t.Fatalf("shared translation = %q, want %q", got, want)
 		}
 	})
 }
