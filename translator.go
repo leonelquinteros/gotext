@@ -65,6 +65,9 @@ type TranslatorEncoding struct {
 // deserialize into a Po-compatible object.
 func (te *TranslatorEncoding) GetTranslator() Translator {
 	po := NewPo()
+	if te == nil {
+		return po
+	}
 
 	headers := te.Headers
 	if headers == nil {
@@ -74,9 +77,29 @@ func (te *TranslatorEncoding) GetTranslator() Translator {
 	if translations == nil {
 		translations = make(map[string]*Translation)
 	}
+	for id, translation := range translations {
+		if translation == nil {
+			translation = NewTranslation()
+			translation.ID = id
+			translations[id] = translation
+		}
+	}
 	contexts := te.Contexts
 	if contexts == nil {
 		contexts = make(map[string]map[string]*Translation)
+	}
+	for context, translationsForContext := range contexts {
+		if translationsForContext == nil {
+			contexts[context] = make(map[string]*Translation)
+			continue
+		}
+		for id, translation := range translationsForContext {
+			if translation == nil {
+				translation = NewTranslation()
+				translation.ID = id
+				translationsForContext[id] = translation
+			}
+		}
 	}
 
 	po.domain.Headers = headers

@@ -9,13 +9,78 @@ import (
 	"bytes"
 	"embed"
 	"encoding/gob"
+	"errors"
 	"os"
 	"path"
 	"reflect"
 	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 )
+
+type reentrantTranslator struct {
+	locale     *Locale
+	po         *Po
+	marshalErr error
+}
+
+func newReentrantTranslator(locale *Locale) *reentrantTranslator {
+	po := NewPo()
+	po.Set("message", "translated")
+	return &reentrantTranslator{locale: locale, po: po}
+}
+
+func (tr *reentrantTranslator) mutateLocale() {
+	if tr.locale != nil {
+		tr.locale.SetDomain("reentrant")
+	}
+}
+
+func (tr *reentrantTranslator) ParseFile(f string) {
+	tr.po.ParseFile(f)
+}
+
+func (tr *reentrantTranslator) Parse(data []byte) {
+	tr.po.Parse(data)
+}
+
+func (tr *reentrantTranslator) Get(str string, vars ...any) string {
+	tr.mutateLocale()
+	return tr.po.Get(str, vars...)
+}
+
+func (tr *reentrantTranslator) GetN(str, plural string, n int, vars ...any) string {
+	tr.mutateLocale()
+	return tr.po.GetN(str, plural, n, vars...)
+}
+
+func (tr *reentrantTranslator) GetC(str, ctx string, vars ...any) string {
+	tr.mutateLocale()
+	return tr.po.GetC(str, ctx, vars...)
+}
+
+func (tr *reentrantTranslator) GetNC(str, plural string, n int, ctx string, vars ...any) string {
+	tr.mutateLocale()
+	return tr.po.GetNC(str, plural, n, ctx, vars...)
+}
+
+func (tr *reentrantTranslator) MarshalBinary() ([]byte, error) {
+	tr.mutateLocale()
+	if tr.marshalErr != nil {
+		return nil, tr.marshalErr
+	}
+	return tr.po.MarshalBinary()
+}
+
+func (tr *reentrantTranslator) UnmarshalBinary(data []byte) error {
+	return tr.po.UnmarshalBinary(data)
+}
+
+func (tr *reentrantTranslator) GetDomain() *Domain {
+	tr.mutateLocale()
+	return tr.po.GetDomain()
+}
 
 func TestLocale(t *testing.T) {
 	// Set PO content
@@ -796,6 +861,91 @@ func TestLocale_MissingIsTranslatedWrappers(t *testing.T) {
 		t.Error("Expected false for missing domain")
 	}
 }
+func TestLocaleTranslatorCallsReleaseLock(t *testing.T) {
+	locale := NewLocale("", "en")
+	translator := newReentrantTranslator(locale)
+	locale.AddTranslator("default", translator)
+
+	calls := []struct {
+		name string
+		call func()
+	}{
+		{name: "Get", call: func() { _ = locale.Get("message") }},
+		{name: "GetN", call: func() { _ = locale.GetN("message", "messages", 2) }},
+		{name: "GetC", call: func() { _ = locale.GetC("message", "context") }},
+		{name: "GetNC", call: func() { _ = locale.GetNC("message", "messages", 2, "context") }},
+		{name: "GetD", call: func() { _ = locale.GetD("default", "message") }},
+		{name: "GetND", call: func() { _ = locale.GetND("default", "message", "messages", 2) }},
+		{name: "GetDC", call: func() { _ = locale.GetDC("default", "message", "context") }},
+		{name: "GetNDC", call: func() { _ = locale.GetNDC("default", "message", "messages", 2, "context") }},
+		{name: "IsTranslatedND", call: func() { _ = locale.IsTranslatedND("default", "message", 0) }},
+		{name: "IsTranslatedNDC", call: func() { _ = locale.IsTranslatedNDC("default", "message", 0, "context") }},
+		{name: "GetTranslations", call: func() { _ = locale.GetTranslations() }},
+		{name: "MarshalBinary", call: func() { _, _ = locale.MarshalBinary() }},
+	}
+
+	for _, tt := range calls {
+		t.Run(tt.name, func(t *testing.T) {
+			locale.SetDomain("default")
+			done := make(chan struct{})
+			go func() {
+				tt.call()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("Locale call deadlocked while translator mutated its Locale")
+			}
+		})
+	}
+
+	if got := locale.GetDomain(); got != "reentrant" {
+		t.Errorf("reentrant translator did not mutate Locale: got domain %q", got)
+	}
+}
+
+func TestLocaleMarshalBinaryPropagatesTranslatorError(t *testing.T) {
+	sentinel := errors.New("sentinel marshal error")
+	locale := NewLocale("", "en")
+	translator := newReentrantTranslator(locale)
+	translator.marshalErr = sentinel
+	locale.AddTranslator("default", translator)
+
+	if _, err := locale.MarshalBinary(); !errors.Is(err, sentinel) {
+		t.Fatalf("MarshalBinary error = %v, want sentinel %v", err, sentinel)
+	}
+}
+func TestLocaleNilTranslatorIsSafe(t *testing.T) {
+	locale := NewLocale("", "en")
+	locale.AddTranslator("nil", nil)
+
+	if got := locale.GetD("nil", "source"); got != "source" {
+		t.Errorf("GetD with nil translator = %q, want %q", got, "source")
+	}
+	if got := locale.GetND("nil", "one", "many", 2); got != "many" {
+		t.Errorf("GetND with nil translator = %q, want %q", got, "many")
+	}
+	if got := locale.GetDC("nil", "source", "context"); got != "source" {
+		t.Errorf("GetDC with nil translator = %q, want %q", got, "source")
+	}
+	if got := locale.GetNDC("nil", "one", "many", 2, "context"); got != "many" {
+		t.Errorf("GetNDC with nil translator = %q, want %q", got, "many")
+	}
+	if locale.IsTranslatedND("nil", "source", 0) {
+		t.Error("IsTranslatedND with nil translator should be false")
+	}
+	if locale.IsTranslatedNDC("nil", "source", 0, "context") {
+		t.Error("IsTranslatedNDC with nil translator should be false")
+	}
+	if got := locale.GetTranslations(); got == nil {
+		t.Error("GetTranslations with nil translator returned nil")
+	}
+	if _, err := locale.MarshalBinary(); err != nil {
+		t.Fatalf("MarshalBinary with nil translator failed: %v", err)
+	}
+}
 
 func TestLocaleBinaryEncodingRestoresPluralForms(t *testing.T) {
 	const (
@@ -1020,6 +1170,50 @@ msgstr "parsed translation"
 		})
 	}
 }
+func TestTranslatorEncodingNormalizesNilEntries(t *testing.T) {
+	ordinary := map[string]*Translation{
+		"ordinary": nil,
+	}
+	contexts := map[string]map[string]*Translation{
+		"nil-context": nil,
+		"context": {
+			"contextual": nil,
+		},
+	}
+	encoding := &TranslatorEncoding{
+		Translations: ordinary,
+		Contexts:     contexts,
+	}
+
+	po, ok := encoding.GetTranslator().(*Po)
+	if !ok {
+		t.Fatalf("GetTranslator() returned %T, want *Po", encoding.GetTranslator())
+	}
+
+	if ordinary["ordinary"] == nil {
+		t.Fatal("ordinary nil entry was not normalized in the caller-owned map")
+	}
+	if got := po.Get("ordinary"); got != "ordinary" {
+		t.Errorf("normalized ordinary entry = %q, want %q", got, "ordinary")
+	}
+	if contexts["nil-context"] == nil {
+		t.Fatal("nil context map was not normalized in the caller-owned map")
+	}
+	if contexts["context"]["contextual"] == nil {
+		t.Fatal("nil contextual entry was not normalized in the caller-owned map")
+	}
+	if got := po.GetC("contextual", "context"); got != "contextual" {
+		t.Errorf("normalized contextual entry = %q, want %q", got, "contextual")
+	}
+
+	transferred := NewTranslation()
+	transferred.ID = "transferred"
+	transferred.Set("transferred value")
+	ordinary["transferred"] = transferred
+	if got := po.Get("transferred"); got != "transferred value" {
+		t.Errorf("non-nil translation map was not transferred by ownership: got %q", got)
+	}
+}
 
 func TestLocaleBinaryEncodingKeepsStateOnDomainDecodeError(t *testing.T) {
 	filesystem := fstest.MapFS{}
@@ -1113,4 +1307,119 @@ func TestLocaleBinaryEncodingRace(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+func FuzzDomainUnmarshalBinaryAtomicAndUsable(f *testing.F) {
+	seed := NewDomain()
+	seed.Set("seed", "value")
+	valid, err := seed.MarshalBinary()
+	if err != nil {
+		f.Fatalf("MarshalBinary seed: %v", err)
+	}
+	f.Add(valid)
+	f.Add([]byte("not gob"))
+	f.Add([]byte{})
+	f.Add([]byte{0, 1, 2, 3})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) > 64<<10 {
+			return
+		}
+
+		domain := NewDomain()
+		domain.Set("sentinel", "before")
+
+		var unmarshalErr error
+		panicked := false
+		func() {
+			defer func() {
+				if recover() != nil {
+					panicked = true
+				}
+			}()
+			unmarshalErr = domain.UnmarshalBinary(data)
+		}()
+		if panicked {
+			t.Fatal("UnmarshalBinary panicked")
+		}
+
+		if unmarshalErr != nil {
+			if got := domain.Get("sentinel"); got != "before" {
+				t.Fatalf("failed decode changed existing state: got %q, want %q", got, "before")
+			}
+			return
+		}
+
+		if domain.GetTranslations() == nil {
+			t.Fatal("successful decode left ordinary translations unusable")
+		}
+		if domain.GetCtxTranslations() == nil {
+			t.Fatal("successful decode left contextual translations unusable")
+		}
+		_ = domain.Get("sentinel")
+		_ = domain.GetN("sentinel", "sentinels", 2)
+		_ = domain.GetC("sentinel", "context")
+		_ = domain.GetNC("sentinel", "sentinels", 2, "context")
+	})
+}
+
+func FuzzLocaleUnmarshalBinaryAtomicAndUsable(f *testing.F) {
+	seed := NewLocale("", "en")
+	seed.AddTranslator("default", NewPo())
+	valid, err := seed.MarshalBinary()
+	if err != nil {
+		f.Fatalf("MarshalBinary seed: %v", err)
+	}
+	f.Add(valid)
+	f.Add([]byte("not gob"))
+	f.Add([]byte{})
+	f.Add([]byte{0, 1, 2, 3})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) > 64<<10 {
+			return
+		}
+
+		locale := NewLocaleFSWithPath("old", fstest.MapFS{}, "old/path")
+		oldTranslator := NewPo()
+		oldTranslator.Set("sentinel", "before")
+		locale.AddTranslator("old", oldTranslator)
+		locale.SetDomain("old")
+
+		var unmarshalErr error
+		panicked := false
+		func() {
+			defer func() {
+				if recover() != nil {
+					panicked = true
+				}
+			}()
+			unmarshalErr = locale.UnmarshalBinary(data)
+		}()
+		if panicked {
+			t.Fatal("UnmarshalBinary panicked")
+		}
+
+		if unmarshalErr != nil {
+			if locale.path != "old/path" || locale.GetLanguage() != "old" || locale.GetDomain() != "old" {
+				t.Fatal("failed decode changed locale configuration")
+			}
+			if locale.fs == nil {
+				t.Fatal("failed decode cleared the filesystem")
+			}
+			if got, ok := locale.Domains["old"]; !ok || got != oldTranslator {
+				t.Fatal("failed decode changed existing domains")
+			}
+			return
+		}
+
+		if locale.GetTranslations() == nil {
+			t.Fatal("successful decode left locale translations unusable")
+		}
+		_ = locale.GetDomain()
+		_ = locale.GetLanguage()
+		_ = locale.Get("sentinel")
+		_ = locale.GetN("sentinel", "sentinels", 2)
+		_ = locale.GetC("sentinel", "context")
+		_ = locale.GetNC("sentinel", "sentinels", 2, "context")
+	})
 }

@@ -1,11 +1,15 @@
 package pkgtree
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
+
+	"golang.org/x/tools/go/packages"
 )
 
 func TestParsePkgTree(t *testing.T) {
@@ -73,4 +77,132 @@ EOL`, "multline\nending with EOL\n", "type alias", "locale constructor call",
 	if _, ok := data.Domains[defaultDomain].Translations["message with a dynamic domain"]; ok {
 		t.Error("dynamic domain should not be extracted")
 	}
+}
+
+func TestLoadPackageReturnsErrorForEmptyResults(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	if _, err := loadPackage(missing); err == nil {
+		t.Fatal("loadPackage unexpectedly succeeded without a package")
+	}
+}
+
+func TestLoadPackageReturnsPackageDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/broken\n\ngo 1.27\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "broken.go"), []byte("package broken\n\nfunc broken(\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := loadPackage(root); err == nil {
+		t.Fatal("loadPackage unexpectedly ignored package diagnostics")
+	}
+}
+
+func TestFilterPkgsCacheScope(t *testing.T) {
+	const gotextID = "github.com/leonelquinteros/gotext"
+	firstGotext := &packages.Package{ID: gotextID}
+	first := &packages.Package{
+		ID: "example.com/first",
+		Imports: map[string]*packages.Package{
+			gotextID: firstGotext,
+		},
+	}
+	secondGotext := &packages.Package{ID: gotextID}
+	second := &packages.Package{
+		ID: "example.com/second",
+		Imports: map[string]*packages.Package{
+			gotextID: secondGotext,
+		},
+	}
+
+	if got := filterPkgs(first); len(got) != 1 || got[0] != first {
+		t.Fatalf("filterPkgs(first) = %v, want first package", got)
+	}
+	if got := filterPkgs(second); len(got) != 1 || got[0] != second {
+		t.Fatalf("filterPkgs(second) = %v, want second package", got)
+	}
+	g := &GoFile{}
+	if got, err := g.GetPackage(gotextID); err != nil || got != secondGotext {
+		t.Fatalf("cached gotext package = %v, %v; want second graph package", got, err)
+	}
+}
+
+func TestParsePkgTreeIndependentGraphs(t *testing.T) {
+	repoRoot := repositoryRoot(t)
+	firstRoot := writeTestGraph(t, repoRoot, "first graph")
+	secondRoot := writeTestGraph(t, repoRoot, "second graph")
+
+	firstData := &parser.DomainMap{Default: "default"}
+	if err := ParsePkgTree(firstRoot, firstData, false); err != nil {
+		t.Fatalf("first ParsePkgTree: %v", err)
+	}
+	if !hasTestTranslation(firstData, "first graph") {
+		t.Fatal("first graph translation was not extracted")
+	}
+
+	secondData := &parser.DomainMap{Default: "default"}
+	if err := ParsePkgTree(secondRoot, secondData, false); err != nil {
+		t.Fatalf("second ParsePkgTree: %v", err)
+	}
+	if !hasTestTranslation(secondData, "second graph") {
+		t.Fatal("second graph translation was not extracted")
+	}
+	if hasTestTranslation(secondData, "first graph") {
+		t.Fatal("second graph reused a package from the first graph")
+	}
+}
+
+func hasTestTranslation(data *parser.DomainMap, message string) bool {
+	domain, ok := data.Domains["default"]
+	if !ok || domain == nil {
+		return false
+	}
+	_, ok = domain.Translations[message]
+	return ok
+}
+
+func repositoryRoot(t *testing.T) string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", ".."))
+}
+
+func writeTestGraph(t *testing.T, repoRoot, message string) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(fmt.Sprintf(`module example.com/repeated
+
+go 1.27
+
+require github.com/leonelquinteros/gotext v0.0.0
+
+replace github.com/leonelquinteros/gotext => %s
+`, repoRoot)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "shared"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(`package app
+
+import "example.com/repeated/shared"
+
+func Run() { shared.Run() }
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "shared", "shared.go"), []byte(fmt.Sprintf(`package shared
+
+import "github.com/leonelquinteros/gotext"
+
+func Run() { gotext.Get(%q) }
+`, message)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }

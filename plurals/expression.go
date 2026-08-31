@@ -31,6 +31,9 @@ type ternary struct {
 }
 
 func (t ternary) Eval(n uint32) int {
+	if t.test == nil {
+		return -1
+	}
 	if t.test.test(n) {
 		if t.trueExpr == nil {
 			return -1

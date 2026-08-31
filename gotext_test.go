@@ -740,3 +740,168 @@ func TestGotext_MissingWrappers(t *testing.T) {
 		t.Error("GetD failed")
 	}
 }
+func TestGlobalEmptyLocaleStorageIsSafe(t *testing.T) {
+	previousLocales := GetLocales()
+	previousLanguages := GetLanguages()
+	previousLibrary := GetLibrary()
+	previousDomain := GetDomain()
+	defer func() {
+		globalConfig.Lock()
+		globalConfig.locales = append(make([]*Locale, 0, len(previousLocales)), previousLocales...)
+		globalConfig.languages = append(make([]string, 0, len(previousLanguages)), previousLanguages...)
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	}()
+
+	tests := []struct {
+		name   string
+		setter func()
+		count  int
+	}{
+		{name: "nil", setter: func() { SetLocales(nil) }},
+		{name: "empty", setter: func() { SetLocales([]*Locale{}) }},
+		{name: "nil element", setter: func() { SetLocales([]*Locale{nil}) }, count: 1},
+		{name: "nil storage", setter: func() { SetStorage(nil) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setter()
+
+			if got := len(GetLocales()); got != tt.count {
+				t.Fatalf("GetLocales length = %d, want %d", got, tt.count)
+			}
+			if got := GetDomain(); got != previousDomain {
+				t.Errorf("GetDomain = %q, want configured fallback %q", got, previousDomain)
+			}
+			if got := GetLibrary(); got != previousLibrary {
+				t.Errorf("GetLibrary = %q, want configured fallback %q", got, previousLibrary)
+			}
+			if got := GetLanguage(); got != FallbackLocale {
+				t.Errorf("GetLanguage = %q, want fallback %q", got, FallbackLocale)
+			}
+			if got := len(GetLanguages()); got != 0 {
+				t.Errorf("GetLanguages length = %d, want 0", got)
+			}
+			if got := Get("source %s", "value"); got != "source value" {
+				t.Errorf("Get fallback = %q, want %q", got, "source value")
+			}
+			if got := GetN("one", "many", 1); got != "one" {
+				t.Errorf("GetN singular fallback = %q, want %q", got, "one")
+			}
+			if got := GetN("one", "many", 2); got != "many" {
+				t.Errorf("GetN plural fallback = %q, want %q", got, "many")
+			}
+			if got := GetC("source", "context"); got != "source" {
+				t.Errorf("GetC fallback = %q, want %q", got, "source")
+			}
+			if got := GetNC("one", "many", 2, "context"); got != "many" {
+				t.Errorf("GetNC plural fallback = %q, want %q", got, "many")
+			}
+			if GetStorage() != nil {
+				t.Error("GetStorage should be nil for an empty/nil locale state")
+			}
+		})
+	}
+}
+
+func TestSetLocalesCopiesCallerSlices(t *testing.T) {
+	previousLocales := GetLocales()
+	previousLanguages := GetLanguages()
+	previousLibrary := GetLibrary()
+	previousDomain := GetDomain()
+	defer func() {
+		globalConfig.Lock()
+		globalConfig.locales = append(make([]*Locale, 0, len(previousLocales)), previousLocales...)
+		globalConfig.languages = append(make([]string, 0, len(previousLanguages)), previousLanguages...)
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	}()
+
+	locale := NewLocale("caller-path", "caller")
+	locale.SetDomain("caller-domain")
+	input := []*Locale{locale}
+	SetLocales(input)
+	input[0] = nil
+
+	if got := GetStorage(); got != locale {
+		t.Fatalf("mutating SetLocales input changed storage: got %p, want %p", got, locale)
+	}
+
+	output := GetLocales()
+	output[0] = nil
+	if got := GetStorage(); got != locale {
+		t.Fatalf("mutating GetLocales result changed storage: got %p, want %p", got, locale)
+	}
+
+	languages := GetLanguages()
+	languages[0] = "mutated"
+	if got := GetLanguage(); got != "caller" {
+		t.Errorf("mutating GetLanguages result changed storage: got %q, want %q", got, "caller")
+	}
+}
+
+func TestConcurrentSetDomainKeepsGlobalAndLocaleDomainsInSync(t *testing.T) {
+	globalConfig.RLock()
+	previousLocales := append(make([]*Locale, 0, len(globalConfig.locales)), globalConfig.locales...)
+	previousLanguages := append(make([]string, 0, len(globalConfig.languages)), globalConfig.languages...)
+	previousLibrary := globalConfig.library
+	previousDomain := globalConfig.domain
+	globalConfig.RUnlock()
+	defer func() {
+		globalConfig.Lock()
+		globalConfig.locales = previousLocales
+		globalConfig.languages = previousLanguages
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	}()
+
+	SetLocales([]*Locale{
+		NewLocale("", "en_US"),
+		NewLocale("", "fr_FR"),
+	})
+
+	domains := []string{"domain-a", "domain-b", "domain-c", "domain-d"}
+	const setterCount = 32
+	const rounds = 8
+	start := make(chan struct{})
+	var setters sync.WaitGroup
+	setters.Add(setterCount)
+	for worker := range setterCount {
+		go func(worker int) {
+			defer setters.Done()
+			<-start
+			for round := range rounds {
+				SetDomain(domains[(worker+round)%len(domains)])
+			}
+		}(worker)
+	}
+	close(start)
+	setters.Wait()
+
+	globalConfig.RLock()
+	authoritativeDomain := globalConfig.domain
+	installedLocales := append(make([]*Locale, 0, len(globalConfig.locales)), globalConfig.locales...)
+	globalConfig.RUnlock()
+
+	if got := GetDomain(); got != authoritativeDomain {
+		t.Fatalf("GetDomain = %q, want authoritative global domain %q", got, authoritativeDomain)
+	}
+
+	installed := 0
+	for i, locale := range installedLocales {
+		if locale == nil {
+			continue
+		}
+		installed++
+		if got := locale.GetDomain(); got != authoritativeDomain {
+			t.Errorf("installed locale %d GetDomain = %q, want authoritative global domain %q", i, got, authoritativeDomain)
+		}
+	}
+	if installed == 0 {
+		t.Fatal("concurrent SetDomain test installed no nonnil locales")
+	}
+}

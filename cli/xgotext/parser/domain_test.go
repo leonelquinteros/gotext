@@ -3,6 +3,8 @@ package parser
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -75,7 +77,7 @@ func TestDomain_AddTranslation(t *testing.T) {
 	if len(d.ContextTranslations["ctx"]) != 1 {
 		t.Error("AddTranslation failed for context")
 	}
-	
+
 	// Add same ID in same context
 	tr4 := &Translation{
 		MsgID:           "test",
@@ -85,6 +87,76 @@ func TestDomain_AddTranslation(t *testing.T) {
 	d.AddTranslation(tr4)
 	if len(d.ContextTranslations["ctx"]["test"].SourceLocations) != 2 {
 		t.Error("AddTranslation failed to merge context locations")
+	}
+}
+
+func TestDomain_AddTranslation_PartialMaps(t *testing.T) {
+	t.Run("translations initialized", func(t *testing.T) {
+		existing := &Translation{MsgID: "existing"}
+		domain := &Domain{
+			Translations: TranslationMap{"existing": existing},
+		}
+		domain.AddTranslation(&Translation{MsgID: "contextual", Context: "ctx"})
+
+		if domain.Translations["existing"] != existing {
+			t.Fatal("existing translations were replaced")
+		}
+		if domain.ContextTranslations["ctx"]["contextual"] == nil {
+			t.Fatal("context translations were not initialized")
+		}
+	})
+
+	t.Run("context translations initialized", func(t *testing.T) {
+		existing := &Translation{MsgID: "existing", Context: "ctx"}
+		domain := &Domain{
+			ContextTranslations: map[string]TranslationMap{
+				"ctx": {"existing": existing},
+			},
+		}
+		domain.AddTranslation(&Translation{MsgID: "uncontextualized"})
+
+		if domain.ContextTranslations["ctx"]["existing"] != existing {
+			t.Fatal("existing context translations were replaced")
+		}
+		if domain.Translations["uncontextualized"] == nil {
+			t.Fatal("translations were not initialized")
+		}
+	})
+}
+
+func TestDomainMap_AddTranslation_CustomDefaultMergesLocations(t *testing.T) {
+	domainMap := &DomainMap{Default: "messages"}
+	domainMap.AddTranslation("", &Translation{
+		MsgID:           "same",
+		SourceLocations: []string{"z.go:4"},
+	})
+	domainMap.AddTranslation("", &Translation{
+		MsgID:           "same",
+		SourceLocations: []string{"a.go:2"},
+	})
+
+	domain := domainMap.Domains["messages"]
+	if domain == nil {
+		t.Fatal("custom default domain was not created")
+	}
+	translation := domain.Translations["same"]
+	if translation == nil {
+		t.Fatal("translation was not added to the custom default domain")
+	}
+	if !reflect.DeepEqual(translation.SourceLocations, []string{"z.go:4", "a.go:2"}) {
+		t.Fatalf("locations = %v, want source order preserved", translation.SourceLocations)
+	}
+}
+
+func TestDomain_Dump_PartialContextMapHasNoEmptyEntry(t *testing.T) {
+	domain := &Domain{
+		ContextTranslations: map[string]TranslationMap{
+			"ctx": {"id": {MsgID: "id", Context: "ctx"}},
+		},
+	}
+	dump := domain.Dump()
+	if strings.HasPrefix(dump, "\n") || !contains(dump, "msgid \"id\"") {
+		t.Fatalf("unexpected partial-domain dump: %q", dump)
 	}
 }
 
@@ -112,7 +184,7 @@ func TestDomainMap_Save(t *testing.T) {
 
 	dm := &DomainMap{}
 	dm.AddTranslation("test", &Translation{MsgID: "msg", SourceLocations: []string{"loc:1"}})
-	
+
 	err = dm.Save(tmpDir)
 	if err != nil {
 		t.Errorf("Save failed: %v", err)
@@ -122,6 +194,38 @@ func TestDomainMap_Save(t *testing.T) {
 	if _, err := os.Stat(potPath); os.IsNotExist(err) {
 		t.Error("pot file was not created")
 	}
+}
+
+func FuzzTranslationDumpPreservesState(f *testing.F) {
+	f.Add("id", "", "", "z.go:4\na.go:2")
+	f.Add("id", "plural", "ctx", "")
+	f.Add("", "", "", `location with "quotes"`)
+
+	f.Fuzz(func(t *testing.T, msgID, msgIDPlural, context, locationData string) {
+		if len(msgID)+len(msgIDPlural)+len(context)+len(locationData) > 64<<10 {
+			return
+		}
+
+		var locations []string
+		if locationData != "" {
+			locations = strings.Split(locationData, "\n")
+		}
+		before := append([]string(nil), locations...)
+		translation := &Translation{
+			MsgID:           msgID,
+			MsgIDPlural:     msgIDPlural,
+			Context:         context,
+			SourceLocations: locations,
+		}
+		firstDump := translation.Dump()
+		secondDump := translation.Dump()
+		if firstDump != secondDump {
+			t.Fatalf("Dump changed across repeated calls: %q != %q", firstDump, secondDump)
+		}
+		if !reflect.DeepEqual(translation.SourceLocations, before) {
+			t.Fatalf("Dump mutated source locations: got %v, want %v", translation.SourceLocations, before)
+		}
+	})
 }
 
 func contains(s, substr string) bool {

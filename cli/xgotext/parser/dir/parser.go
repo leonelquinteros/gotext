@@ -51,13 +51,25 @@ func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbo
 	if err != nil {
 		return err
 	}
+	dirPath = filepath.Clean(dirPath)
 
 	excludeDirs := make([]string, 0, len(exclude))
 	for _, excludeDir := range exclude {
-		excludeDir = filepath.Clean(excludeDir)
-		if excludeDir != "." {
-			excludeDirs = append(excludeDirs, excludeDir)
+		if !filepath.IsAbs(excludeDir) {
+			excludeDir = filepath.Join(dirPath, excludeDir)
 		}
+		excludeDir = filepath.Clean(excludeDir)
+
+		// The traversal root is always visited. Exclusions outside the root
+		// cannot match any path WalkDir visits and are ignored.
+		if excludeDir == dirPath {
+			continue
+		}
+		rel, relErr := filepath.Rel(dirPath, excludeDir)
+		if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		excludeDirs = append(excludeDirs, excludeDir)
 	}
 
 	return filepath.WalkDir(dirPath, func(path string, entry fs.DirEntry, err error) error {
@@ -65,14 +77,9 @@ func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbo
 			return err
 		}
 
-		if entry.IsDir() {
-			subDir, err := filepath.Rel(dirPath, path)
-			if err != nil {
-				return err
-			}
-
+		if entry.IsDir() && entry.Type()&fs.ModeSymlink == 0 {
 			for _, excludeDir := range excludeDirs {
-				if subDir == excludeDir || strings.HasPrefix(subDir, excludeDir+string(filepath.Separator)) {
+				if path == excludeDir || strings.HasPrefix(path, excludeDir+string(filepath.Separator)) {
 					return filepath.SkipDir
 				}
 			}

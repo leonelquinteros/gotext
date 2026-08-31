@@ -882,3 +882,185 @@ func TestPoParseSparsePluralContinuation(t *testing.T) {
 		t.Fatalf("plural forms = %v, want only index 2", translation.Trs)
 	}
 }
+
+func TestPoParseRejectsMalformedPluralIndexes(t *testing.T) {
+	tests := []string{
+		"",
+		"-1",
+		"+1",
+		" 1",
+		"1x",
+		"١",
+		"18446744073709551616",
+	}
+
+	for _, index := range tests {
+		t.Run(fmt.Sprintf("index_%q", index), func(t *testing.T) {
+			po := NewPo()
+			po.Parse([]byte("msgid \"id\"\nmsgstr[" + index + "] \"form\"\n\"tail\"\n"))
+
+			translation, ok := po.GetDomain().translations["id"]
+			if !ok {
+				t.Fatal("expected untranslated entry for msgid")
+			}
+			if len(translation.Trs) != 0 {
+				t.Fatalf("malformed plural index created forms: %v", translation.Trs)
+			}
+			for form := range translation.Trs {
+				if form < 0 {
+					t.Fatalf("malformed plural index created negative form %d", form)
+				}
+			}
+		})
+	}
+}
+
+func TestPoParseRejectsInvalidDirectivesWithoutMutation(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "msgid",
+			input: "msgid \"unterminated\n\"tail\"\nmsgstr \"ignored\"\n",
+		},
+		{
+			name:  "msgctxt",
+			input: "msgctxt \"unterminated\n\"tail\"\n",
+		},
+		{
+			name:  "msgid_plural",
+			input: "msgid \"id\"\nmsgid_plural \"unterminated\n\"tail\"\nmsgstr[0] \"ignored\"\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			po := NewPo()
+			po.Set("sentinel", "preserved")
+			po.Parse([]byte(test.input))
+
+			if got := po.Get("sentinel"); got != "preserved" {
+				t.Fatalf("sentinel translation = %q, want %q", got, "preserved")
+			}
+			if _, ok := po.GetDomain().translations["tail"]; ok {
+				t.Fatal("invalid directive continuation created an entry")
+			}
+			if test.name == "msgid_plural" {
+				translation, ok := po.GetDomain().translations["id"]
+				if !ok {
+					t.Fatal("expected valid msgid to remain untranslated")
+				}
+				if len(translation.Trs) != 0 {
+					t.Fatalf("invalid plural directive created forms: %v", translation.Trs)
+				}
+				if len(po.GetDomain().pluralTranslations) != 0 {
+					t.Fatalf("plural translations = %v, want none", po.GetDomain().pluralTranslations)
+				}
+			}
+			wantTranslations := 1
+			if test.name == "msgid_plural" {
+				wantTranslations = 2
+			}
+			if len(po.GetDomain().translations) != wantTranslations {
+				t.Fatalf("translations = %v, want %d entries", po.GetDomain().translations, wantTranslations)
+			}
+		})
+	}
+}
+
+func TestPoParseRequiresDirectiveKeywordBoundaries(t *testing.T) {
+	for _, keyword := range []string{"msgctxt", "msgid", "msgid_plural", "msgstr"} {
+		t.Run(keyword, func(t *testing.T) {
+			po := NewPo()
+			po.Set("sentinel", "preserved")
+			po.Parse([]byte(keyword + "suffix \"value\"\n\"tail\"\n"))
+
+			if got := po.Get("sentinel"); got != "preserved" {
+				t.Fatalf("sentinel translation = %q, want %q", got, "preserved")
+			}
+			if len(po.GetDomain().translations) != 1 {
+				t.Fatalf("translations = %v, want only the sentinel", po.GetDomain().translations)
+			}
+		})
+	}
+}
+
+func TestPoParseEscapedMultilineContextIDPluralAndForms(t *testing.T) {
+	po := NewPo()
+	po.Parse([]byte(`msgctxt "ctx\"\\\n\x00"
+"tail"
+msgid "id\"\\\n\x00"
+"tail"
+msgid_plural "plural\"\\\n\x00"
+"tail"
+msgstr[0] "one\"\\\n\x00"
+"tail"
+msgstr[1] "two"
+`))
+
+	context := "ctx\"\\\n\x00tail"
+	id := "id\"\\\n\x00tail"
+	plural := "plural\"\\\n\x00tail"
+	if _, ok := po.GetDomain().pluralTranslations[plural]; !ok {
+		t.Fatal("expected completed plural ID in plural translation map")
+	}
+	translation, ok := po.GetDomain().contextTranslations[context][id]
+	if !ok {
+		t.Fatal("expected escaped context translation")
+	}
+	if got := translation.PluralID; got != plural {
+		t.Fatalf("plural ID = %q, want %q", got, plural)
+	}
+	if got := translation.Trs[0]; got != "one\"\\\n\x00tail" {
+		t.Fatalf("translation form 0 = %q, want %q", got, "one\"\\\n\x00tail")
+	}
+	if got := translation.Trs[1]; got != "two" {
+		t.Fatalf("translation form 1 = %q, want %q", got, "two")
+	}
+}
+
+func FuzzPoParseMalformedInput(f *testing.F) {
+	f.Add([]byte("msgid \"id\"\nmsgstr \"translated\"\n"))
+	f.Add([]byte("msgid \"id\"\nmsgstr[-1] \"bad\"\n\"tail\"\n"))
+	f.Add([]byte("msgid \"unterminated\n\"tail\"\n"))
+	f.Add([]byte("msgid_plural \"plural\"\nmsgstr[+1] \"bad\"\n"))
+	f.Add([]byte("msgstring \"not a directive\"\n\"tail\"\n"))
+
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) > 64<<10 {
+			return
+		}
+
+		po := NewPo()
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				t.Fatalf("Parse panicked: %v", recovered)
+			}
+		}()
+
+		po.Parse(input)
+		for id, translation := range po.GetDomain().translations {
+			if translation == nil {
+				t.Fatalf("translation %q is nil", id)
+			}
+			for form := range translation.Trs {
+				if form < 0 {
+					t.Fatalf("translation %q has negative plural form %d", id, form)
+				}
+			}
+		}
+		for context, translations := range po.GetDomain().contextTranslations {
+			for id, translation := range translations {
+				if translation == nil {
+					t.Fatalf("context translation %q/%q is nil", context, id)
+				}
+				for form := range translation.Trs {
+					if form < 0 {
+						t.Fatalf("context translation %q/%q has negative plural form %d", context, id, form)
+					}
+				}
+			}
+		}
+	})
+}

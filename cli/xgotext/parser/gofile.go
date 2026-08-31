@@ -21,6 +21,8 @@ type GetterDef struct {
 	Domain  int
 }
 
+const gotextPackagePath = "github.com/leonelquinteros/gotext"
+
 // MaxArgIndex returns the largest argument index
 func (d *GetterDef) MaxArgIndex() int {
 	return max(d.ID, d.Plural, d.Context, d.Domain)
@@ -52,26 +54,31 @@ type GoFile struct {
 
 // GetType from ident object
 func (g *GoFile) GetType(ident *ast.Ident) types.Object {
-	for _, pkg := range g.ImportedPackages {
-		if pkg.TypesInfo == nil {
-			continue
-		}
-		if obj, ok := pkg.TypesInfo.Uses[ident]; ok {
-			return obj
-		}
-	}
-	return nil
+	return g.getObject(ident)
 }
 
 // getExprType from any expression
 func (g *GoFile) getExprType(expr ast.Expr) types.Type {
+	if g == nil || expr == nil {
+		return nil
+	}
+
 	for _, pkg := range g.ImportedPackages {
-		if pkg.TypesInfo == nil {
+		if pkg == nil || pkg.TypesInfo == nil {
 			continue
 		}
 		if tv, ok := pkg.TypesInfo.Types[expr]; ok {
 			return tv.Type
 		}
+	}
+
+	if ident, ok := expr.(*ast.Ident); ok {
+		if object := g.getObject(ident); object != nil {
+			return object.Type()
+		}
+	}
+	if paren, ok := expr.(*ast.ParenExpr); ok {
+		return g.getExprType(paren.X)
 	}
 	return nil
 }
@@ -87,68 +94,157 @@ func (g *GoFile) CheckType(rawType types.Type) bool {
 		return g.CheckType(t.Elem())
 
 	case *types.Named:
-		if t.Obj().Pkg() == nil || t.Obj().Pkg().Path() != "github.com/leonelquinteros/gotext" {
-			return false
-		}
+		object := t.Obj()
+		return object != nil && object.Pkg() != nil && object.Pkg().Path() == gotextPackagePath
 
 	case *types.Alias:
 		return g.CheckType(t.Rhs())
 
 	case *types.Interface:
-		// Check if it's the Translator interface from our package
-		// This is used for interfaces like 'Translator'
-		return t.NumMethods() > 0 && t.Method(0).Pkg() != nil && t.Method(0).Pkg().Path() == "github.com/leonelquinteros/gotext"
+		if t.NumMethods() == 0 {
+			return false
+		}
+		for idx := range t.NumMethods() {
+			method := t.Method(idx)
+			if method.Pkg() == nil || method.Pkg().Path() != gotextPackagePath {
+				return false
+			}
+		}
+		return true
 
 	default:
 		return false
 	}
-	return true
 }
 
 // InspectCallExpr inspects the call expression
 func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
-	// must be a selector expression otherwise it is a local function call
-	expr, ok := n.Fun.(*ast.SelectorExpr)
-	if !ok {
+	if g == nil || n == nil {
 		return
 	}
 
-	// Resolve the type of the receiver (expr.X)
-	receiverType := g.getExprType(expr.X)
-	if receiverType == nil {
-		// Fallback for package calls if types didn't resolve it
-		if id, ok := expr.X.(*ast.Ident); ok && id.Obj == nil {
-			pkg, ok := g.ImportedPackages[id.Name]
-			if !ok || pkg.PkgPath != "github.com/leonelquinteros/gotext" {
-				return
-			}
-		} else {
+	var name string
+	var object types.Object
+	switch fun := n.Fun.(type) {
+	case *ast.Ident:
+		name = fun.Name
+		if _, ok := gotextGetter[name]; !ok {
 			return
 		}
-	} else if !g.CheckType(receiverType) {
+		object = g.getObject(fun)
+		if object != nil {
+			if !isGotextGetterObject(object, name) {
+				return
+			}
+		} else if !g.isGotextDotImport(fun) {
+			return
+		}
+
+	case *ast.SelectorExpr:
+		if fun.Sel == nil {
+			return
+		}
+		name = fun.Sel.Name
+		if _, ok := gotextGetter[name]; !ok {
+			return
+		}
+		object = g.selectorObject(fun)
+		if object != nil {
+			if !isGotextGetterObject(object, name) {
+				return
+			}
+			if signature, ok := object.Type().(*types.Signature); ok && signature.Recv() != nil {
+				if receiverType := g.getExprType(fun.X); receiverType != nil && !g.CheckType(receiverType) {
+					return
+				}
+			}
+		} else if receiverType := g.getExprType(fun.X); receiverType != nil {
+			if !g.CheckType(receiverType) {
+				return
+			}
+		} else if !g.isGotextPackageSelector(fun) {
+			return
+		}
+
+	default:
 		return
 	}
 
-	// convert args
 	args := make([]*ast.BasicLit, len(n.Args))
 	resolving := make(map[types.Object]bool)
 	for idx, arg := range n.Args {
 		args[idx] = g.resolveStringLiteral(arg, n.Pos(), resolving)
 	}
 
-	// get position
-	path, _ := filepath.Rel(g.BasePath, g.FilePath)
-	position := fmt.Sprintf("%s:%d", path, g.FileSet.Position(n.Lparen).Line)
+	g.ParseGetter(gotextGetter[name], args, g.callPosition(n))
+}
 
-	// handle getters
-	if def, ok := gotextGetter[expr.Sel.String()]; ok {
-		g.ParseGetter(def, args, position)
-		return
+func isGotextGetterObject(object types.Object, name string) bool {
+	function, ok := object.(*types.Func)
+	return ok && function.Name() == name && function.Pkg() != nil && function.Pkg().Path() == gotextPackagePath
+}
+
+func (g *GoFile) selectorObject(expr *ast.SelectorExpr) types.Object {
+	if g == nil || expr == nil || expr.Sel == nil {
+		return nil
 	}
+	for _, pkg := range g.ImportedPackages {
+		if pkg == nil || pkg.TypesInfo == nil {
+			continue
+		}
+		if selection := pkg.TypesInfo.Selections[expr]; selection != nil && selection.Obj() != nil {
+			return selection.Obj()
+		}
+		if object := pkg.TypesInfo.Uses[expr.Sel]; object != nil {
+			return object
+		}
+	}
+	return nil
+}
+
+func (g *GoFile) isGotextPackageSelector(expr *ast.SelectorExpr) bool {
+	if g == nil || expr == nil {
+		return false
+	}
+	ident, ok := expr.X.(*ast.Ident)
+	if !ok || ident.Obj != nil {
+		return false
+	}
+	pkg, ok := g.ImportedPackages[ident.Name]
+	return ok && pkg != nil && pkg.PkgPath == gotextPackagePath
+}
+
+func (g *GoFile) isGotextDotImport(ident *ast.Ident) bool {
+	if g == nil || ident == nil || ident.Obj != nil {
+		return false
+	}
+	pkg, ok := g.ImportedPackages["."]
+	return ok && pkg != nil && pkg.PkgPath == gotextPackagePath
+}
+
+func (g *GoFile) callPosition(n *ast.CallExpr) string {
+	if g == nil || n == nil {
+		return ""
+	}
+	path := g.FilePath
+	if g.BasePath != "" && path != "" {
+		if relative, err := filepath.Rel(g.BasePath, path); err == nil {
+			path = relative
+		}
+	}
+	line := 0
+	if g.FileSet != nil {
+		line = g.FileSet.Position(n.Lparen).Line
+	}
+	return fmt.Sprintf("%s:%d", path, line)
 }
 
 // ParseGetter parses the getter function
 func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
+	if g == nil || g.Data == nil {
+		return
+	}
+
 	// check if enough arguments are given
 	if len(args) <= def.MaxArgIndex() {
 		return
@@ -174,7 +270,7 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 		MsgID:           msgID,
 		SourceLocations: []string{pos},
 	}
-	if def.Plural > 0 {
+	if def.Plural != -1 {
 		// plural ID must be a string
 		msgIDPlural, ok := getStringArgument(args, def.Plural, "plural", pos)
 		if !ok {
@@ -182,7 +278,7 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 		}
 		trans.MsgIDPlural = msgIDPlural
 	}
-	if def.Context > 0 {
+	if def.Context != -1 {
 		// Context must be a string
 		if !isStringArgument(args, def.Context, "context", pos) {
 			return
@@ -215,38 +311,113 @@ func isStringArgument(args []*ast.BasicLit, index int, name, pos string) bool {
 }
 
 func (g *GoFile) resolveStringLiteral(expr ast.Expr, before token.Pos, resolving map[types.Object]bool) *ast.BasicLit {
-	if literal, ok := expr.(*ast.BasicLit); ok && literal.Kind == token.STRING {
-		return literal
+	if g == nil || expr == nil {
+		return nil
+	}
+	if resolving == nil {
+		resolving = make(map[types.Object]bool)
+	}
+	return g.resolveStringLiteralState(expr, before, resolving, make(map[ast.Expr]bool))
+}
+
+func (g *GoFile) resolveStringLiteralState(
+	expr ast.Expr,
+	before token.Pos,
+	resolving map[types.Object]bool,
+	resolvingExpr map[ast.Expr]bool,
+) *ast.BasicLit {
+	if g == nil || expr == nil {
+		return nil
+	}
+
+	switch literal := expr.(type) {
+	case *ast.BasicLit:
+		if literal != nil && literal.Kind == token.STRING {
+			return literal
+		}
+		return nil
 	}
 
 	if literal := g.constantStringLiteral(expr); literal != nil {
 		return literal
 	}
-
-	ident, ok := expr.(*ast.Ident)
-	if !ok || ident.Obj == nil {
+	if resolvingExpr[expr] {
 		return nil
 	}
-	object := g.getObject(ident)
-	if object != nil {
-		if resolving[object] || g.isMutatedBefore(object, before) {
+	resolvingExpr[expr] = true
+	defer delete(resolvingExpr, expr)
+
+	switch value := expr.(type) {
+	case *ast.ParenExpr:
+		if value == nil {
 			return nil
 		}
-		resolving[object] = true
-		defer delete(resolving, object)
-	}
+		return g.resolveStringLiteralState(value.X, before, resolving, resolvingExpr)
 
-	switch decl := ident.Obj.Decl.(type) {
-	case *ast.ValueSpec:
-		for i, name := range decl.Names {
-			if name.Name == ident.Name && i < len(decl.Values) {
-				return g.resolveStringLiteral(decl.Values[i], decl.Pos(), resolving)
+	case *ast.BinaryExpr:
+		if value == nil || value.Op != token.ADD {
+			return nil
+		}
+		left := g.resolveStringLiteralState(value.X, before, resolving, resolvingExpr)
+		right := g.resolveStringLiteralState(value.Y, before, resolving, resolvingExpr)
+		if left == nil || right == nil {
+			return nil
+		}
+		leftValue, leftErr := strconv.Unquote(left.Value)
+		rightValue, rightErr := strconv.Unquote(right.Value)
+		if leftErr != nil || rightErr != nil {
+			return nil
+		}
+		return &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: strconv.Quote(leftValue + rightValue),
+		}
+
+	case *ast.Ident:
+		if value == nil {
+			return nil
+		}
+		object := g.getObject(value)
+		if object != nil {
+			if resolving[object] || g.isMutatedBefore(object, before) {
+				return nil
+			}
+			if constant, ok := object.(*types.Const); ok {
+				return literalFromConstantValue(constant.Val())
+			}
+			resolving[object] = true
+			defer delete(resolving, object)
+		}
+
+		if value.Obj != nil {
+			switch declaration := value.Obj.Decl.(type) {
+			case *ast.ValueSpec:
+				for idx, name := range declaration.Names {
+					if name.Name == value.Name && idx < len(declaration.Values) {
+						return g.resolveStringLiteralState(
+							declaration.Values[idx],
+							declaration.Pos(),
+							resolving,
+							resolvingExpr,
+						)
+					}
+				}
+			case *ast.AssignStmt:
+				for idx, lhs := range declaration.Lhs {
+					if id, ok := lhs.(*ast.Ident); ok && id.Name == value.Name && idx < len(declaration.Rhs) {
+						return g.resolveStringLiteralState(
+							declaration.Rhs[idx],
+							declaration.Pos(),
+							resolving,
+							resolvingExpr,
+						)
+					}
+				}
 			}
 		}
-	case *ast.AssignStmt:
-		for i, lhs := range decl.Lhs {
-			if id, ok := lhs.(*ast.Ident); ok && id.Name == ident.Name && i < len(decl.Rhs) {
-				return g.resolveStringLiteral(decl.Rhs[i], decl.Pos(), resolving)
+		if object != nil {
+			if declaration, declarationPos, ok := g.declarationForObject(object); ok {
+				return g.resolveStringLiteralState(declaration, declarationPos, resolving, resolvingExpr)
 			}
 		}
 	}
@@ -259,24 +430,103 @@ func getLiteralFromIdent(ident *ast.Ident) *ast.BasicLit {
 	return (&GoFile{}).resolveStringLiteral(ident, token.NoPos, make(map[types.Object]bool))
 }
 
+func literalFromConstantValue(value constant.Value) *ast.BasicLit {
+	if value == nil || value.Kind() != constant.String {
+		return nil
+	}
+	return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(constant.StringVal(value))}
+}
+
 func (g *GoFile) constantStringLiteral(expr ast.Expr) *ast.BasicLit {
+	if g == nil || expr == nil {
+		return nil
+	}
 	for _, pkg := range g.ImportedPackages {
-		if pkg.TypesInfo == nil {
+		if pkg == nil || pkg.TypesInfo == nil {
 			continue
 		}
-		if value, ok := pkg.TypesInfo.Types[expr]; ok && value.Value != nil && value.Value.Kind() == constant.String {
-			return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(constant.StringVal(value.Value))}
+		if value, ok := pkg.TypesInfo.Types[expr]; ok {
+			if literal := literalFromConstantValue(value.Value); literal != nil {
+				return literal
+			}
+		}
+	}
+	if ident, ok := expr.(*ast.Ident); ok {
+		if object := g.getObject(ident); object != nil {
+			if constant, ok := object.(*types.Const); ok {
+				return literalFromConstantValue(constant.Val())
+			}
 		}
 	}
 	return nil
 }
 
-func (g *GoFile) getObject(ident *ast.Ident) types.Object {
+func packageOwnsObject(pkg *packages.Package, object types.Object) bool {
+	if pkg == nil || object == nil {
+		return false
+	}
+	owner := object.Pkg()
+	return owner != nil && pkg.PkgPath == owner.Path()
+}
+
+func (g *GoFile) declarationForObject(object types.Object) (ast.Expr, token.Pos, bool) {
+	if g == nil || object == nil {
+		return nil, token.NoPos, false
+	}
 	for _, pkg := range g.ImportedPackages {
-		if pkg.TypesInfo == nil {
+		if !packageOwnsObject(pkg, object) || pkg.TypesInfo == nil {
+			continue
+		}
+		for _, file := range pkg.Syntax {
+			if file == nil {
+				continue
+			}
+			var declaration ast.Expr
+			var declarationPos token.Pos
+			ast.Inspect(file, func(node ast.Node) bool {
+				if declaration != nil {
+					return false
+				}
+				switch node := node.(type) {
+				case *ast.ValueSpec:
+					for idx, name := range node.Names {
+						if pkg.TypesInfo.Defs[name] == object && idx < len(node.Values) {
+							declaration = node.Values[idx]
+							declarationPos = node.Pos()
+							return false
+						}
+					}
+				case *ast.AssignStmt:
+					for idx, lhs := range node.Lhs {
+						if id, ok := lhs.(*ast.Ident); ok && pkg.TypesInfo.Defs[id] == object && idx < len(node.Rhs) {
+							declaration = node.Rhs[idx]
+							declarationPos = node.Pos()
+							return false
+						}
+					}
+				}
+				return true
+			})
+			if declaration != nil {
+				return declaration, declarationPos, true
+			}
+		}
+	}
+	return nil, token.NoPos, false
+}
+
+func (g *GoFile) getObject(ident *ast.Ident) types.Object {
+	if g == nil || ident == nil {
+		return nil
+	}
+	for _, pkg := range g.ImportedPackages {
+		if pkg == nil || pkg.TypesInfo == nil {
 			continue
 		}
 		if object := pkg.TypesInfo.Uses[ident]; object != nil {
+			return object
+		}
+		if object := pkg.TypesInfo.Defs[ident]; object != nil {
 			return object
 		}
 	}
@@ -285,24 +535,60 @@ func (g *GoFile) getObject(ident *ast.Ident) types.Object {
 
 // isMutatedBefore reports whether a variable has been assigned a new value before its use.
 func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
+	if g == nil {
+		return false
+	}
 	if _, ok := object.(*types.Var); !ok {
 		return false
 	}
 
 	for _, pkg := range g.ImportedPackages {
-		if pkg.TypesInfo == nil {
+		if !packageOwnsObject(pkg, object) || pkg.TypesInfo == nil {
 			continue
 		}
 		for _, file := range pkg.Syntax {
+			if file == nil {
+				continue
+			}
 			for node := range ast.Preorder(file) {
-				assign, ok := node.(*ast.AssignStmt)
-				if !ok || assign.Pos() >= before {
-					continue
-				}
-				for _, lhs := range assign.Lhs {
-					ident, ok := lhs.(*ast.Ident)
-					if ok && pkg.TypesInfo.Uses[ident] == object {
+				switch node := node.(type) {
+				case *ast.AssignStmt:
+					if node.Pos() >= before {
+						continue
+					}
+					for _, lhs := range node.Lhs {
+						if ident, ok := lhs.(*ast.Ident); ok && pkg.TypesInfo.Uses[ident] == object {
+							return true
+						}
+					}
+
+				case *ast.IncDecStmt:
+					if node.Pos() >= before {
+						continue
+					}
+					if ident, ok := node.X.(*ast.Ident); ok && pkg.TypesInfo.Uses[ident] == object {
 						return true
+					}
+
+				case *ast.RangeStmt:
+					if node.Body == nil || node.Body.Pos() >= before {
+						continue
+					}
+					for _, candidate := range []ast.Expr{node.Key, node.Value} {
+						ident, ok := candidate.(*ast.Ident)
+						if !ok {
+							continue
+						}
+						switch node.Tok {
+						case token.DEFINE:
+							if pkg.TypesInfo.Defs[ident] == object {
+								return true
+							}
+						case token.ASSIGN:
+							if pkg.TypesInfo.Uses[ident] == object {
+								return true
+							}
+						}
 					}
 				}
 			}

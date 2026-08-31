@@ -163,22 +163,18 @@ func (mo *Mo) Parse(buf []byte) {
 	defer mo.domain.trMutex.Unlock()
 	defer mo.domain.pluralMutex.Unlock()
 
-	r := bytes.NewReader(buf)
-
-	var magicNumber uint32
-	if err := binary.Read(r, binary.LittleEndian, &magicNumber); err != nil {
+	if len(buf) < 28 {
 		return
-		// return fmt.Errorf("gettext: %v", err)
 	}
+
 	var bo binary.ByteOrder
-	switch magicNumber {
+	switch binary.LittleEndian.Uint32(buf[:4]) {
 	case MoMagicLittleEndian:
 		bo = binary.LittleEndian
 	case MoMagicBigEndian:
 		bo = binary.BigEndian
 	default:
 		return
-		// return fmt.Errorf("gettext: %v", "invalid magic number")
 	}
 
 	var header struct {
@@ -190,20 +186,23 @@ func (mo *Mo) Parse(buf []byte) {
 		HashSize     uint32
 		HashOffset   uint32
 	}
-	if err := binary.Read(r, bo, &header); err != nil {
-		return
-		// return fmt.Errorf("gettext: %v", err)
-	}
-	if v := header.MajorVersion; v != 0 && v != 1 {
-		return
-		// return fmt.Errorf("gettext: %v", "invalid version number")
-	}
-	if v := header.MinorVersion; v != 0 && v != 1 {
-		return
-		// return fmt.Errorf("gettext: %v", "invalid version number")
-	}
 
 	bufLen := uint64(len(buf))
+	header.MajorVersion = bo.Uint16(buf[4:6])
+	header.MinorVersion = bo.Uint16(buf[6:8])
+	header.MsgIDCount = bo.Uint32(buf[8:12])
+	header.MsgIDOffset = bo.Uint32(buf[12:16])
+	header.MsgStrOffset = bo.Uint32(buf[16:20])
+	header.HashSize = bo.Uint32(buf[20:24])
+	header.HashOffset = bo.Uint32(buf[24:28])
+
+	if header.MajorVersion != 0 && header.MajorVersion != 1 {
+		return
+	}
+	if header.MinorVersion != 0 && header.MinorVersion != 1 {
+		return
+	}
+
 	directorySize := uint64(header.MsgIDCount) * 8
 	if uint64(header.MsgIDOffset)+directorySize > bufLen ||
 		uint64(header.MsgStrOffset)+directorySize > bufLen {
@@ -214,14 +213,16 @@ func (mo *Mo) Parse(buf []byte) {
 		msgIDEntry := int(uint64(header.MsgIDOffset) + uint64(i)*8)
 		msgIDLen := bo.Uint32(buf[msgIDEntry:])
 		msgIDStart := bo.Uint32(buf[msgIDEntry+4:])
-		if uint64(msgIDStart)+uint64(msgIDLen) > bufLen {
+		if uint64(msgIDStart) > bufLen ||
+			uint64(msgIDLen) > bufLen-uint64(msgIDStart) {
 			return
 		}
 
 		msgStrEntry := int(uint64(header.MsgStrOffset) + uint64(i)*8)
 		msgStrLen := bo.Uint32(buf[msgStrEntry:])
 		msgStrStart := bo.Uint32(buf[msgStrEntry+4:])
-		if uint64(msgStrStart)+uint64(msgStrLen) > bufLen {
+		if uint64(msgStrStart) > bufLen ||
+			uint64(msgStrLen) > bufLen-uint64(msgStrStart) {
 			return
 		}
 	}
@@ -255,11 +256,9 @@ func (mo *Mo) addTranslation(msgid, msgstr []byte) {
 	var msgctxt []byte
 	var msgidPlural []byte
 
-	d := bytes.Split(msgid, []byte(EotSeparator))
-	if len(d) == 1 {
-		msgid = d[0]
-	} else {
-		msgid, msgctxt = d[1], d[0]
+	if eotIndex := bytes.IndexByte(msgid, EotSeparator[0]); eotIndex >= 0 {
+		msgctxt = msgid[:eotIndex]
+		msgid = msgid[eotIndex+len(EotSeparator):]
 	}
 
 	if nulIndex := bytes.IndexByte(msgid, NulSeparator[0]); nulIndex >= 0 {

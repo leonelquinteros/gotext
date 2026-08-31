@@ -42,6 +42,9 @@ type Po struct {
 
 	domain *Domain
 	fs     fs.FS
+
+	parseBufferHasID     bool
+	parseBufferHasPlural bool
 }
 
 type parseState int
@@ -215,12 +218,12 @@ func (po *Po) Parse(buf []byte) {
 	defer po.domain.trMutex.Unlock()
 	defer po.domain.pluralMutex.Unlock()
 
-	// Get lines
-
 	// Init buffer
 	po.domain.trBuffer = NewTranslation()
 	po.domain.ctxBuffer = ""
 	po.domain.refBuffer = ""
+	po.parseBufferHasID = false
+	po.parseBufferHasPlural = false
 
 	state := head
 	activeMsgStrIndex := 0
@@ -234,30 +237,52 @@ func (po *Po) Parse(buf []byte) {
 			continue
 		}
 
-		// Buffer context and continue
-		if strings.HasPrefix(l, "msgctxt") {
-			po.parseContext(l)
-			state = msgCtxt
+		// Multi line strings and headers
+		if strings.HasPrefix(l, "\"") {
+			if !po.parseString(l, state, activeMsgStrIndex) && state != head {
+				state = msgStrInvalid
+			}
 			continue
 		}
 
-		// Buffer msgid and continue
-		if strings.HasPrefix(l, "msgid") && !strings.HasPrefix(l, "msgid_plural") {
-			po.parseID(l)
-			state = msgID
+		// Buffer context and continue
+		if po.hasKeywordBoundary(l, "msgctxt") {
+			if po.parseContext(l) {
+				state = msgCtxt
+			} else {
+				state = msgStrInvalid
+			}
 			continue
 		}
 
 		// Check for plural form
-		if strings.HasPrefix(l, "msgid_plural") {
-			po.parsePluralID(l)
-			po.domain.pluralTranslations[po.domain.trBuffer.PluralID] = po.domain.trBuffer
-			state = msgIDPlural
+		if po.hasKeywordBoundary(l, "msgid_plural") {
+			if state != msgID || !po.parsePluralID(l) {
+				state = msgStrInvalid
+			} else {
+				state = msgIDPlural
+			}
+			continue
+		}
+
+		// Buffer msgid and continue
+		if po.hasKeywordBoundary(l, "msgid") {
+			if po.parseID(l) {
+				state = msgID
+			} else {
+				state = msgStrInvalid
+			}
 			continue
 		}
 
 		// Save Translation
-		if strings.HasPrefix(l, "msgstr") {
+		if po.hasKeywordBoundary(l, "msgstr") {
+			if state != msgID && state != msgIDPlural && state != msgStr {
+				activeMsgStrIndex = 0
+				state = msgStrInvalid
+				continue
+			}
+
 			var ok bool
 			activeMsgStrIndex, ok = po.parseMessage(l)
 			if ok {
@@ -268,16 +293,15 @@ func (po *Po) Parse(buf []byte) {
 			}
 			continue
 		}
-
-		// Multi line strings and headers
-		if strings.HasPrefix(l, "\"") && strings.HasSuffix(l, "\"") {
-			po.parseString(l, state, activeMsgStrIndex)
-			continue
-		}
 	}
 
-	// Save last Translation buffer.
-	po.saveBuffer()
+	// Save last Translation buffer, but do not synthesize an entry after an
+	// invalid directive. Preserve the historical empty-input entry.
+	if po.parseBufferHasID {
+		po.saveBuffer()
+	} else if len(buf) == 0 {
+		po.domain.translations[""] = po.domain.trBuffer
+	}
 
 	// Parse headers
 	po.domain.parseHeaders()
@@ -292,6 +316,16 @@ func (po *Po) Parse(buf []byte) {
 // saveBuffer takes the context and Translation buffers
 // and saves it on the translations collection
 func (po *Po) saveBuffer() {
+	if !po.parseBufferHasID {
+		return
+	}
+
+	// Store a completed plural ID after all of its continuation lines have
+	// been decoded.
+	if po.parseBufferHasPlural {
+		po.domain.pluralTranslations[po.domain.trBuffer.PluralID] = po.domain.trBuffer
+	}
+
 	// With no context...
 	if po.domain.ctxBuffer == "" {
 		po.domain.translations[po.domain.trBuffer.ID] = po.domain.trBuffer
@@ -308,6 +342,8 @@ func (po *Po) saveBuffer() {
 		}
 	}
 
+	po.parseBufferHasID = false
+	po.parseBufferHasPlural = false
 	// Flush Translation buffer
 	if po.domain.refBuffer == "" {
 		po.domain.trBuffer = NewTranslation()
@@ -335,37 +371,59 @@ func (po *Po) parseComment(l string, state parseState) {
 
 // parseContext takes a line starting with "msgctxt",
 // saves the current Translation buffer and creates a new context.
-func (po *Po) parseContext(l string) {
+func (po *Po) parseContext(l string) bool {
+	value, ok := po.parseQuotedDirective(l, "msgctxt")
+	if !ok {
+		return false
+	}
+
 	// Save current Translation buffer.
 	po.saveBuffer()
 
 	// Buffer context
-	po.domain.ctxBuffer, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgctxt")))
+	po.domain.ctxBuffer = value
+	return true
 }
 
 // parseID takes a line starting with "msgid",
 // saves the current Translation and creates a new msgid buffer.
-func (po *Po) parseID(l string) {
+func (po *Po) parseID(l string) bool {
+	value, ok := po.parseQuotedDirective(l, "msgid")
+	if !ok {
+		return false
+	}
+
 	// Save current Translation buffer.
 	po.saveBuffer()
 
 	// Set id
-	po.domain.trBuffer.ID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid")))
+	po.domain.trBuffer.ID = value
+	po.parseBufferHasID = true
+	return true
 }
 
 // parsePluralID saves the plural id buffer from a line starting with "msgid_plural"
-func (po *Po) parsePluralID(l string) {
-	po.domain.trBuffer.PluralID, _ = strconv.Unquote(strings.TrimSpace(strings.TrimPrefix(l, "msgid_plural")))
+func (po *Po) parsePluralID(l string) bool {
+	value, ok := po.parseQuotedDirective(l, "msgid_plural")
+	if !ok {
+		return false
+	}
+
+	po.domain.trBuffer.PluralID = value
+	po.parseBufferHasPlural = true
+	return true
 }
 
 // parseMessage takes a line starting with "msgstr" and saves it into the current buffer.
 func (po *Po) parseMessage(l string) (int, bool) {
-	l = strings.TrimSpace(strings.TrimPrefix(l, "msgstr"))
-
+	if !po.hasKeywordBoundary(l, "msgstr") {
+		return 0, false
+	}
+	l = strings.TrimSpace(l[len("msgstr"):])
 	// Check for indexed Translation forms
 	if strings.HasPrefix(l, "[") {
-		idx := strings.Index(l, "]")
-		if idx == -1 {
+		idx := strings.IndexByte(l, ']')
+		if idx <= 1 || !isASCIIPluralIndex(l[1:idx]) {
 			// Skip wrong index formatting
 			return 0, false
 		}
@@ -398,8 +456,15 @@ func (po *Po) parseMessage(l string) (int, bool) {
 
 // parseString takes a well formatted string without prefix
 // and creates headers or attach multi-line strings when corresponding
-func (po *Po) parseString(l string, state parseState, activeMsgStrIndex int) {
-	clean, _ := strconv.Unquote(l)
+func (po *Po) parseString(l string, state parseState, activeMsgStrIndex int) bool {
+	if state == msgStrInvalid {
+		return false
+	}
+
+	clean, err := strconv.Unquote(l)
+	if err != nil {
+		return false
+	}
 
 	switch state {
 	case msgStr:
@@ -417,26 +482,65 @@ func (po *Po) parseString(l string, state parseState, activeMsgStrIndex int) {
 	case msgCtxt:
 		// Multiline context - Append to current context
 		po.domain.ctxBuffer += clean
-
 	}
+
+	return true
 }
 
-// isValidLine checks for line prefixes to detect valid syntax.
 func (po *Po) isValidLine(l string) bool {
-	// Check prefix
-	valid := []string{
-		"\"",
-		"msgctxt",
-		"msgid",
-		"msgid_plural",
-		"msgstr",
+	if strings.HasPrefix(l, "\"") {
+		return true
 	}
 
-	for _, v := range valid {
-		if strings.HasPrefix(l, v) {
+	for _, keyword := range []string{
+		"msgctxt",
+		"msgid_plural",
+		"msgid",
+		"msgstr",
+	} {
+		if po.hasKeywordBoundary(l, keyword) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func (po *Po) hasKeywordBoundary(l, keyword string) bool {
+	if !strings.HasPrefix(l, keyword) {
+		return false
+	}
+	if len(l) == len(keyword) {
+		return true
+	}
+
+	next := l[len(keyword)]
+	if keyword == "msgstr" && next == '[' {
+		return true
+	}
+	return next == ' ' || next == '\t'
+}
+
+func (po *Po) parseQuotedDirective(l, keyword string) (string, bool) {
+	if !po.hasKeywordBoundary(l, keyword) {
+		return "", false
+	}
+
+	value, err := strconv.Unquote(strings.TrimSpace(l[len(keyword):]))
+	if err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+func isASCIIPluralIndex(index string) bool {
+	if index == "" {
+		return false
+	}
+	for i := 0; i < len(index); i++ {
+		if index[i] < '0' || index[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
