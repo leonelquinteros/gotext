@@ -10,8 +10,10 @@ import (
 	"embed"
 	"encoding/gob"
 	"errors"
+	"maps"
 	"os"
 	"path"
+	"reflect"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -1307,6 +1309,82 @@ func TestLocaleBinaryEncodingRace(t *testing.T) {
 
 	wg.Wait()
 }
+
+type fuzzDomainSnapshot struct {
+	headers             HeaderMap
+	language            string
+	pluralForms         string
+	nplurals            int
+	plural              string
+	headerComments      []string
+	translations        map[string]*Translation
+	contextTranslations map[string]map[string]*Translation
+}
+
+func seedFuzzDomain(domain *Domain) {
+	domain.Headers = HeaderMap{
+		"Language":     []string{"seed-language"},
+		"Plural-Forms": []string{"nplurals=2; plural=(n != 1);"},
+		"X-Seed":       []string{"first", "second"},
+	}
+	domain.Language = "seed-language"
+	domain.PluralForms = "nplurals=2; plural=(n != 1);"
+	domain.nplurals = 2
+	domain.plural = "(n != 1)"
+	domain.headerComments = []string{"# seeded comment"}
+
+	domain.Set("sentinel", "before")
+	domain.SetRefs("sentinel", []string{"seed.go:1", "seed.go:2"})
+	domain.SetN("plural", "plurals", 2, "plural before")
+	domain.Set("plural", "singular before")
+	domain.SetNC("contextual", "contextual plurals", "context", 2, "context plural before")
+	domain.SetC("contextual", "context", "context before")
+}
+
+func snapshotFuzzDomain(domain *Domain) fuzzDomainSnapshot {
+	return fuzzDomainSnapshot{
+		headers:             cloneHeaderMap(domain.Headers),
+		language:            domain.Language,
+		pluralForms:         domain.PluralForms,
+		nplurals:            domain.nplurals,
+		plural:              domain.plural,
+		headerComments:      append([]string(nil), domain.headerComments...),
+		translations:        domain.GetTranslations(),
+		contextTranslations: domain.GetCtxTranslations(),
+	}
+}
+
+type fuzzLocaleSnapshot struct {
+	path                  string
+	language              string
+	defaultDomain         string
+	filesystem            *fstest.MapFS
+	domains               map[string]Translator
+	translatorHeaders     HeaderMap
+	translatorLanguage    string
+	translatorPluralForms string
+	domain                fuzzDomainSnapshot
+}
+
+func snapshotFuzzLocale(locale *Locale, translator *Po) fuzzLocaleSnapshot {
+	var filesystem *fstest.MapFS
+	if locale.fs != nil {
+		filesystem, _ = locale.fs.(*fstest.MapFS)
+	}
+
+	return fuzzLocaleSnapshot{
+		path:                  locale.path,
+		language:              locale.GetLanguage(),
+		defaultDomain:         locale.GetDomain(),
+		filesystem:            filesystem,
+		domains:               maps.Clone(locale.Domains),
+		translatorHeaders:     cloneHeaderMap(translator.Headers),
+		translatorLanguage:    translator.Language,
+		translatorPluralForms: translator.PluralForms,
+		domain:                snapshotFuzzDomain(translator.GetDomain()),
+	}
+}
+
 func FuzzDomainUnmarshalBinaryAtomicAndUsable(f *testing.F) {
 	valid := encodeTestGob(f, &TranslatorEncoding{
 		Translations: map[string]*Translation{
@@ -1327,7 +1405,8 @@ func FuzzDomainUnmarshalBinaryAtomicAndUsable(f *testing.F) {
 		}
 
 		domain := NewDomain()
-		domain.Set("sentinel", "before")
+		seedFuzzDomain(domain)
+		before := snapshotFuzzDomain(domain)
 
 		var unmarshalErr error
 		panicked := false
@@ -1344,8 +1423,9 @@ func FuzzDomainUnmarshalBinaryAtomicAndUsable(f *testing.F) {
 		}
 
 		if unmarshalErr != nil {
-			if got := domain.Get("sentinel"); got != "before" {
-				t.Fatalf("failed decode changed existing state: got %q, want %q", got, "before")
+			after := snapshotFuzzDomain(domain)
+			if !reflect.DeepEqual(before, after) {
+				t.Fatalf("failed decode changed domain state: got %#v, want %#v", after, before)
 			}
 			return
 		}
@@ -1389,11 +1469,16 @@ func FuzzLocaleUnmarshalBinaryAtomicAndUsable(f *testing.F) {
 			return
 		}
 
-		locale := NewLocaleFSWithPath("old", fstest.MapFS{}, "old/path")
+		filesystem := &fstest.MapFS{}
+		locale := NewLocaleFSWithPath("old", filesystem, "old/path")
 		oldTranslator := NewPo()
-		oldTranslator.Set("sentinel", "before")
+		seedFuzzDomain(oldTranslator.GetDomain())
+		oldTranslator.Headers = cloneHeaderMap(oldTranslator.GetDomain().Headers)
+		oldTranslator.Language = oldTranslator.GetDomain().Language
+		oldTranslator.PluralForms = oldTranslator.GetDomain().PluralForms
 		locale.AddTranslator("old", oldTranslator)
 		locale.SetDomain("old")
+		before := snapshotFuzzLocale(locale, oldTranslator)
 
 		var unmarshalErr error
 		panicked := false
@@ -1410,14 +1495,9 @@ func FuzzLocaleUnmarshalBinaryAtomicAndUsable(f *testing.F) {
 		}
 
 		if unmarshalErr != nil {
-			if locale.path != "old/path" || locale.GetLanguage() != "old" || locale.GetDomain() != "old" {
-				t.Fatal("failed decode changed locale configuration")
-			}
-			if locale.fs == nil {
-				t.Fatal("failed decode cleared the filesystem")
-			}
-			if got, ok := locale.Domains["old"]; !ok || got != oldTranslator {
-				t.Fatal("failed decode changed existing domains")
+			after := snapshotFuzzLocale(locale, oldTranslator)
+			if !reflect.DeepEqual(before, after) {
+				t.Fatalf("failed decode changed locale state: got %#v, want %#v", after, before)
 			}
 			return
 		}

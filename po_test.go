@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
+	"strconv"
 	"testing"
 )
 
@@ -1060,6 +1062,42 @@ func FuzzPoParseMalformedInput(f *testing.F) {
 					}
 				}
 			}
+		}
+	})
+}
+
+func FuzzPoRejectedRecordDoesNotMutate(f *testing.F) {
+	f.Add([]byte("rejected record"))
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) > 64<<10 {
+			return
+		}
+
+		po := NewPo()
+		po.Set("ordinary id", "ordinary translation")
+		po.SetC("contextual id", "context", "contextual translation")
+
+		wantTranslations := po.GetDomain().GetTranslations()
+		wantContextTranslations := po.GetDomain().GetCtxTranslations()
+
+		quoted := strconv.Quote(string(input))
+		record := []byte("msgid " + quoted[:len(quoted)-1])
+
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				t.Fatalf("Parse panicked: %v", recovered)
+			}
+		}()
+
+		po.Parse(record)
+
+		if got := po.GetDomain().GetTranslations(); !reflect.DeepEqual(got, wantTranslations) {
+			t.Fatalf("ordinary translations changed: got %#v, want %#v", got, wantTranslations)
+		}
+		if got := po.GetDomain().GetCtxTranslations(); !reflect.DeepEqual(got, wantContextTranslations) {
+			t.Fatalf("context translations changed: got %#v, want %#v", got, wantContextTranslations)
 		}
 	})
 }

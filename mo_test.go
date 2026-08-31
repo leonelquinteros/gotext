@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 )
 
@@ -663,6 +664,47 @@ func FuzzMoParseBoundedCatalog(f *testing.F) {
 					t.Fatalf("context translation %q/%q is nil", context, id)
 				}
 			}
+		}
+	})
+}
+
+func FuzzMoRejectedCatalogDoesNotMutate(f *testing.F) {
+	f.Add([]byte("rejected catalog"))
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) > 64<<10 {
+			return
+		}
+
+		mo := NewMo()
+		mo.GetDomain().Set("ordinary id", "ordinary translation")
+		mo.GetDomain().SetC("contextual id", "context", "contextual translation")
+
+		wantTranslations := mo.GetDomain().GetTranslations()
+		wantContextTranslations := mo.GetDomain().GetCtxTranslations()
+
+		buf := make([]byte, 28+len(input))
+		copy(buf[28:], input)
+		binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+		binary.LittleEndian.PutUint32(buf[8:12], 1)
+		directoryOffset := uint32(len(buf) + 1)
+		binary.LittleEndian.PutUint32(buf[12:16], directoryOffset)
+		binary.LittleEndian.PutUint32(buf[16:20], directoryOffset)
+
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				t.Fatalf("Parse panicked: %v", recovered)
+			}
+		}()
+
+		mo.Parse(buf)
+
+		if got := mo.GetDomain().GetTranslations(); !reflect.DeepEqual(got, wantTranslations) {
+			t.Fatalf("ordinary translations changed: got %#v, want %#v", got, wantTranslations)
+		}
+		if got := mo.GetDomain().GetCtxTranslations(); !reflect.DeepEqual(got, wantContextTranslations) {
+			t.Fatalf("context translations changed: got %#v, want %#v", got, wantContextTranslations)
 		}
 	})
 }
