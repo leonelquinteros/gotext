@@ -669,10 +669,11 @@ func FuzzMoParseBoundedCatalog(f *testing.F) {
 }
 
 func FuzzMoRejectedCatalogDoesNotMutate(f *testing.F) {
-	f.Add([]byte("rejected catalog"))
-	f.Add([]byte{})
+	f.Add([]byte("rejected catalog"), uint8(0))
+	f.Add([]byte{}, uint8(1))
+	f.Add([]byte("big endian"), uint8(3))
 
-	f.Fuzz(func(t *testing.T, input []byte) {
+	f.Fuzz(func(t *testing.T, input []byte, mode uint8) {
 		if len(input) > 64<<10 {
 			return
 		}
@@ -684,13 +685,33 @@ func FuzzMoRejectedCatalogDoesNotMutate(f *testing.F) {
 		wantTranslations := mo.GetDomain().GetTranslations()
 		wantContextTranslations := mo.GetDomain().GetCtxTranslations()
 
-		buf := make([]byte, 28+len(input))
-		copy(buf[28:], input)
-		binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
-		binary.LittleEndian.PutUint32(buf[8:12], 1)
-		directoryOffset := uint32(len(buf) + 1)
-		binary.LittleEndian.PutUint32(buf[12:16], directoryOffset)
-		binary.LittleEndian.PutUint32(buf[16:20], directoryOffset)
+		var order binary.ByteOrder = binary.LittleEndian
+		if mode&1 != 0 {
+			order = binary.BigEndian
+		}
+		msgID := append([]byte("id:"), input...)
+		buf := makeMoFixture(
+			order,
+			moFixtureEntry{msgid: msgID, msgstr: []byte("translated")},
+		)
+
+		switch mode % 5 {
+		case 0:
+			// Keep both directories valid, but truncate the translation payload.
+			buf = buf[:len(buf)-2]
+		case 1:
+			// Overflow the original string length after both directories decode.
+			order.PutUint32(buf[28:32], ^uint32(0))
+		case 2:
+			// Point the translation payload just beyond the complete catalog.
+			order.PutUint32(buf[40:44], uint32(len(buf)+1))
+		case 3:
+			// Overflow the translation string length after both directories decode.
+			order.PutUint32(buf[36:40], ^uint32(0))
+		case 4:
+			// Corrupt the selected endian encoding's canonical magic.
+			buf[0] ^= 0xff
+		}
 
 		defer func() {
 			if recovered := recover(); recovered != nil {
