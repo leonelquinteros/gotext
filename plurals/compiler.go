@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -54,7 +55,7 @@ func (ternaryStruct) compile(tokens []string) (expr Expression, err error) {
 	}
 	falseAction, err := compileExpression(strings.Join(actions.Right, ""))
 	if err != nil {
-		return expr, nil
+		return expr, err
 	}
 	return ternary{
 		test:      test,
@@ -134,6 +135,9 @@ func compileMod(tokens []string) (math math, err error) {
 	if err != nil {
 		return math, err
 	}
+	if i == 0 {
+		return math, errors.New("modulus operation requires a non-zero integer as right operand")
+	}
 	return mod{value: uint32(i)}, nil
 }
 
@@ -161,7 +165,7 @@ func compileEquality(tokens []string, sep string, builder cmpTestBuilder) (test 
 	if err != nil {
 		return test, err
 	}
-	if contains(split.Left, "n") && !contains(split.Left, "%") && len(split.Left) == 1 {
+	if slices.Contains(split.Left, "n") && !slices.Contains(split.Left, "%") && len(split.Left) == 1 {
 		i, err := parseUint32(strings.Join(split.Right, ""))
 		if err != nil {
 			// Try to compile it as a full expression if it's not a simple integer
@@ -170,15 +174,15 @@ func compileEquality(tokens []string, sep string, builder cmpTestBuilder) (test 
 			return test, err
 		}
 		return builder(i, false), nil
-	} else if contains(split.Right, "n") && !contains(split.Right, "%") && len(split.Right) == 1 {
+	} else if slices.Contains(split.Right, "n") && !slices.Contains(split.Right, "%") && len(split.Right) == 1 {
 		i, err := parseUint32(strings.Join(split.Left, ""))
 		if err != nil {
 			return test, err
 		}
 		return builder(i, true), nil
-	} else if contains(split.Left, "n") && contains(split.Left, "%") {
+	} else if slices.Contains(split.Left, "n") && slices.Contains(split.Left, "%") {
 		return subPipe(split.Left, split.Right, builder, false)
-	} else if contains(split.Right, "n") && contains(split.Right, "%") {
+	} else if slices.Contains(split.Right, "n") && slices.Contains(split.Right, "%") {
 		return subPipe(split.Right, split.Left, builder, true)
 	}
 
@@ -272,20 +276,10 @@ type splitted struct {
 	Right []string
 }
 
-// Find index of token in list of tokens
-func index(tokens []string, sep string) int {
-	for index, token := range tokens {
-		if token == sep {
-			return index
-		}
-	}
-	return -1
-}
-
 // Split a list of tokens by a token into a splitted struct holding the tokens
 // before and after the token to be split by.
 func splitTokens(tokens []string, sep string) (s splitted, err error) {
-	index := index(tokens, sep)
+	index := slices.Index(tokens, sep)
 	if index == -1 {
 		return s, fmt.Errorf("'%s' not found in ['%s']", sep, strings.Join(tokens, "','"))
 	}
@@ -400,26 +394,17 @@ func Compile(s string) (expr Expression, err error) {
 	return compileExpression(s)
 }
 
-// Check if a token is in a slice of strings
-func contains(haystack []string, needle string) bool {
-	for _, s := range haystack {
-		if s == needle {
-			return true
-		}
-	}
-	return false
-}
-
 // Compiles an expression (ternary or constant)
 func compileExpression(s string) (expr Expression, err error) {
 	tokens, err := tokenize(s)
 	if err != nil {
 		return nil, err
 	}
-	if contains(tokens, "?") {
+	if slices.Contains(tokens, "?") {
 		return ternaryToken.compile(tokens)
 	}
 	return constToken.compile(tokens)
+
 }
 
 // Compiles a test (comparison)
@@ -429,11 +414,11 @@ func compileTest(s string) (test test, err error) {
 		return nil, err
 	}
 	for _, tokenDef := range precedence {
-		if contains(tokens, tokenDef.op) {
+		if slices.Contains(tokens, tokenDef.op) {
 			return tokenDef.token.compile(tokens)
 		}
 	}
-	if contains(tokens, "%") {
+	if slices.Contains(tokens, "%") {
 		m, err := compileMod(tokens)
 		if err != nil {
 			return nil, err

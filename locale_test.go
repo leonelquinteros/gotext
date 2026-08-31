@@ -6,9 +6,13 @@
 package gotext
 
 import (
+	"bytes"
 	"embed"
+	"encoding/gob"
 	"os"
 	"path"
+	"reflect"
+	"sync"
 	"testing"
 	"testing/fstest"
 )
@@ -791,4 +795,322 @@ func TestLocale_MissingIsTranslatedWrappers(t *testing.T) {
 	if l.IsTranslatedNC("test", 1, "ctx") {
 		t.Error("Expected false for missing domain")
 	}
+}
+
+func TestLocaleBinaryEncodingRestoresPluralForms(t *testing.T) {
+	const (
+		msgID      = "One apple"
+		msgPlural  = "Many apples"
+		pluralRule = "(n==1) ? 0 : (n==2) ? 1 : 2"
+	)
+
+	po := NewPo()
+	po.Parse([]byte(`
+msgid ""
+msgstr ""
+"Language: xx\n"
+"Plural-Forms: nplurals=3; plural=` + pluralRule + `;\n"
+
+msgid "` + msgID + `"
+msgid_plural "` + msgPlural + `"
+msgstr[0] "one apple"
+msgstr[1] "two apples"
+msgstr[2] "many apples"
+`))
+
+	locale := NewLocale("", "xx")
+	locale.AddTranslator("default", po)
+
+	data, err := locale.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restored := new(Locale)
+	if err := restored.UnmarshalBinary(data); err != nil {
+		t.Fatal(err)
+	}
+
+	translator, ok := restored.Domains["default"]
+	if !ok {
+		t.Fatal("decoded locale is missing the default translator")
+	}
+	recoveredPo, ok := translator.(*Po)
+	if !ok {
+		t.Fatalf("decoded translator has type %T, want *Po", translator)
+	}
+
+	domain := recoveredPo.GetDomain()
+	if !reflect.DeepEqual(recoveredPo.Headers, domain.Headers) {
+		t.Errorf("public Headers differ from the recovered domain: %#v vs %#v", recoveredPo.Headers, domain.Headers)
+	}
+	if recoveredPo.Language != domain.Language {
+		t.Errorf("public Language differs from the recovered domain: %q vs %q", recoveredPo.Language, domain.Language)
+	}
+	if recoveredPo.PluralForms != domain.PluralForms {
+		t.Errorf("public PluralForms differs from the recovered domain: %q vs %q", recoveredPo.PluralForms, domain.PluralForms)
+	}
+	if !reflect.DeepEqual(recoveredPo.Headers, po.Headers) {
+		t.Errorf("decoded public Headers differ from the source: %#v vs %#v", recoveredPo.Headers, po.Headers)
+	}
+	if recoveredPo.Language != po.Language {
+		t.Errorf("decoded public Language differs from the source: %q vs %q", recoveredPo.Language, po.Language)
+	}
+	if recoveredPo.PluralForms != po.PluralForms {
+		t.Errorf("decoded public PluralForms differs from the source: %q vs %q", recoveredPo.PluralForms, po.PluralForms)
+	}
+
+	tests := []struct {
+		n    int
+		want string
+	}{
+		{n: 1, want: "one apple"},
+		{n: 2, want: "two apples"},
+		{n: 5, want: "many apples"},
+	}
+	for _, tt := range tests {
+		if got := recoveredPo.GetN(msgID, msgPlural, tt.n); got != tt.want {
+			t.Errorf("GetN(%d) = %q, want %q", tt.n, got, tt.want)
+		}
+	}
+}
+
+func TestLocaleBinaryEncodingInvalidPluralFallback(t *testing.T) {
+	po := NewPo()
+	po.Parse([]byte(`
+msgid ""
+msgstr ""
+"Plural-Forms: nplurals=3; plural=invalid;\n"
+
+msgid "One apple"
+msgid_plural "Many apples"
+msgstr[0] "one apple"
+msgstr[1] "many apples"
+`))
+
+	locale := NewLocale("", "xx")
+	locale.AddTranslator("default", po)
+
+	data, err := locale.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restored := new(Locale)
+	if err := restored.UnmarshalBinary(data); err != nil {
+		t.Fatal(err)
+	}
+
+	translator, ok := restored.Domains["default"]
+	if !ok {
+		t.Fatal("decoded locale is missing the default translator")
+	}
+	recoveredPo, ok := translator.(*Po)
+	if !ok {
+		t.Fatalf("decoded translator has type %T, want *Po", translator)
+	}
+
+	if got := recoveredPo.GetN("One apple", "Many apples", 1); got != "one apple" {
+		t.Errorf("invalid plural rule GetN(1) = %q, want %q", got, "one apple")
+	}
+	if got := recoveredPo.GetN("One apple", "Many apples", 2); got != "many apples" {
+		t.Errorf("invalid plural rule GetN(2) = %q, want %q", got, "many apples")
+	}
+}
+
+func TestTranslatorEncodingGetTranslatorInitializesStorage(t *testing.T) {
+	initialTranslation := NewTranslation()
+	initialTranslation.ID = "initial"
+	initialTranslation.Set("initial translation")
+
+	initialContextTranslation := NewTranslation()
+	initialContextTranslation.ID = "initial context"
+	initialContextTranslation.Set("initial context translation")
+
+	partial := TranslatorEncoding{
+		Headers: HeaderMap{
+			"X-Initial": {"initial header"},
+		},
+		Translations: map[string]*Translation{
+			"initial": initialTranslation,
+		},
+		Contexts: map[string]map[string]*Translation{
+			"initial-context": {
+				"initial context": initialContextTranslation,
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		encoding TranslatorEncoding
+	}{
+		{name: "zero", encoding: TranslatorEncoding{}},
+		{name: "partial", encoding: partial},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			po, ok := tt.encoding.GetTranslator().(*Po)
+			if !ok {
+				t.Fatalf("GetTranslator() returned %T, want *Po", tt.encoding.GetTranslator())
+			}
+
+			po.Set("set message", "set translation")
+			if got := po.Get("set message"); got != "set translation" {
+				t.Errorf("Get after Set = %q, want %q", got, "set translation")
+			}
+
+			po.SetC("set context message", "set-context", "set context translation")
+			if got := po.GetC("set context message", "set-context"); got != "set context translation" {
+				t.Errorf("GetC after SetC = %q, want %q", got, "set context translation")
+			}
+
+			po.Parse([]byte(`
+msgid ""
+msgstr ""
+"Language: xx\n"
+"X-Test: header value\n"
+
+msgid "parsed message"
+msgstr "parsed translation"
+`))
+
+			if got := po.Get("parsed message"); got != "parsed translation" {
+				t.Errorf("Get after Parse = %q, want %q", got, "parsed translation")
+			}
+			if got := po.Get("set message"); got != "set translation" {
+				t.Errorf("Get lost value set before Parse: %q", got)
+			}
+			if got := po.GetC("set context message", "set-context"); got != "set context translation" {
+				t.Errorf("GetC lost value set before Parse: %q", got)
+			}
+			if got := po.Headers.Get("Language"); got != "xx" {
+				t.Errorf("public header access = %q, want %q", got, "xx")
+			}
+			if got := po.GetDomain().Headers.Get("X-Test"); got != "header value" {
+				t.Errorf("domain header access = %q, want %q", got, "header value")
+			}
+			if po.Language != "xx" {
+				t.Errorf("public Language = %q, want %q", po.Language, "xx")
+			}
+
+			if tt.name != "partial" {
+				return
+			}
+
+			transferredTranslation := NewTranslation()
+			transferredTranslation.ID = "transferred"
+			transferredTranslation.Set("transferred translation")
+			tt.encoding.Headers["X-Transferred"] = []string{"transferred header"}
+			tt.encoding.Translations["transferred"] = transferredTranslation
+			tt.encoding.Contexts["transferred-context"] = map[string]*Translation{
+				"transferred context": transferredTranslation,
+			}
+
+			if got := po.Headers.Get("X-Transferred"); got != "transferred header" {
+				t.Errorf("public Headers did not retain map ownership: %q", got)
+			}
+			if got := po.Get("transferred"); got != "transferred translation" {
+				t.Errorf("Translations did not retain map ownership: %q", got)
+			}
+			if got := po.GetC("transferred context", "transferred-context"); got != "transferred translation" {
+				t.Errorf("Contexts did not retain map ownership: %q", got)
+			}
+		})
+	}
+}
+
+func TestLocaleBinaryEncodingKeepsStateOnDomainDecodeError(t *testing.T) {
+	filesystem := fstest.MapFS{}
+	locale := NewLocaleFSWithPath("old", filesystem, "old/path")
+	oldTranslator := NewPo()
+	locale.AddTranslator("old", oldTranslator)
+	locale.SetDomain("old")
+
+	var buff bytes.Buffer
+	encoder := gob.NewEncoder(&buff)
+	err := encoder.Encode(&LocaleEncoding{
+		Path:          "new/path",
+		Lang:          "new",
+		Domains:       map[string][]byte{"new": []byte("invalid")},
+		DefaultDomain: "new",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := locale.UnmarshalBinary(buff.Bytes()); err == nil {
+		t.Fatal("UnmarshalBinary returned nil for an invalid domain")
+	}
+
+	if locale.path != "old/path" {
+		t.Errorf("path changed after failed decode: %q", locale.path)
+	}
+	if locale.GetLanguage() != "old" {
+		t.Errorf("language changed after failed decode: %q", locale.GetLanguage())
+	}
+	if locale.GetDomain() != "old" {
+		t.Errorf("default domain changed after failed decode: %q", locale.GetDomain())
+	}
+	if locale.fs == nil {
+		t.Error("filesystem was cleared after failed decode")
+	}
+	if got, ok := locale.Domains["old"]; !ok || got != oldTranslator {
+		t.Error("existing domains changed after failed decode")
+	}
+	if _, ok := locale.Domains["new"]; ok {
+		t.Error("partially decoded domain was installed after failed decode")
+	}
+}
+
+func TestLocaleBinaryEncodingRace(t *testing.T) {
+	const iterations = 100
+
+	source := NewLocale("", "en")
+	source.AddTranslator("default", NewPo())
+	target := NewLocale("", "en")
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	// Each replacement uses a fresh translator so concurrent operations do not
+	// share mutable translator state.
+	go func() {
+		defer wg.Done()
+		for i := range iterations {
+			domain := "domain-a"
+			if i%2 == 0 {
+				domain = "domain-b"
+			}
+			source.AddTranslator(domain, NewPo())
+			source.SetDomain(domain)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			data, err := source.MarshalBinary()
+			if err != nil {
+				t.Errorf("MarshalBinary() failed: %v", err)
+				continue
+			}
+			if err := target.UnmarshalBinary(data); err != nil {
+				t.Errorf("UnmarshalBinary() failed: %v", err)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			_ = source.GetDomain()
+			_ = source.GetD("domain-a", "message")
+			_ = target.GetDomain()
+			_ = target.GetD("domain-b", "message")
+		}
+	}()
+
+	wg.Wait()
 }

@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"sync"
@@ -347,9 +348,7 @@ func (l *Locale) GetTranslations() map[string]*Translation {
 	l.RLock()
 	defer l.RUnlock()
 	for _, translator := range l.Domains {
-		for msgID, trans := range translator.GetDomain().GetTranslations() {
-			all[msgID] = trans
-		}
+		maps.Copy(all, translator.GetDomain().GetTranslations())
 	}
 
 	return all
@@ -425,18 +424,27 @@ type LocaleEncoding struct {
 
 // MarshalBinary implements encoding BinaryMarshaler interface
 func (l *Locale) MarshalBinary() ([]byte, error) {
-	obj := new(LocaleEncoding)
-	obj.DefaultDomain = l.defaultDomain
-	obj.Domains = make(map[string][]byte)
-	for k, v := range l.Domains {
+	l.RLock()
+	path := l.path
+	lang := l.lang
+	defaultDomain := l.defaultDomain
+	domains := make(map[string]Translator, len(l.Domains))
+	maps.Copy(domains, l.Domains)
+	l.RUnlock()
+
+	obj := &LocaleEncoding{
+		Path:          path,
+		Lang:          lang,
+		Domains:       make(map[string][]byte, len(domains)),
+		DefaultDomain: defaultDomain,
+	}
+	for k, v := range domains {
 		var err error
 		obj.Domains[k], err = v.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}
 	}
-	obj.Lang = l.lang
-	obj.Path = l.path
 
 	var buff bytes.Buffer
 	encoder := gob.NewEncoder(&buff)
@@ -445,7 +453,7 @@ func (l *Locale) MarshalBinary() ([]byte, error) {
 	return buff.Bytes(), err
 }
 
-// UnmarshalBinary implements encoding BinaryUnmarshaler interface
+// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
 func (l *Locale) UnmarshalBinary(data []byte) error {
 	buff := bytes.NewBuffer(data)
 	obj := new(LocaleEncoding)
@@ -456,12 +464,7 @@ func (l *Locale) UnmarshalBinary(data []byte) error {
 		return err
 	}
 
-	l.defaultDomain = obj.DefaultDomain
-	l.lang = obj.Lang
-	l.path = obj.Path
-
-	// Decode Domains
-	l.Domains = make(map[string]Translator)
+	domains := make(map[string]Translator, len(obj.Domains))
 	for k, v := range obj.Domains {
 		var tr TranslatorEncoding
 		buff := bytes.NewBuffer(v)
@@ -471,8 +474,15 @@ func (l *Locale) UnmarshalBinary(data []byte) error {
 			return err
 		}
 
-		l.Domains[k] = tr.GetTranslator()
+		domains[k] = tr.GetTranslator()
 	}
+
+	l.Lock()
+	l.defaultDomain = obj.DefaultDomain
+	l.lang = obj.Lang
+	l.path = obj.Path
+	l.Domains = domains
+	l.Unlock()
 
 	return nil
 }

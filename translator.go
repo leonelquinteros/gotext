@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+
+	"github.com/leonelquinteros/gotext/plurals"
 )
 
 // Translator interface is used by Locale and Po objects.Translator
@@ -63,14 +65,35 @@ type TranslatorEncoding struct {
 // deserialize into a Po-compatible object.
 func (te *TranslatorEncoding) GetTranslator() Translator {
 	po := NewPo()
-	po.domain = NewDomain()
-	po.domain.Headers = te.Headers
+
+	headers := te.Headers
+	if headers == nil {
+		headers = make(HeaderMap)
+	}
+	translations := te.Translations
+	if translations == nil {
+		translations = make(map[string]*Translation)
+	}
+	contexts := te.Contexts
+	if contexts == nil {
+		contexts = make(map[string]map[string]*Translation)
+	}
+
+	po.domain.Headers = headers
 	po.domain.Language = te.Language
 	po.domain.PluralForms = te.PluralForms
 	po.domain.nplurals = te.Nplurals
 	po.domain.plural = te.Plural
-	po.domain.translations = te.Translations
-	po.domain.contextTranslations = te.Contexts
+	po.domain.translations = translations
+	po.domain.contextTranslations = contexts
+
+	if expr, err := plurals.Compile(te.Plural); err == nil {
+		po.domain.pluralforms = expr
+	}
+
+	po.Headers = po.domain.Headers
+	po.Language = po.domain.Language
+	po.PluralForms = po.domain.PluralForms
 
 	return po
 }

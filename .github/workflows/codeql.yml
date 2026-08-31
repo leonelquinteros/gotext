@@ -59,6 +59,12 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Set up Go
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.27.0'
+
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
     # or others). This is typically only required for manual builds.

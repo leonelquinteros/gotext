@@ -52,6 +52,7 @@ const (
 	msgID
 	msgIDPlural
 	msgStr
+	msgStrInvalid
 )
 
 // NewPo should always be used to instantiate a new Po object
@@ -94,7 +95,7 @@ func (po *Po) GetRefs(str string) []string {
 
 // SetPluralResolver sets the plural resolver function
 func (po *Po) SetPluralResolver(f func(int) int) {
-	po.domain.customPluralResolver = f
+	po.domain.SetPluralResolver(f)
 }
 
 // Set translation
@@ -215,7 +216,6 @@ func (po *Po) Parse(buf []byte) {
 	defer po.domain.pluralMutex.Unlock()
 
 	// Get lines
-	lines := strings.Split(string(buf), "\n")
 
 	// Init buffer
 	po.domain.trBuffer = NewTranslation()
@@ -223,7 +223,8 @@ func (po *Po) Parse(buf []byte) {
 	po.domain.refBuffer = ""
 
 	state := head
-	for _, l := range lines {
+	activeMsgStrIndex := 0
+	for l := range strings.Lines(string(buf)) {
 		// Trim spaces
 		l = strings.TrimSpace(l)
 
@@ -257,14 +258,20 @@ func (po *Po) Parse(buf []byte) {
 
 		// Save Translation
 		if strings.HasPrefix(l, "msgstr") {
-			po.parseMessage(l)
-			state = msgStr
+			var ok bool
+			activeMsgStrIndex, ok = po.parseMessage(l)
+			if ok {
+				state = msgStr
+			} else {
+				activeMsgStrIndex = 0
+				state = msgStrInvalid
+			}
 			continue
 		}
 
 		// Multi line strings and headers
 		if strings.HasPrefix(l, "\"") && strings.HasSuffix(l, "\"") {
-			po.parseString(l, state)
+			po.parseString(l, state, activeMsgStrIndex)
 			continue
 		}
 	}
@@ -352,7 +359,7 @@ func (po *Po) parsePluralID(l string) {
 }
 
 // parseMessage takes a line starting with "msgstr" and saves it into the current buffer.
-func (po *Po) parseMessage(l string) {
+func (po *Po) parseMessage(l string) (int, bool) {
 	l = strings.TrimSpace(strings.TrimPrefix(l, "msgstr"))
 
 	// Check for indexed Translation forms
@@ -360,36 +367,44 @@ func (po *Po) parseMessage(l string) {
 		idx := strings.Index(l, "]")
 		if idx == -1 {
 			// Skip wrong index formatting
-			return
+			return 0, false
 		}
 
 		// Parse index
 		i, err := strconv.Atoi(l[1:idx])
 		if err != nil {
 			// Skip wrong index formatting
-			return
+			return 0, false
 		}
 
 		// Parse Translation string
-		po.domain.trBuffer.Trs[i], _ = strconv.Unquote(strings.TrimSpace(l[idx+1:]))
+		clean, err := strconv.Unquote(strings.TrimSpace(l[idx+1:]))
+		if err != nil {
+			return 0, false
+		}
+		po.domain.trBuffer.Trs[i] = clean
 
-		// Loop
-		return
+		return i, true
 	}
 
 	// Save single Translation form under 0 index
-	po.domain.trBuffer.Trs[0], _ = strconv.Unquote(l)
+	clean, err := strconv.Unquote(l)
+	if err != nil {
+		return 0, false
+	}
+	po.domain.trBuffer.Trs[0] = clean
+	return 0, true
 }
 
 // parseString takes a well formatted string without prefix
 // and creates headers or attach multi-line strings when corresponding
-func (po *Po) parseString(l string, state parseState) {
+func (po *Po) parseString(l string, state parseState, activeMsgStrIndex int) {
 	clean, _ := strconv.Unquote(l)
 
 	switch state {
 	case msgStr:
-		// Append to last Translation found
-		po.domain.trBuffer.Trs[len(po.domain.trBuffer.Trs)-1] += clean
+		// Append to active Translation form
+		po.domain.trBuffer.Trs[activeMsgStrIndex] += clean
 
 	case msgID:
 		// Multiline msgid - Append to current id

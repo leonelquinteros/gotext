@@ -1,8 +1,8 @@
 package dir
 
 import (
+	"io/fs"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,8 +25,15 @@ func AddParser(parser ParseDirFunc) {
 
 // ParseDir calls all known parser for each directory
 func ParseDir(dirPath, basePath string, data *parser.DomainMap) error {
-	dirPath, _ = filepath.Abs(dirPath)
-	basePath, _ = filepath.Abs(basePath)
+	var err error
+	dirPath, err = filepath.Abs(dirPath)
+	if err != nil {
+		return err
+	}
+	basePath, err = filepath.Abs(basePath)
+	if err != nil {
+		return err
+	}
 
 	for _, parser := range knownParser {
 		err := parser(dirPath, basePath, data)
@@ -39,31 +46,45 @@ func ParseDir(dirPath, basePath string, data *parser.DomainMap) error {
 
 // ParseDirRec calls all known parser for each directory
 func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbose bool) error {
-	dirPath, _ = filepath.Abs(dirPath)
+	var err error
+	dirPath, err = filepath.Abs(dirPath)
+	if err != nil {
+		return err
+	}
 
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+	excludeDirs := make([]string, 0, len(exclude))
+	for _, excludeDir := range exclude {
+		excludeDir = filepath.Clean(excludeDir)
+		if excludeDir != "." {
+			excludeDirs = append(excludeDirs, excludeDir)
+		}
+	}
+
+	return filepath.WalkDir(dirPath, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
-			// skip directory if in exclude list
-			subDir, _ := filepath.Rel(dirPath, path)
-			for _, d := range exclude {
-				if strings.HasPrefix(subDir, d) {
-					return nil
+		if entry.IsDir() {
+			subDir, err := filepath.Rel(dirPath, path)
+			if err != nil {
+				return err
+			}
+
+			for _, excludeDir := range excludeDirs {
+				if subDir == excludeDir || strings.HasPrefix(subDir, excludeDir+string(filepath.Separator)) {
+					return filepath.SkipDir
 				}
 			}
+
 			if verbose {
 				log.Print(path)
 			}
 
-			err := ParseDir(path, dirPath, data)
-			if err != nil {
+			if err := ParseDir(path, dirPath, data); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-	return err
 }

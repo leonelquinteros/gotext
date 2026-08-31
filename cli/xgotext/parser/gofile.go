@@ -131,8 +131,9 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 
 	// convert args
 	args := make([]*ast.BasicLit, len(n.Args))
+	resolving := make(map[types.Object]bool)
 	for idx, arg := range n.Args {
-		args[idx] = g.resolveStringLiteral(arg, n.Pos(), make(map[types.Object]bool))
+		args[idx] = g.resolveStringLiteral(arg, n.Pos(), resolving)
 	}
 
 	// get position
@@ -293,23 +294,17 @@ func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
 			continue
 		}
 		for _, file := range pkg.Syntax {
-			mutated := false
-			ast.Inspect(file, func(node ast.Node) bool {
+			for node := range ast.Preorder(file) {
 				assign, ok := node.(*ast.AssignStmt)
 				if !ok || assign.Pos() >= before {
-					return true
+					continue
 				}
 				for _, lhs := range assign.Lhs {
 					ident, ok := lhs.(*ast.Ident)
 					if ok && pkg.TypesInfo.Uses[ident] == object {
-						mutated = true
-						return false
+						return true
 					}
 				}
-				return true
-			})
-			if mutated {
-				return true
 			}
 		}
 	}

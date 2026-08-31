@@ -2,8 +2,13 @@ package parser
 
 import (
 	"go/ast"
+	goparser "go/parser"
 	"go/token"
+	"go/types"
+	"slices"
 	"testing"
+
+	"golang.org/x/tools/go/packages"
 )
 
 func TestGetterDef_MaxArgIndex(t *testing.T) {
@@ -143,5 +148,196 @@ func TestGetLiteralFromIdent(t *testing.T) {
 	litY := getLiteralFromIdent(identY)
 	if litY == nil || litY.Value != `"valY"` {
 		t.Errorf("expected valY, got %v", litY)
+	}
+}
+
+type typedASTImporter struct {
+	pkg *types.Package
+}
+
+func (i typedASTImporter) Import(string) (*types.Package, error) {
+	return i.pkg, nil
+}
+
+func addTypedGetter(pkg *types.Package, name string, parameterTypes ...types.Type) {
+	params := make([]*types.Var, len(parameterTypes))
+	for idx, parameterType := range parameterTypes {
+		params[idx] = types.NewVar(token.NoPos, pkg, "", parameterType)
+	}
+
+	signature := types.NewSignatureType(nil, nil, nil, types.NewTuple(params...), types.NewTuple(), false)
+	pkg.Scope().Insert(types.NewFunc(token.NoPos, pkg, name, signature))
+}
+
+func newTypedGoFile(t *testing.T, source string) (*GoFile, *ast.File) {
+	t.Helper()
+
+	fileSet := token.NewFileSet()
+	file, err := goparser.ParseFile(fileSet, "typed.go", source, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotextTypes := types.NewPackage("github.com/leonelquinteros/gotext", "gotext")
+	addTypedGetter(gotextTypes, "Get", types.Typ[types.String])
+	addTypedGetter(gotextTypes, "GetNC",
+		types.Typ[types.String],
+		types.Typ[types.String],
+		types.Typ[types.String],
+		types.Typ[types.String],
+	)
+	gotextTypes.MarkComplete()
+
+	typesInfo := &types.Info{
+		Types: make(map[ast.Expr]types.TypeAndValue),
+		Defs:  make(map[*ast.Ident]types.Object),
+		Uses:  make(map[*ast.Ident]types.Object),
+	}
+	_, typeErr := (&types.Config{
+		Importer: typedASTImporter{pkg: gotextTypes},
+	}).Check("typed", fileSet, []*ast.File{file}, typesInfo)
+	if typeErr != nil {
+		t.Fatalf("type-check typed source: %v", typeErr)
+	}
+
+	g := &GoFile{
+		FilePath: "typed.go",
+		BasePath: ".",
+		Data:     &DomainMap{},
+		FileSet:  fileSet,
+		ImportedPackages: map[string]*packages.Package{
+			"gotext": {
+				PkgPath: "github.com/leonelquinteros/gotext",
+			},
+			"typed": {
+				PkgPath:   "typed",
+				Syntax:    []*ast.File{file},
+				TypesInfo: typesInfo,
+			},
+		},
+	}
+	return g, file
+}
+
+func inspectTypedCalls(g *GoFile, file *ast.File) {
+	ast.Inspect(file, func(node ast.Node) bool {
+		if call, ok := node.(*ast.CallExpr); ok {
+			g.InspectCallExpr(call)
+		}
+		return true
+	})
+}
+
+func makeTypedASTCycle(t *testing.T, file *ast.File) {
+	t.Helper()
+
+	declarations := make(map[string]*ast.ValueSpec, 2)
+	references := make(map[string]*ast.Ident, 2)
+	ast.Inspect(file, func(node ast.Node) bool {
+		switch node := node.(type) {
+		case *ast.ValueSpec:
+			for _, name := range node.Names {
+				if name.Name == "cyclicA" || name.Name == "cyclicB" {
+					declarations[name.Name] = node
+				}
+			}
+		case *ast.Ident:
+			spec, ok := declarations[node.Name]
+			if ok && node.Obj != nil && node.Obj.Decl == spec {
+				if slices.Contains(spec.Names, node) {
+					return true
+				}
+				references[node.Name] = node
+			}
+		}
+		return true
+	})
+
+	for _, name := range []string{"cyclicA", "cyclicB"} {
+		if declarations[name] == nil || references[name] == nil {
+			t.Fatalf("failed to find typed AST cycle node %s", name)
+		}
+	}
+	declarations["cyclicA"].Values = []ast.Expr{references["cyclicB"]}
+	declarations["cyclicB"].Values = []ast.Expr{references["cyclicA"]}
+}
+
+func TestGoFile_InspectCallExpr_TypedASTMutation(t *testing.T) {
+	const source = `package typed
+
+import "github.com/leonelquinteros/gotext"
+
+func example() {
+	unrelated := "unrelated"
+	unrelated = "changed unrelated"
+	_ = unrelated
+	before := "message before mutation"
+	gotext.Get(before)
+
+	mutated := "initial mutation"
+	mutated = "message after mutation"
+	gotext.Get(mutated)
+
+	afterCall := "message before later mutation"
+	gotext.Get(afterCall)
+	afterCall = "message after later mutation"
+}`
+
+	g, file := newTypedGoFile(t, source)
+	inspectTypedCalls(g, file)
+
+	translations := g.Data.Domains["default"].Translations
+	if len(translations) != 2 {
+		t.Fatalf("got %d translations, want 2", len(translations))
+	}
+	if _, ok := translations["message before mutation"]; !ok {
+		t.Error("unmodified identifier before its call was not extracted")
+	}
+	if _, ok := translations["message before later mutation"]; !ok {
+		t.Error("identifier mutated after its call was not extracted")
+	}
+	if _, ok := translations["message after mutation"]; ok {
+		t.Error("identifier mutated before its call was extracted")
+	}
+}
+
+func TestGoFile_InspectCallExpr_TypedASTCycleDoesNotPoisonLaterArgumentsOrCalls(t *testing.T) {
+	const source = `package typed
+
+import "github.com/leonelquinteros/gotext"
+
+var cyclicA string = "initial cyclic A"
+var cyclicB string = "initial cyclic B"
+var contextAfterCycle = "context after cycle"
+var later = "later call"
+
+func example() {
+	gotext.Get(cyclicA)
+	gotext.GetNC("id", "plural", cyclicB, contextAfterCycle)
+	gotext.Get(later)
+}`
+
+	g, file := newTypedGoFile(t, source)
+	makeTypedASTCycle(t, file)
+	inspectTypedCalls(g, file)
+
+	domain := g.Data.Domains["default"]
+	if _, ok := domain.Translations["cyclicA"]; ok {
+		t.Error("cyclic identifier was extracted")
+	}
+	contextTranslations := domain.ContextTranslations[`"context after cycle"`]
+	translation, ok := contextTranslations["id"]
+	if !ok {
+		t.Fatal("later arguments were not extracted after a cyclic identifier")
+	}
+	if translation.Context != `"context after cycle"` {
+		t.Errorf("context = %q, want %q", translation.Context, `"context after cycle"`)
+	}
+	if _, ok := domain.Translations["later call"]; !ok {
+		t.Error("later call was not extracted after a cyclic identifier")
+	}
+	if len(domain.Translations) != 1 || len(contextTranslations) != 1 {
+		t.Fatalf("got %d uncontexted and %d contextual translations, want 1 each",
+			len(domain.Translations), len(contextTranslations))
 	}
 }

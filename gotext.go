@@ -140,7 +140,7 @@ func GetLanguages() []string {
 func SetLanguage(lang string) {
 	globalConfig.Lock()
 	var languages []string
-	for _, language := range strings.Split(lang, ":") {
+	for language := range strings.SplitSeq(lang, ":") {
 		languages = append(languages, SimplifiedLocale(language))
 	}
 	globalConfig.languages = languages
@@ -219,7 +219,7 @@ func Configure(lib, lang, dom string) {
 	globalConfig.Lock()
 	globalConfig.library = lib
 	var languages []string
-	for _, language := range strings.Split(lang, ":") {
+	for language := range strings.SplitSeq(lang, ":") {
 		languages = append(languages, SimplifiedLocale(language))
 	}
 	globalConfig.languages = languages

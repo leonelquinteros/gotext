@@ -6,6 +6,7 @@
 package gotext
 
 import (
+	"encoding/binary"
 	"os"
 	"path"
 	"testing"
@@ -268,5 +269,109 @@ func TestMo_MissingWrappers(t *testing.T) {
 	}
 	if mo.IsTranslatedNC("id", 1, "ctx") {
 		t.Error("Mo.IsTranslatedNC failed")
+	}
+}
+
+func TestMoParseRejectsHugeCount(t *testing.T) {
+	buf := make([]byte, 28)
+	binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+	binary.LittleEndian.PutUint32(buf[8:12], ^uint32(0))
+
+	mo := NewMo()
+	mo.GetDomain().Set("seed", "preserved")
+	mo.Parse(buf)
+
+	if got := mo.Get("seed"); got != "preserved" {
+		t.Fatalf("seed translation = %q, want %q", got, "preserved")
+	}
+	if len(mo.domain.translations) != 1 {
+		t.Fatalf("translations = %v, want only the seed", mo.domain.translations)
+	}
+}
+
+func TestMoParseRejectsInvalidPayloadWithoutMutation(t *testing.T) {
+	t.Run("payload extends past file", func(t *testing.T) {
+		buf := make([]byte, 46)
+		binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+		binary.LittleEndian.PutUint32(buf[8:12], 1)
+		binary.LittleEndian.PutUint32(buf[12:16], 28)
+		binary.LittleEndian.PutUint32(buf[16:20], 36)
+		binary.LittleEndian.PutUint32(buf[28:32], 4)
+		binary.LittleEndian.PutUint32(buf[32:36], 44)
+		binary.LittleEndian.PutUint32(buf[36:40], 1)
+		binary.LittleEndian.PutUint32(buf[40:44], 45)
+		copy(buf[44:], "xy")
+
+		mo := NewMo()
+		mo.GetDomain().Set("seed", "preserved")
+		mo.Parse(buf)
+
+		if got := mo.Get("seed"); got != "preserved" {
+			t.Fatalf("seed translation = %q, want %q", got, "preserved")
+		}
+		if len(mo.domain.translations) != 1 {
+			t.Fatalf("translations = %v, want only the seed", mo.domain.translations)
+		}
+	})
+
+	t.Run("later payload invalidates all entries", func(t *testing.T) {
+		buf := make([]byte, 70)
+		binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+		binary.LittleEndian.PutUint32(buf[8:12], 2)
+		binary.LittleEndian.PutUint32(buf[12:16], 28)
+		binary.LittleEndian.PutUint32(buf[16:20], 44)
+
+		binary.LittleEndian.PutUint32(buf[28:32], 3)
+		binary.LittleEndian.PutUint32(buf[32:36], 60)
+		binary.LittleEndian.PutUint32(buf[36:40], 3)
+		binary.LittleEndian.PutUint32(buf[40:44], 66)
+
+		binary.LittleEndian.PutUint32(buf[44:48], 3)
+		binary.LittleEndian.PutUint32(buf[48:52], 63)
+		binary.LittleEndian.PutUint32(buf[52:56], 3)
+		binary.LittleEndian.PutUint32(buf[56:60], 69)
+		copy(buf[60:], "oneONEtwoT")
+
+		mo := NewMo()
+		mo.GetDomain().Set("seed", "preserved")
+		mo.Parse(buf)
+
+		if got := mo.Get("seed"); got != "preserved" {
+			t.Fatalf("seed translation = %q, want %q", got, "preserved")
+		}
+		if len(mo.domain.translations) != 1 {
+			t.Fatalf("translations = %v, want only the seed", mo.domain.translations)
+		}
+	})
+}
+
+func TestMoAddTranslationPreservesPluralBytes(t *testing.T) {
+	mo := NewMo()
+	mo.addTranslation(
+		[]byte("id\x00plural\x00extra"),
+		[]byte("one\x00two\x00three"),
+	)
+
+	translation, ok := mo.domain.translations["id"]
+	if !ok {
+		t.Fatal("expected translation for repeated-NUL msgid")
+	}
+	if got := translation.PluralID; got != "plural\x00extra" {
+		t.Fatalf("plural ID = %q, want %q", got, "plural\x00extra")
+	}
+	for i, want := range map[int]string{0: "one", 1: "two", 2: "three"} {
+		if got := translation.Trs[i]; got != want {
+			t.Fatalf("translation form %d = %q, want %q", i, got, want)
+		}
+	}
+	if len(translation.Trs) != 3 {
+		t.Fatalf("translation forms = %v, want 3 forms", translation.Trs)
+	}
+
+	mo = NewMo()
+	mo.addTranslation([]byte("singular"), []byte("translated"))
+	translation = mo.domain.translations["singular"]
+	if got := translation.PluralID; got != "" {
+		t.Fatalf("singular plural ID = %q, want empty", got)
 	}
 }

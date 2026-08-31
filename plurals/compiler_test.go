@@ -71,14 +71,32 @@ func TestCompile_EdgeCases(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for malformed ternary")
 	}
+	// Malformed false branch
+	expr, err = Compile("n == 1 ? 0 :")
+	if err == nil {
+		t.Error("Expected error for malformed false branch")
+	}
+	if expr != nil {
+		t.Error("Expected nil expression for malformed false branch")
+	}
 
 	// Unexpected EOF in logic test
 	_, err = Compile("n >")
 	if err == nil {
 		t.Error("Expected error for unexpected EOF")
 	}
+	// Zero modulus
+	for _, expression := range []string{"n % 0", "n % 0 == 0"} {
+		expr, err = Compile(expression)
+		if err == nil {
+			t.Errorf("Expected error for zero modulus expression %q", expression)
+		}
+		if expr != nil {
+			t.Errorf("Expected nil expression for zero modulus expression %q", expression)
+		}
+	}
 
-	// Missing closing parenthesis - current compiler might not catch this strictly, 
+	// Missing closing parenthesis - current compiler might not catch this strictly,
 	// or it catches it in a way that doesn't return an error immediately from Compile.
 	// Let's remove it if it doesn't fail, or just focus on what DOES fail.
 }
@@ -114,7 +132,7 @@ func TestEval_EdgeCases(t *testing.T) {
 		{"n < 2", 1, 1},
 		{"n >= 1", 1, 1},
 		{"n <= 1", 1, 1},
-		{"n % 10", 3, 0}, // n % 10 == 0? 3 % 10 is 3, so false (0)
+		{"n % 10", 3, 0},  // n % 10 == 0? 3 % 10 is 3, so false (0)
 		{"n % 10", 10, 1}, // 10 % 10 is 0, so true (1)
 		{"n % 10 == 3", 3, 1},
 		{"n % 10 == 3", 13, 1},

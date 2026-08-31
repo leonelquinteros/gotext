@@ -9,6 +9,9 @@ import (
 )
 
 func TestAddParser(t *testing.T) {
+	oldParsers := knownParser
+	defer func() { knownParser = oldParsers }()
+
 	initialCount := len(knownParser)
 	AddParser(func(filePath, basePath string, data *parser.DomainMap) error {
 		return nil
@@ -19,6 +22,10 @@ func TestAddParser(t *testing.T) {
 }
 
 func TestParseDir(t *testing.T) {
+	oldParsers := knownParser
+	defer func() { knownParser = oldParsers }()
+	knownParser = nil
+
 	dm := &parser.DomainMap{}
 	called := false
 	AddParser(func(dirPath, basePath string, data *parser.DomainMap) error {
@@ -56,30 +63,45 @@ func TestParseDirRec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dm := &parser.DomainMap{}
-	callCount := 0
-	AddParser(func(dirPath, basePath string, data *parser.DomainMap) error {
-		callCount++
-		return nil
-	})
+	excludeChild := filepath.Join(excludeDir, "child")
+	err = os.Mkdir(excludeChild, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	// Reset knownParser to only have our test parser for predictable count
+	excludeSibling := filepath.Join(tmpDir, "excluded")
+	err = os.Mkdir(excludeSibling, 0755)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	oldParsers := knownParser
-	knownParser = []ParseDirFunc{func(dirPath, basePath string, data *parser.DomainMap) error {
-		callCount++
-		return nil
-	}}
 	defer func() { knownParser = oldParsers }()
 
-	err = ParseDirRec(tmpDir, []string{"exclude"}, dm, true)
+	dm := &parser.DomainMap{}
+	visited := make(map[string]bool)
+	knownParser = []ParseDirFunc{func(dirPath, basePath string, data *parser.DomainMap) error {
+		visited[dirPath] = true
+		return nil
+	}}
+
+	err = ParseDirRec(tmpDir, []string{"", ".", "." + string(filepath.Separator) + "exclude"}, dm, true)
 	if err != nil {
 		t.Errorf("ParseDirRec failed: %v", err)
 	}
 
-	// Should be called for tmpDir and subDir, but not excludeDir
-	// Total 2 calls
-	if callCount != 2 {
-		t.Errorf("Expected 2 calls, got %d", callCount)
+	for _, path := range []string{tmpDir, subDir, excludeSibling} {
+		if !visited[path] {
+			t.Errorf("Expected parser call for %s", path)
+		}
+	}
+	for _, path := range []string{excludeDir, excludeChild} {
+		if visited[path] {
+			t.Errorf("Unexpected parser call for excluded path %s", path)
+		}
+	}
+	if len(visited) != 3 {
+		t.Errorf("Expected 3 parser calls, got %d", len(visited))
 	}
 }
 

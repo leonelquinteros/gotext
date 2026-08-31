@@ -480,11 +480,14 @@ func TestOverrideLocale(t *testing.T) {
 
 func TestPackageRace(t *testing.T) {
 	// Set PO content
-	str := `# Some comment
+	str := `msgid ""
+msgstr ""
+"Language: en_US\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
 msgid "My text"
 msgstr "Translated text"
 
-# More comments
 msgid "Another string"
 msgstr ""
 
@@ -497,55 +500,56 @@ msgstr[2] "And this is the second plural form: %s"
 msgctxt "Ctx"
 msgid "Some random in a context"
 msgstr "Some random Translation in a context"
-
 	`
 
-	// Create Locales directory on default location
-	dirname := path.Join("/tmp", "en_US")
+	library := t.TempDir()
+	dirname := filepath.Join(library, "en_US")
 	err := os.MkdirAll(dirname, os.ModePerm)
 	if err != nil {
 		t.Fatalf("Can't create test directory: %s", err.Error())
 	}
 
-	// Write PO content to default domain file
-	filename := path.Join("/tmp", GetDomain()+".po")
-
-	f, err := os.Create(filename)
-	if err != nil {
-		t.Fatalf("Can't create test file: %s", err.Error())
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	_, err = f.WriteString(str)
+	filename := filepath.Join(dirname, "default.po")
+	err = os.WriteFile(filename, []byte(str), 0o644)
 	if err != nil {
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
 
+	Configure(library, "en_US", "default")
+
 	var wg sync.WaitGroup
+	results := make(chan [2]string, 1000)
 
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		// Test translations
-		go func() {
-			defer wg.Done()
-
+	for range 1000 {
+		wg.Go(func() {
+			// Test translations
 			GetLibrary()
-			SetLibrary(path.Join("/tmp", "gotextlib"))
+			SetLibrary(library)
 			GetDomain()
 			SetDomain("default")
 			GetLanguage()
 			SetLanguage("en_US")
-			Configure("/tmp", "en_US", "default")
+			Configure(library, "en_US", "default")
 
-			Get("My text")
+			results <- [2]string{
+				Get("My text"),
+				GetC("Some random in a context", "Ctx"),
+			}
 			GetN("One with var: %s", "Several with vars: %s", 0, "test")
-			GetC("Some random in a context", "Ctx")
-		}()
+		})
 	}
 
 	wg.Wait()
+	close(results)
+
+	for result := range results {
+		if result[0] != "Translated text" {
+			t.Errorf("Expected 'Translated text', got '%s'", result[0])
+		}
+		if result[1] != "Some random Translation in a context" {
+			t.Errorf("Expected contextual translation, got '%s'", result[1])
+		}
+	}
 }
 
 func TestPackageArabicTranslation(t *testing.T) {
@@ -724,13 +728,13 @@ func TestGotext_MissingWrappers(t *testing.T) {
 	if IsTranslatedDC("missing", "id", "ctx") {
 		t.Error("IsTranslatedDC failed")
 	}
-	
+
 	if GetStorage() == nil {
 		t.Error("GetStorage should not be nil")
 	}
-	
+
 	SetStorage(GetStorage()) // Coverage
-	
+
 	Configure("fixtures", "en_US", "default")
 	if GetD("default", "My text") != translatedText {
 		t.Error("GetD failed")

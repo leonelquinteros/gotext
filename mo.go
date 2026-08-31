@@ -203,66 +203,41 @@ func (mo *Mo) Parse(buf []byte) {
 		// return fmt.Errorf("gettext: %v", "invalid version number")
 	}
 
-	msgIDStart := make([]uint32, header.MsgIDCount)
-	msgIDLen := make([]uint32, header.MsgIDCount)
-	if _, err := r.Seek(int64(header.MsgIDOffset), 0); err != nil {
+	bufLen := uint64(len(buf))
+	directorySize := uint64(header.MsgIDCount) * 8
+	if uint64(header.MsgIDOffset)+directorySize > bufLen ||
+		uint64(header.MsgStrOffset)+directorySize > bufLen {
 		return
-		// return fmt.Errorf("gettext: %v", err)
-	}
-	for i := 0; i < int(header.MsgIDCount); i++ {
-		if err := binary.Read(r, bo, &msgIDLen[i]); err != nil {
-			return
-			// return fmt.Errorf("gettext: %v", err)
-		}
-		if err := binary.Read(r, bo, &msgIDStart[i]); err != nil {
-			return
-			// return fmt.Errorf("gettext: %v", err)
-		}
 	}
 
-	msgStrStart := make([]int32, header.MsgIDCount)
-	msgStrLen := make([]int32, header.MsgIDCount)
-	if _, err := r.Seek(int64(header.MsgStrOffset), 0); err != nil {
-		return
-		// return fmt.Errorf("gettext: %v", err)
-	}
-	for i := 0; i < int(header.MsgIDCount); i++ {
-		if err := binary.Read(r, bo, &msgStrLen[i]); err != nil {
+	for i := uint32(0); i < header.MsgIDCount; i++ {
+		msgIDEntry := int(uint64(header.MsgIDOffset) + uint64(i)*8)
+		msgIDLen := bo.Uint32(buf[msgIDEntry:])
+		msgIDStart := bo.Uint32(buf[msgIDEntry+4:])
+		if uint64(msgIDStart)+uint64(msgIDLen) > bufLen {
 			return
-			// return fmt.Errorf("gettext: %v", err)
 		}
-		if err := binary.Read(r, bo, &msgStrStart[i]); err != nil {
+
+		msgStrEntry := int(uint64(header.MsgStrOffset) + uint64(i)*8)
+		msgStrLen := bo.Uint32(buf[msgStrEntry:])
+		msgStrStart := bo.Uint32(buf[msgStrEntry+4:])
+		if uint64(msgStrStart)+uint64(msgStrLen) > bufLen {
 			return
-			// return fmt.Errorf("gettext: %v", err)
 		}
 	}
 
-	for i := 0; i < int(header.MsgIDCount); i++ {
-		if _, err := r.Seek(int64(msgIDStart[i]), 0); err != nil {
-			return
-			// return fmt.Errorf("gettext: %v", err)
-		}
-		msgIDData := make([]byte, msgIDLen[i])
-		if _, err := r.Read(msgIDData); err != nil {
-			return
-			// return fmt.Errorf("gettext: %v", err)
-		}
+	for i := uint32(0); i < header.MsgIDCount; i++ {
+		msgIDEntry := int(uint64(header.MsgIDOffset) + uint64(i)*8)
+		msgIDLen := bo.Uint32(buf[msgIDEntry:])
+		msgIDStart := bo.Uint32(buf[msgIDEntry+4:])
+		msgIDEnd := int(uint64(msgIDStart) + uint64(msgIDLen))
 
-		if _, err := r.Seek(int64(msgStrStart[i]), 0); err != nil {
-			return
-			// return fmt.Errorf("gettext: %v", err)
-		}
-		msgStrData := make([]byte, msgStrLen[i])
-		if _, err := r.Read(msgStrData); err != nil {
-			return
-			// return fmt.Errorf("gettext: %v", err)
-		}
+		msgStrEntry := int(uint64(header.MsgStrOffset) + uint64(i)*8)
+		msgStrLen := bo.Uint32(buf[msgStrEntry:])
+		msgStrStart := bo.Uint32(buf[msgStrEntry+4:])
+		msgStrEnd := int(uint64(msgStrStart) + uint64(msgStrLen))
 
-		if len(msgIDData) == 0 {
-			mo.addTranslation(msgIDData, msgStrData)
-		} else {
-			mo.addTranslation(msgIDData, msgStrData)
-		}
+		mo.addTranslation(buf[int(msgIDStart):msgIDEnd], buf[int(msgStrStart):msgStrEnd])
 	}
 
 	// Parse headers
@@ -287,24 +262,20 @@ func (mo *Mo) addTranslation(msgid, msgstr []byte) {
 		msgid, msgctxt = d[1], d[0]
 	}
 
-	dd := bytes.Split(msgid, []byte(NulSeparator))
-	if len(dd) > 1 {
-		msgid = dd[0]
-		dd = dd[1:]
+	if nulIndex := bytes.IndexByte(msgid, NulSeparator[0]); nulIndex >= 0 {
+		msgidPlural = msgid[nulIndex+1:]
+		msgid = msgid[:nulIndex]
 	}
-
 	translation.ID = string(msgid)
 
-	msgidPlural = bytes.Join(dd, []byte(NulSeparator))
 	if len(msgidPlural) > 0 {
 		translation.PluralID = string(msgidPlural)
 	}
 
-	ddd := bytes.Split(msgstr, []byte(NulSeparator))
-	if len(ddd) > 0 {
-		for i, s := range ddd {
-			translation.Trs[i] = string(s)
-		}
+	i := 0
+	for s := range bytes.SplitSeq(msgstr, []byte(NulSeparator)) {
+		translation.Trs[i] = string(s)
+		i++
 	}
 
 	if len(msgctxt) > 0 {
