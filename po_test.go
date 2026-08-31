@@ -748,9 +748,8 @@ func TestPoTextEncoding(t *testing.T) {
 	}
 }
 
-func TestPo_MissingWrappers(t *testing.T) {
+func TestPoWrapperBehavior(t *testing.T) {
 	po := NewPo()
-	// Coverage for SetRefs, GetRefs, SetPluralResolver, etc in Po
 	po.SetRefs("id", []string{"ref"})
 	refs := po.GetRefs("id")
 	if len(refs) != 1 || refs[0] != "ref" {

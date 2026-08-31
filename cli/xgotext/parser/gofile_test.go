@@ -1,163 +1,61 @@
 package parser
 
 import (
+	"fmt"
 	"go/ast"
+	"go/constant"
 	goparser "go/parser"
 	"go/token"
 	"go/types"
-	"slices"
-	"strconv"
 	"testing"
 
 	"golang.org/x/tools/go/packages"
 )
 
-func TestGetterDef_MaxArgIndex(t *testing.T) {
-	tests := []struct {
-		def  GetterDef
-		want int
-	}{
-		{GetterDef{0, -1, -1, -1}, 0},
-		{GetterDef{0, 1, -1, -1}, 1},
-		{GetterDef{1, -1, -1, 0}, 1},
-		{GetterDef{1, 2, 4, 0}, 4},
-	}
-	for _, tt := range tests {
-		if got := tt.def.MaxArgIndex(); got != tt.want {
-			t.Errorf("GetterDef.MaxArgIndex() = %v, want %v", got, tt.want)
-		}
-	}
-}
-
-func TestGoFile_ParseGetter(t *testing.T) {
-	data := &DomainMap{}
-	g := &GoFile{
-		Data: data,
-	}
-
-	def := gotextGetter["Get"]
-	args := []*ast.BasicLit{
-		{Kind: token.STRING, Value: "\"msgid\""},
-	}
-	g.ParseGetter(def, args, "file.go:10")
-
-	if len(data.Domains["default"].Translations) != 1 {
-		t.Error("ParseGetter failed for simple Get")
-	}
-
-	// Test plural
-	defN := gotextGetter["GetN"]
-	argsN := []*ast.BasicLit{
-		{Kind: token.STRING, Value: "\"singular\""},
-		{Kind: token.STRING, Value: "\"plural\""},
-	}
-	g.ParseGetter(defN, argsN, "file.go:20")
-	if data.Domains["default"].Translations["singular"].MsgIDPlural != "plural" {
-		t.Error("ParseGetter failed for GetN")
-	}
-
-	// Test Domain
-	defD := gotextGetter["GetD"]
-	argsD := []*ast.BasicLit{
-		{Kind: token.STRING, Value: "\"domain1\""},
-		{Kind: token.STRING, Value: "\"msgid_d\""},
-	}
-	g.ParseGetter(defD, argsD, "file.go:30")
-	if _, ok := data.Domains["domain1"]; !ok {
-		t.Error("ParseGetter failed for GetD domain creation")
-	}
-}
-
-func TestGoFile_ParseGetter_Errors(t *testing.T) {
-	data := &DomainMap{}
-	g := &GoFile{
-		Data: data,
-	}
-
-	// Not enough args for GetN (needs 2: ID and Plural, which are index 0 and 1. MaxArgIndex is 1)
-	defN := gotextGetter["GetN"]
-	args := []*ast.BasicLit{
-		{Kind: token.STRING, Value: "\"singular\""},
-	} // only 1 arg, index 0. len(args) == 1. 1 <= 1 is true. Should return.
-	g.ParseGetter(defN, args, "file.go:10")
-	if len(data.Domains) != 0 {
-		t.Error("ParseGetter should have failed for not enough args (len 1 for GetN)")
-	}
-
-	// Not enough args for GetD (needs 2: Domain and ID, index 0 and 1. MaxArgIndex is 1)
-	defD := gotextGetter["GetD"]
-	argsD := []*ast.BasicLit{
-		{Kind: token.STRING, Value: "\"domain1\""},
-	}
-	g.ParseGetter(defD, argsD, "file.go:15")
-	if len(data.Domains) != 0 {
-		t.Error("ParseGetter should have failed for not enough args (len 1 for GetD)")
-	}
-
-	// ID not a string
-	defGet := gotextGetter["Get"]
-	args2 := []*ast.BasicLit{
-		{Kind: token.INT, Value: "123"},
-	}
-	g.ParseGetter(defGet, args2, "file.go:20")
-
-	// Missing or unsupported arguments must not cause an index-out-of-range panic.
-	g.ParseGetter(defGet, nil, "file.go:30")
-	g.ParseGetter(gotextGetter["GetD"], []*ast.BasicLit{nil}, "file.go:40")
-}
-
-func TestGetLiteralFromIdent(t *testing.T) {
-	// ValueSpec multi-var: const (A = "valA"; B = "valB")
-	valA := &ast.BasicLit{Kind: token.STRING, Value: `"valA"`}
-	valB := &ast.BasicLit{Kind: token.STRING, Value: `"valB"`}
-	identA := &ast.Ident{Name: "A"}
-	identB := &ast.Ident{Name: "B"}
-	spec := &ast.ValueSpec{
-		Names:  []*ast.Ident{identA, identB},
-		Values: []ast.Expr{valA, valB},
-	}
-	identA.Obj = &ast.Object{Decl: spec} //nolint:staticcheck
-	identB.Obj = &ast.Object{Decl: spec} //nolint:staticcheck
-
-	litA := getLiteralFromIdent(identA)
-	if litA == nil || litA.Value != `"valA"` {
-		t.Errorf("expected valA, got %v", litA)
-	}
-
-	litB := getLiteralFromIdent(identB)
-	if litB == nil || litB.Value != `"valB"` {
-		t.Errorf("expected valB, got %v", litB)
-	}
-
-	// AssignStmt multi-var: x, y := "valX", "valY"
-	valX := &ast.BasicLit{Kind: token.STRING, Value: `"valX"`}
-	valY := &ast.BasicLit{Kind: token.STRING, Value: `"valY"`}
-	identX := &ast.Ident{Name: "x"}
-	identY := &ast.Ident{Name: "y"}
-	assign := &ast.AssignStmt{
-		Lhs: []ast.Expr{identX, identY},
-		Rhs: []ast.Expr{valX, valY},
-	}
-	identX.Obj = &ast.Object{Decl: assign} //nolint:staticcheck
-	identY.Obj = &ast.Object{Decl: assign} //nolint:staticcheck
-
-	litX := getLiteralFromIdent(identX)
-	if litX == nil || litX.Value != `"valX"` {
-		t.Errorf("expected valX, got %v", litX)
-	}
-
-	litY := getLiteralFromIdent(identY)
-	if litY == nil || litY.Value != `"valY"` {
-		t.Errorf("expected valY, got %v", litY)
-	}
-}
+const typedGotextPackagePath = "github.com/leonelquinteros/gotext"
 
 type typedASTImporter struct {
-	pkg *types.Package
+	packages map[string]*types.Package
 }
 
-func (i typedASTImporter) Import(string) (*types.Package, error) {
-	return i.pkg, nil
+func (i typedASTImporter) Import(path string) (*types.Package, error) {
+	pkg := i.packages[path]
+	if pkg == nil {
+		return nil, fmt.Errorf("typed fixture importer has no package %q", path)
+	}
+	return pkg, nil
+}
+
+type typedGetterSpec struct {
+	name           string
+	parameterTypes []types.Type
+}
+
+func typedGetterSpecs(anyType types.Type) []typedGetterSpec {
+	stringType := types.Typ[types.String]
+	intType := types.Typ[types.Int]
+	return []typedGetterSpec{
+		{name: "Get", parameterTypes: []types.Type{stringType, anyType}},
+		{name: "GetN", parameterTypes: []types.Type{stringType, stringType, intType, anyType}},
+		{name: "GetD", parameterTypes: []types.Type{stringType, stringType, anyType}},
+		{name: "GetND", parameterTypes: []types.Type{stringType, stringType, stringType, intType, anyType}},
+		{name: "GetC", parameterTypes: []types.Type{stringType, stringType, anyType}},
+		{name: "GetNC", parameterTypes: []types.Type{stringType, stringType, intType, stringType, anyType}},
+		{name: "GetDC", parameterTypes: []types.Type{stringType, stringType, stringType, anyType}},
+		{name: "GetNDC", parameterTypes: []types.Type{stringType, stringType, stringType, intType, stringType, anyType}},
+	}
+}
+
+func typedReceiverGetterSpecs(anyType types.Type, name string) []typedGetterSpec {
+	specs := typedGetterSpecs(anyType)
+	switch name {
+	case "Locale", "Po":
+		return specs
+	case "Domain", "Translator":
+		return []typedGetterSpec{specs[0], specs[1], specs[4], specs[5]}
+	default:
+		panic("unknown typed receiver " + name)
+	}
 }
 
 func typedSignature(
@@ -188,50 +86,38 @@ func typedSignature(
 	)
 }
 
-func addTypedGetterWithVariadic(pkg *types.Package, name string, variadic bool, parameterTypes ...types.Type) {
-	pkg.Scope().Insert(types.NewFunc(token.NoPos, pkg, name, typedSignature(pkg, nil, variadic, parameterTypes...)))
-}
-
-func addTypedMethodWithVariadic(
-	pkg *types.Package,
-	receiver *types.Named,
-	name string,
-	variadic bool,
-	parameterTypes ...types.Type,
-) {
-	receiver.AddMethod(types.NewFunc(
+func addTypedGetterWithVariadic(pkg *types.Package, spec typedGetterSpec) {
+	pkg.Scope().Insert(types.NewFunc(
 		token.NoPos,
 		pkg,
-		name,
-		typedSignature(pkg, receiver, variadic, parameterTypes...),
+		spec.name,
+		typedSignature(pkg, nil, true, spec.parameterTypes...),
 	))
 }
 
-func addTypedReceiver(pkg *types.Package, name string, anyType types.Type) *types.Named {
+func addTypedReceiver(pkg *types.Package, name string, specs []typedGetterSpec) *types.Named {
 	object := types.NewTypeName(token.NoPos, pkg, name, nil)
 	receiver := types.NewNamed(object, types.NewStruct(nil, nil), nil)
 	pkg.Scope().Insert(object)
-	for getterName, def := range gotextGetter {
-		parameterTypes := make([]types.Type, def.MaxArgIndex()+2)
-		for idx := range parameterTypes {
-			parameterTypes[idx] = anyType
-		}
-		addTypedMethodWithVariadic(pkg, receiver, getterName, true, parameterTypes...)
+	for _, spec := range specs {
+		receiver.AddMethod(types.NewFunc(
+			token.NoPos,
+			pkg,
+			spec.name,
+			typedSignature(pkg, receiver, true, spec.parameterTypes...),
+		))
 	}
 	return receiver
 }
-func addTypedInterface(pkg *types.Package, name string, anyType types.Type) *types.Named {
-	methods := make([]*types.Func, 0, len(gotextGetter))
-	for getterName, def := range gotextGetter {
-		parameterTypes := make([]types.Type, def.MaxArgIndex()+2)
-		for idx := range parameterTypes {
-			parameterTypes[idx] = anyType
-		}
+
+func addTypedInterface(pkg *types.Package, name string, specs []typedGetterSpec) *types.Named {
+	methods := make([]*types.Func, 0, len(specs))
+	for _, spec := range specs {
 		methods = append(methods, types.NewFunc(
 			token.NoPos,
 			pkg,
-			getterName,
-			typedSignature(pkg, nil, true, parameterTypes...),
+			spec.name,
+			typedSignature(pkg, nil, true, spec.parameterTypes...),
 		))
 	}
 	interfaceType := types.NewInterfaceType(methods, nil)
@@ -242,6 +128,15 @@ func addTypedInterface(pkg *types.Package, name string, anyType types.Type) *typ
 	return named
 }
 
+func typedTypesInfo() *types.Info {
+	return &types.Info{
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+		Defs:       make(map[*ast.Ident]types.Object),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+	}
+}
+
 func buildTypedGoFile(source string) (*GoFile, *ast.File, error) {
 	fileSet := token.NewFileSet()
 	file, err := goparser.ParseFile(fileSet, "typed.go", source, 0)
@@ -249,84 +144,48 @@ func buildTypedGoFile(source string) (*GoFile, *ast.File, error) {
 		return nil, nil, err
 	}
 
-	gotextTypes := types.NewPackage("github.com/leonelquinteros/gotext", "gotext")
+	gotextTypes := types.NewPackage(typedGotextPackagePath, "gotext")
 	anyType := types.NewInterfaceType(nil, nil)
 	anyType.Complete()
-	addTypedGetterWithVariadic(gotextTypes, "Get", true, types.Typ[types.String], anyType)
-	addTypedGetterWithVariadic(gotextTypes, "GetN", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-		anyType,
-	)
-	addTypedGetterWithVariadic(gotextTypes, "GetD", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-	)
-	addTypedGetterWithVariadic(gotextTypes, "GetND", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-		anyType,
-	)
-	addTypedGetterWithVariadic(gotextTypes, "GetC", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-	)
-	addTypedGetterWithVariadic(gotextTypes, "GetNC", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-		types.Typ[types.String],
-		anyType,
-	)
-	addTypedGetterWithVariadic(gotextTypes, "GetDC", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-	)
-	addTypedGetterWithVariadic(gotextTypes, "GetNDC", true,
-		types.Typ[types.String],
-		types.Typ[types.String],
-		types.Typ[types.String],
-		anyType,
-		types.Typ[types.String],
-		anyType,
-	)
-	addTypedReceiver(gotextTypes, "Locale", anyType)
-	addTypedReceiver(gotextTypes, "Po", anyType)
-	addTypedReceiver(gotextTypes, "Domain", anyType)
-	addTypedInterface(gotextTypes, "Translator", anyType)
+	specs := typedGetterSpecs(anyType)
+	for _, spec := range specs {
+		addTypedGetterWithVariadic(gotextTypes, spec)
+	}
+	addTypedReceiver(gotextTypes, "Locale", typedReceiverGetterSpecs(anyType, "Locale"))
+	addTypedReceiver(gotextTypes, "Po", typedReceiverGetterSpecs(anyType, "Po"))
+	addTypedReceiver(gotextTypes, "Domain", typedReceiverGetterSpecs(anyType, "Domain"))
+	addTypedInterface(gotextTypes, "Translator", typedReceiverGetterSpecs(anyType, "Translator"))
 	gotextTypes.MarkComplete()
 
-	typesInfo := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Defs:  make(map[*ast.Ident]types.Object),
-		Uses:  make(map[*ast.Ident]types.Object),
-	}
-	_, typeErr := (&types.Config{
-		Importer: typedASTImporter{pkg: gotextTypes},
+	typesInfo := typedTypesInfo()
+	ownerTypes, typeErr := (&types.Config{
+		Importer: typedASTImporter{packages: map[string]*types.Package{
+			typedGotextPackagePath: gotextTypes,
+		}},
 	}).Check("typed", fileSet, []*ast.File{file}, typesInfo)
 	if typeErr != nil {
 		return nil, nil, typeErr
 	}
+
+	gotextPackage := &packages.Package{
+		Name:    "gotext",
+		PkgPath: typedGotextPackagePath,
+		Types:   gotextTypes,
+	}
+	ownerPackage := &packages.Package{
+		Name:      "typed",
+		PkgPath:   "typed",
+		Syntax:    []*ast.File{file},
+		Types:     ownerTypes,
+		TypesInfo: typesInfo,
+	}
 	importedPackages := map[string]*packages.Package{
-		"gotext": {
-			PkgPath: "github.com/leonelquinteros/gotext",
-		},
-		"typed": {
-			PkgPath:   "typed",
-			Syntax:    []*ast.File{file},
-			TypesInfo: typesInfo,
-		},
+		"gotext": gotextPackage,
+		"typed":  ownerPackage,
 	}
 	for _, importSpec := range file.Imports {
 		if importSpec.Name != nil {
-			importedPackages[importSpec.Name.Name] = importedPackages["gotext"]
+			importedPackages[importSpec.Name.Name] = gotextPackage
 		}
 	}
 
@@ -376,49 +235,44 @@ func example() {
 	g, file := newTypedGoFile(t, source)
 	inspectTypedCalls(g, file)
 
-	type want struct {
-		domain  string
-		id      string
-		plural  string
-		context string
+	type expectedTranslation struct {
+		domain, id, plural, context, location string
 	}
-	expected := []want{
-		{id: "get-id"},
-		{id: "getn-id", plural: "getn-plural"},
-		{domain: "getd-domain", id: "getd-id"},
-		{domain: "getnd-domain", id: "getnd-id", plural: "getnd-plural"},
-		{id: "getc-id", context: `"getc-context"`},
-		{id: "getnc-id", plural: "getnc-plural", context: `"getnc-context"`},
-		{domain: "getdc-domain", id: "getdc-id", context: `"getdc-context"`},
-		{domain: "getndc-domain", id: "getndc-id", plural: "getndc-plural", context: `"getndc-context"`},
+	expected := []expectedTranslation{
+		{id: "get-id", location: "typed.go:6"},
+		{id: "getn-id", plural: "getn-plural", location: "typed.go:7"},
+		{domain: "getd-domain", id: "getd-id", location: "typed.go:8"},
+		{domain: "getnd-domain", id: "getnd-id", plural: "getnd-plural", location: "typed.go:9"},
+		{id: "getc-id", context: `"getc-context"`, location: "typed.go:10"},
+		{id: "getnc-id", plural: "getnc-plural", context: `"getnc-context"`, location: "typed.go:11"},
+		{domain: "getdc-domain", id: "getdc-id", context: `"getdc-context"`, location: "typed.go:12"},
+		{domain: "getndc-domain", id: "getndc-id", plural: "getndc-plural", context: `"getndc-context"`, location: "typed.go:13"},
 	}
 
 	if len(g.Data.Domains) != 5 {
 		t.Fatalf("got %d domains, want 5", len(g.Data.Domains))
 	}
-	for _, expected := range expected {
-		domain := g.Data.Domains[expected.domain]
+	for _, want := range expected {
+		domain := g.Data.Domains[want.domain]
 		if domain == nil {
 			domain = g.Data.Domains["default"]
 		}
-		if expected.context == "" {
-			translation := domain.Translations[expected.id]
-			if translation == nil {
-				t.Fatalf("missing translation %q in domain %q", expected.id, expected.domain)
-			}
-			if translation.MsgIDPlural != expected.plural || translation.Context != "" {
-				t.Errorf("translation %q = plural %q/context %q, want plural %q/context empty",
-					expected.id, translation.MsgIDPlural, translation.Context, expected.plural)
-			}
-			continue
+		var translation *Translation
+		if want.context == "" {
+			translation = domain.Translations[want.id]
+		} else {
+			translation = domain.ContextTranslations[want.context][want.id]
 		}
-		translation := domain.ContextTranslations[expected.context][expected.id]
 		if translation == nil {
-			t.Fatalf("missing contextual translation %q/%q", expected.context, expected.id)
+			t.Fatalf("missing translation %q in domain %q", want.id, want.domain)
 		}
-		if translation.MsgIDPlural != expected.plural || translation.Context != expected.context {
-			t.Errorf("translation %q = plural %q/context %q, want plural %q/context %q",
-				expected.id, translation.MsgIDPlural, translation.Context, expected.plural, expected.context)
+		if translation.MsgID != want.id ||
+			translation.MsgIDPlural != want.plural ||
+			translation.Context != want.context ||
+			len(translation.SourceLocations) != 1 ||
+			translation.SourceLocations[0] != want.location {
+			t.Errorf("translation = %#v, want id=%q plural=%q context=%q location=%q",
+				translation, want.id, want.plural, want.context, want.location)
 		}
 	}
 }
@@ -515,16 +369,25 @@ func example() {
 	if domain == nil {
 		t.Fatal("constant calls did not create default domain")
 	}
-	for _, id := range []string{
-		"first",
-		"first-alias",
-		"leftright",
-		"x",
-		"static",
-		"before",
-	} {
-		if domain.Translations[id] == nil {
-			t.Errorf("missing static translation %q", id)
+	expected := map[string]string{
+		"first":       "",
+		"first-alias": "",
+		"leftright":   "",
+		"x":           "",
+		"static":      "",
+		"before":      "",
+	}
+	if len(domain.Translations) != len(expected) {
+		t.Fatalf("got %d translations, want %d", len(domain.Translations), len(expected))
+	}
+	for id, plural := range expected {
+		translation := domain.Translations[id]
+		if translation == nil {
+			t.Fatalf("missing static translation %q", id)
+		}
+		if translation.MsgID != id || translation.MsgIDPlural != plural || translation.Context != "" {
+			t.Errorf("translation %q = %#v, want id=%q plural=%q without context",
+				id, translation, id, plural)
 		}
 	}
 	for _, id := range []string{"dynamic", "before mutation", "after mutation", "range"} {
@@ -562,66 +425,88 @@ func example() {
 			return
 		}
 
-		var calls []*ast.CallExpr
+		var call *ast.CallExpr
 		ast.Inspect(file, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
+			candidate, ok := node.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
-			selector, ok := call.Fun.(*ast.SelectorExpr)
+			selector, ok := candidate.Fun.(*ast.SelectorExpr)
 			if ok && selector.Sel != nil && selector.Sel.Name == "Get" {
-				calls = append(calls, call)
+				call = candidate
 			}
 			return true
 		})
-		if len(calls) != 1 || len(calls[0].Args) == 0 {
+		if call == nil || len(call.Args) == 0 {
 			return
 		}
 
-		call := calls[0]
+		typeInfo := g.ImportedPackages["typed"].TypesInfo.Types[call.Args[0]]
+		expected, isConstant := "", false
+		if typeInfo.Value != nil && typeInfo.Value.Kind() == constant.String {
+			expected = constant.StringVal(typeInfo.Value)
+			isConstant = true
+		}
+
 		g.InspectCallExpr(call)
-		literal := g.resolveStringLiteral(call.Args[0], call.Pos(), nil)
-		if literal == nil {
+		if !isConstant {
 			if len(g.Data.Domains) != 0 {
 				t.Fatal("dynamic expression produced a translation")
 			}
 			return
 		}
-		value, err := strconv.Unquote(literal.Value)
-		if err != nil {
-			t.Fatalf("resolved literal %q is not a string: %v", literal.Value, err)
-		}
+
 		domain := g.Data.Domains["default"]
 		if domain == nil {
-			t.Fatal("resolved literal did not initialize the default domain")
+			t.Fatal("constant expression did not initialize the default domain")
 		}
-		translation := domain.Translations[value]
-		if translation == nil {
-			t.Fatalf("resolved literal %q was not extracted", value)
+		if len(domain.Translations) != 1 {
+			t.Fatalf("got %d translations, want one for %q", len(domain.Translations), expected)
+		}
+		translation := domain.Translations[expected]
+		if translation == nil || translation.MsgID != expected || translation.Context != "" || translation.MsgIDPlural != "" {
+			t.Fatalf("translation = %#v, want literal %q without plural or context", translation, expected)
 		}
 	})
 }
 
-func makeTypedASTCycle(t *testing.T, file *ast.File) {
+func makeTypedASTCycle(t *testing.T, g *GoFile, file *ast.File) {
 	t.Helper()
+	owner := g.ImportedPackages["typed"]
+	if owner == nil || owner.TypesInfo == nil {
+		t.Fatal("typed owner package has no type information")
+	}
 
 	declarations := make(map[string]*ast.ValueSpec, 2)
+	objects := make(map[string]types.Object, 2)
+	ast.Inspect(file, func(node ast.Node) bool {
+		spec, ok := node.(*ast.ValueSpec)
+		if !ok {
+			return true
+		}
+		for _, name := range spec.Names {
+			if name.Name != "cyclicA" && name.Name != "cyclicB" {
+				continue
+			}
+			object := owner.TypesInfo.Defs[name]
+			if object == nil || object.Pkg() == nil || object.Pkg().Path() != "typed" {
+				t.Fatalf("%s is not a type-checked owner-package object", name.Name)
+			}
+			declarations[name.Name] = spec
+			objects[name.Name] = object
+		}
+		return true
+	})
+
 	references := make(map[string]*ast.Ident, 2)
 	ast.Inspect(file, func(node ast.Node) bool {
-		switch node := node.(type) {
-		case *ast.ValueSpec:
-			for _, name := range node.Names {
-				if name.Name == "cyclicA" || name.Name == "cyclicB" {
-					declarations[name.Name] = node
-				}
-			}
-		case *ast.Ident:
-			spec, ok := declarations[node.Name]
-			if ok && node.Obj != nil && node.Obj.Decl == spec {
-				if slices.Contains(spec.Names, node) {
-					return true
-				}
-				references[node.Name] = node
+		ident, ok := node.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		for name, object := range objects {
+			if ident.Name == name && owner.TypesInfo.Uses[ident] == object {
+				references[name] = ident
 			}
 		}
 		return true
@@ -629,7 +514,7 @@ func makeTypedASTCycle(t *testing.T, file *ast.File) {
 
 	for _, name := range []string{"cyclicA", "cyclicB"} {
 		if declarations[name] == nil || references[name] == nil {
-			t.Fatalf("failed to find typed AST cycle node %s", name)
+			t.Fatalf("failed to find type-checked cycle node %s", name)
 		}
 	}
 	declarations["cyclicA"].Values = []ast.Expr{references["cyclicB"]}
@@ -642,9 +527,6 @@ func TestGoFile_InspectCallExpr_TypedASTMutation(t *testing.T) {
 import "github.com/leonelquinteros/gotext"
 
 func example() {
-	unrelated := "unrelated"
-	unrelated = "changed unrelated"
-	_ = unrelated
 	before := "message before mutation"
 	gotext.Get(before)
 
@@ -660,15 +542,21 @@ func example() {
 	g, file := newTypedGoFile(t, source)
 	inspectTypedCalls(g, file)
 
-	translations := g.Data.Domains["default"].Translations
+	domain := g.Data.Domains["default"]
+	if domain == nil {
+		t.Fatal("mutation test did not initialize the default domain")
+	}
+	translations := domain.Translations
 	if len(translations) != 2 {
 		t.Fatalf("got %d translations, want 2", len(translations))
 	}
-	if _, ok := translations["message before mutation"]; !ok {
-		t.Error("unmodified identifier before its call was not extracted")
+	before := translations["message before mutation"]
+	if before == nil || before.MsgID != "message before mutation" {
+		t.Errorf("unmodified identifier before its call = %#v, want literal metadata", before)
 	}
-	if _, ok := translations["message before later mutation"]; !ok {
-		t.Error("identifier mutated after its call was not extracted")
+	afterCall := translations["message before later mutation"]
+	if afterCall == nil || afterCall.MsgID != "message before later mutation" {
+		t.Errorf("identifier mutated after its call = %#v, want literal metadata", afterCall)
 	}
 	if _, ok := translations["message after mutation"]; ok {
 		t.Error("identifier mutated before its call was extracted")
@@ -687,41 +575,53 @@ var later = "later call"
 
 func example() {
 	gotext.Get(cyclicA)
-	gotext.GetNC("id", "plural", cyclicB, contextAfterCycle)
+	gotext.GetNC("id", "plural", 2, "context after cycle", cyclicB, contextAfterCycle)
 	gotext.Get(later)
 }`
 
 	g, file := newTypedGoFile(t, source)
-	makeTypedASTCycle(t, file)
+	makeTypedASTCycle(t, g, file)
 	inspectTypedCalls(g, file)
 
 	domain := g.Data.Domains["default"]
+	if domain == nil {
+		t.Fatal("cycle test did not initialize the default domain")
+	}
+	if len(domain.Translations) != 1 {
+		t.Fatalf("got %d uncontexted translations, want one", len(domain.Translations))
+	}
 	if _, ok := domain.Translations["cyclicA"]; ok {
 		t.Error("cyclic identifier was extracted")
 	}
+	if _, ok := domain.Translations["cyclicB"]; ok {
+		t.Error("cyclic identifier was extracted as a later argument")
+	}
+	later := domain.Translations["later call"]
+	if later == nil || later.MsgID != "later call" {
+		t.Fatalf("later translation = %#v, want literal call metadata", later)
+	}
+
 	contextTranslations := domain.ContextTranslations[`"context after cycle"`]
-	translation, ok := contextTranslations["id"]
-	if !ok {
+	if len(contextTranslations) != 1 {
+		t.Fatalf("got %d contextual translations, want one", len(contextTranslations))
+	}
+	translation := contextTranslations["id"]
+	if translation == nil {
 		t.Fatal("later arguments were not extracted after a cyclic identifier")
 	}
-	if translation.Context != `"context after cycle"` {
-		t.Errorf("context = %q, want %q", translation.Context, `"context after cycle"`)
-	}
-	if _, ok := domain.Translations["later call"]; !ok {
-		t.Error("later call was not extracted after a cyclic identifier")
-	}
-	if len(domain.Translations) != 1 || len(contextTranslations) != 1 {
-		t.Fatalf("got %d uncontexted and %d contextual translations, want 1 each",
-			len(domain.Translations), len(contextTranslations))
+	if translation.MsgID != "id" ||
+		translation.MsgIDPlural != "plural" ||
+		translation.Context != `"context after cycle"` {
+		t.Errorf("contextual translation = %#v, want id/plural/context metadata", translation)
 	}
 }
 
-func TestGoFile_ResolveStringLiteral_UsesOwningPackageSyntax(t *testing.T) {
+func TestGoFile_InspectCallExpr_UsesOwningPackageSyntax(t *testing.T) {
 	const source = `package typed
 
 import "github.com/leonelquinteros/gotext"
 
-var crossFile = "cross-file"
+var crossFile = "temporary declaration"
 
 func example() {
 	gotext.Get(crossFile)
@@ -729,37 +629,37 @@ func example() {
 
 	g, file := newTypedGoFile(t, source)
 	var call *ast.CallExpr
-	var getter *ast.Ident
 	var declaration *ast.GenDecl
-	for _, decl := range file.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok || genDecl.Tok != token.VAR {
-			continue
-		}
-		declaration = genDecl
-		break
-	}
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch node := node.(type) {
 		case *ast.CallExpr:
-			call = node
-		case *ast.SelectorExpr:
-			if node.Sel != nil && node.Sel.Name == "Get" {
-				getter = node.Sel
+			if selector, ok := node.Fun.(*ast.SelectorExpr); ok &&
+				selector.Sel != nil && selector.Sel.Name == "Get" {
+				call = node
+			}
+		case *ast.GenDecl:
+			if node.Tok == token.VAR {
+				declaration = node
 			}
 		}
 		return true
 	})
-	if call == nil || getter == nil || declaration == nil {
-		t.Fatal("failed to find getter call and package-level declaration")
+	if call == nil || declaration == nil {
+		t.Fatal("failed to find typed getter call and temporary declaration")
 	}
 
-	gotextObject := g.GetType(getter)
-	if gotextObject == nil || gotextObject.Pkg() == nil {
-		t.Fatal("getter has no owning package")
+	declIndex := -1
+	for index, decl := range file.Decls {
+		if decl == declaration {
+			declIndex = index
+			break
+		}
 	}
-	declIndex := slices.Index(file.Decls, ast.Decl(declaration))
+	if declIndex < 0 {
+		t.Fatal("temporary declaration is not part of the owner file")
+	}
 	file.Decls = append(file.Decls[:declIndex], file.Decls[declIndex+1:]...)
+
 	declarationFile, err := goparser.ParseFile(g.FileSet, "declaration.go", `package typed
 
 var crossFile = "cross-file"
@@ -767,107 +667,123 @@ var crossFile = "cross-file"
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	typesInfo := &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Defs:  make(map[*ast.Ident]types.Object),
-		Uses:  make(map[*ast.Ident]types.Object),
+	gotextPackage := g.ImportedPackages["gotext"]
+	if gotextPackage == nil || gotextPackage.Types == nil {
+		t.Fatal("typed fixture has no type-checked gettext package")
 	}
-	if _, err := (&types.Config{
-		Importer: typedASTImporter{pkg: gotextObject.Pkg()},
-	}).Check("typed", g.FileSet, []*ast.File{file, declarationFile}, typesInfo); err != nil {
+	ownerInfo := typedTypesInfo()
+	ownerTypes, err := (&types.Config{
+		Importer: typedASTImporter{packages: map[string]*types.Package{
+			typedGotextPackagePath: gotextPackage.Types,
+		}},
+	}).Check("typed", g.FileSet, []*ast.File{file, declarationFile}, ownerInfo)
+	if err != nil {
 		t.Fatal(err)
 	}
 	ownerPackage := g.ImportedPackages["typed"]
-	if ownerPackage == nil {
-		t.Fatal("typed package metadata is missing")
-	}
 	ownerPackage.Syntax = []*ast.File{file, declarationFile}
-	ownerPackage.TypesInfo = typesInfo
+	ownerPackage.Types = ownerTypes
+	ownerPackage.TypesInfo = ownerInfo
 
-	var use, definition *ast.Ident
-	if len(call.Args) > 0 {
-		use, _ = call.Args[0].(*ast.Ident)
-	}
+	var definition *ast.Ident
 	ast.Inspect(declarationFile, func(node ast.Node) bool {
 		ident, ok := node.(*ast.Ident)
-		if ok && ident.Name == "crossFile" {
+		if ok && ident.Name == "crossFile" && ownerInfo.Defs[ident] != nil {
 			definition = ident
 			return false
 		}
 		return true
 	})
-	if use == nil || definition == nil {
-		t.Fatal("failed to find type-checked getter argument and declaration")
+	if definition == nil {
+		t.Fatal("cross-file definition is not type-checked")
 	}
-	object := g.GetType(definition)
-	if object == nil || object.Pkg() == nil {
-		t.Fatal("cross-file identifier has no owning package object")
+	ownerObject := ownerInfo.Defs[definition]
+	if ownerObject == nil || ownerObject.Pkg() == nil || ownerObject.Pkg().Path() != "typed" {
+		t.Fatal("cross-file definition has no typed owner package")
 	}
+	var use *ast.Ident
+	ast.Inspect(file, func(node ast.Node) bool {
+		ident, ok := node.(*ast.Ident)
+		if ok && ident.Name == "crossFile" && ownerInfo.Uses[ident] == ownerObject {
+			use = ident
+			return false
+		}
+		return true
+	})
+	if use == nil {
+		t.Fatal("cross-file use is not linked to the owner-package object")
+	}
+	// A cross-file identifier cannot retain the parser's same-file ast.Object.
+	// Force production lookup through the jointly type-checked owner package.
+	use.Obj = nil
 
-	unrelatedFile, err := goparser.ParseFile(token.NewFileSet(), "unrelated.go", `package unrelated
+	foreignFileSet := token.NewFileSet()
+	foreignFile, err := goparser.ParseFile(foreignFileSet, "unrelated.go", `package unrelated
 
-var crossFile = "unrelated declaration"
+var crossFile = "foreign declaration"
 
 func mutate() {
-	crossFile = "unrelated mutation"
+	crossFile = "foreign mutation"
 }
 `, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var unrelatedDeclaration, unrelatedMutation *ast.Ident
-	ast.Inspect(unrelatedFile, func(node ast.Node) bool {
-		switch node := node.(type) {
-		case *ast.ValueSpec:
-			if len(node.Names) > 0 {
-				unrelatedDeclaration = node.Names[0]
-			}
-		case *ast.AssignStmt:
-			if len(node.Lhs) > 0 {
-				unrelatedMutation, _ = node.Lhs[0].(*ast.Ident)
-				if unrelatedMutation != nil {
-					unrelatedMutation.NamePos = token.Pos(1)
-				}
-			}
+	foreignInfo := typedTypesInfo()
+	foreignTypes, err := (&types.Config{}).Check(
+		"example.com/unrelated",
+		foreignFileSet,
+		[]*ast.File{foreignFile},
+		foreignInfo,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foreignDefinition, foreignMutation *ast.Ident
+	ast.Inspect(foreignFile, func(node ast.Node) bool {
+		ident, ok := node.(*ast.Ident)
+		if !ok || ident.Name != "crossFile" {
+			return true
+		}
+		if foreignInfo.Defs[ident] != nil {
+			foreignDefinition = ident
+		}
+		if foreignInfo.Uses[ident] != nil {
+			foreignMutation = ident
 		}
 		return true
 	})
-	if unrelatedDeclaration == nil || unrelatedMutation == nil {
-		t.Fatal("failed to find unrelated declarations")
+	if foreignDefinition == nil || foreignMutation == nil {
+		t.Fatal("foreign fixture objects are not type-checked")
 	}
-	unrelatedPackage := &packages.Package{
-		PkgPath: "example.com/unrelated",
-		Syntax:  []*ast.File{unrelatedFile},
-		TypesInfo: &types.Info{
-			Defs: map[*ast.Ident]types.Object{
-				unrelatedDeclaration: object,
-			},
-			Uses: map[*ast.Ident]types.Object{
-				unrelatedMutation: object,
-			},
-		},
+	foreignObject := foreignInfo.Defs[foreignDefinition]
+	if foreignObject == nil || foreignObject == ownerObject ||
+		foreignObject.Pkg() == nil || foreignObject.Pkg().Path() != "example.com/unrelated" ||
+		foreignInfo.Uses[foreignMutation] != foreignObject {
+		t.Fatal("foreign fixture does not contain an independent package object")
 	}
-
-	savedPackages := g.ImportedPackages
-	g.ImportedPackages = map[string]*packages.Package{"unrelated": unrelatedPackage}
-	if _, _, ok := g.declarationForObject(object); ok {
-		t.Fatal("unrelated package declaration was scanned")
-	}
-	g.ImportedPackages = savedPackages
-	g.ImportedPackages["unrelated"] = unrelatedPackage
-
-	if g.isMutatedBefore(object, call.Pos()) {
-		t.Fatal("unrelated package mutation was scanned")
-	}
-	literal := g.resolveStringLiteral(use, call.Pos(), nil)
-	if literal == nil || literal.Value != `"cross-file"` {
-		t.Fatalf("resolved literal = %v, want %q", literal, `"cross-file"`)
+	g.ImportedPackages["unrelated"] = &packages.Package{
+		Name:      "unrelated",
+		PkgPath:   "example.com/unrelated",
+		Syntax:    []*ast.File{foreignFile},
+		Types:     foreignTypes,
+		TypesInfo: foreignInfo,
 	}
 
 	g.InspectCallExpr(call)
 	domain := g.Data.Domains["default"]
-	if domain == nil || domain.Translations["cross-file"] == nil {
-		t.Fatal("cross-file declaration was not extracted")
+	if domain == nil {
+		t.Fatal("cross-file call did not initialize the default domain")
+	}
+	if len(domain.Translations) != 1 {
+		t.Fatalf("got %d translations, want one owner-package translation", len(domain.Translations))
+	}
+	translation := domain.Translations["cross-file"]
+	if translation == nil || translation.MsgID != "cross-file" ||
+		len(translation.SourceLocations) != 1 || translation.SourceLocations[0] != "typed.go:8" {
+		t.Fatalf("translation = %#v, want owner declaration value and call location", translation)
+	}
+	if _, ok := domain.Translations["foreign declaration"]; ok {
+		t.Fatal("foreign-package declaration was extracted")
 	}
 }

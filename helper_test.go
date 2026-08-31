@@ -6,6 +6,8 @@
 package gotext
 
 import (
+	"io"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -90,8 +92,31 @@ func TestNPrintf(t *testing.T) {
 		"brother": "Louis",
 	}
 
+	originalStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Errorf("closing stdout reader: %v", err)
+		}
+	})
+	os.Stdout = writer
 	NPrintf(pat, params)
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = originalStdout
 
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "Louis loves Susan. Susan also loves Louis.\n"
+	if string(output) != want {
+		t.Errorf("NPrintf output = %q, want %q", output, want)
+	}
 }
 
 func TestSprintfFloatsWithPrecision(t *testing.T) {

@@ -275,7 +275,7 @@ func TestMo_MissingWrappers(t *testing.T) {
 
 func TestMoParseRejectsHugeCount(t *testing.T) {
 	buf := make([]byte, 28)
-	binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+	copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
 	binary.LittleEndian.PutUint32(buf[8:12], ^uint32(0))
 
 	mo := NewMo()
@@ -293,7 +293,7 @@ func TestMoParseRejectsHugeCount(t *testing.T) {
 func TestMoParseRejectsInvalidPayloadWithoutMutation(t *testing.T) {
 	t.Run("payload extends past file", func(t *testing.T) {
 		buf := make([]byte, 46)
-		binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+		copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
 		binary.LittleEndian.PutUint32(buf[8:12], 1)
 		binary.LittleEndian.PutUint32(buf[12:16], 28)
 		binary.LittleEndian.PutUint32(buf[16:20], 36)
@@ -317,7 +317,7 @@ func TestMoParseRejectsInvalidPayloadWithoutMutation(t *testing.T) {
 
 	t.Run("later payload invalidates all entries", func(t *testing.T) {
 		buf := make([]byte, 70)
-		binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+		copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
 		binary.LittleEndian.PutUint32(buf[8:12], 2)
 		binary.LittleEndian.PutUint32(buf[12:16], 28)
 		binary.LittleEndian.PutUint32(buf[16:20], 44)
@@ -346,12 +346,19 @@ func TestMoParseRejectsInvalidPayloadWithoutMutation(t *testing.T) {
 	})
 }
 
-func TestMoAddTranslationPreservesPluralBytes(t *testing.T) {
+func TestMoParsePreservesPluralBytes(t *testing.T) {
 	mo := NewMo()
-	mo.addTranslation(
-		[]byte("id\x00plural\x00extra"),
-		[]byte("one\x00two\x00three"),
-	)
+	mo.Parse(makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{
+			msgid:  []byte("id\x00plural\x00extra"),
+			msgstr: []byte("one\x00two\x00three"),
+		},
+		moFixtureEntry{
+			msgid:  []byte("singular"),
+			msgstr: []byte("translated"),
+		},
+	))
 
 	translation, ok := mo.domain.translations["id"]
 	if !ok {
@@ -369,11 +376,15 @@ func TestMoAddTranslationPreservesPluralBytes(t *testing.T) {
 		t.Fatalf("translation forms = %v, want 3 forms", translation.Trs)
 	}
 
-	mo = NewMo()
-	mo.addTranslation([]byte("singular"), []byte("translated"))
-	translation = mo.domain.translations["singular"]
+	translation, ok = mo.domain.translations["singular"]
+	if !ok {
+		t.Fatal("expected singular translation")
+	}
 	if got := translation.PluralID; got != "" {
 		t.Fatalf("singular plural ID = %q, want empty", got)
+	}
+	if got := translation.Trs[0]; got != "translated" {
+		t.Fatalf("singular translation = %q, want %q", got, "translated")
 	}
 }
 
@@ -383,7 +394,10 @@ type moFixtureEntry struct {
 }
 
 func makeMoFixture(order binary.ByteOrder, entries ...moFixtureEntry) []byte {
-	const headerSize = 28
+	const (
+		headerSize = 28
+		moMagic    = uint32(0x950412de)
+	)
 	directorySize := len(entries) * 8
 	msgIDOffset := headerSize
 	msgStrOffset := msgIDOffset + directorySize
@@ -391,11 +405,12 @@ func makeMoFixture(order binary.ByteOrder, entries ...moFixtureEntry) []byte {
 
 	dataSize := 0
 	for _, entry := range entries {
-		dataSize += len(entry.msgid) + len(entry.msgstr)
+		// MO string lengths exclude their trailing NUL bytes.
+		dataSize += len(entry.msgid) + 1 + len(entry.msgstr) + 1
 	}
 	buf := make([]byte, dataOffset+dataSize)
 
-	order.PutUint32(buf[0:4], MoMagicLittleEndian)
+	order.PutUint32(buf[0:4], moMagic)
 	order.PutUint32(buf[8:12], uint32(len(entries)))
 	order.PutUint32(buf[12:16], uint32(msgIDOffset))
 	order.PutUint32(buf[16:20], uint32(msgStrOffset))
@@ -407,12 +422,12 @@ func makeMoFixture(order binary.ByteOrder, entries ...moFixtureEntry) []byte {
 		order.PutUint32(buf[idEntry:idEntry+4], uint32(len(entry.msgid)))
 		order.PutUint32(buf[idEntry+4:idEntry+8], uint32(cursor))
 		copy(buf[cursor:], entry.msgid)
-		cursor += len(entry.msgid)
+		cursor += len(entry.msgid) + 1
 
 		order.PutUint32(buf[strEntry:strEntry+4], uint32(len(entry.msgstr)))
 		order.PutUint32(buf[strEntry+4:strEntry+8], uint32(cursor))
 		copy(buf[cursor:], entry.msgstr)
-		cursor += len(entry.msgstr)
+		cursor += len(entry.msgstr) + 1
 	}
 
 	return buf
@@ -486,22 +501,28 @@ func TestMoParseRejectsInvalidMagicWithoutMutation(t *testing.T) {
 	}
 }
 
-func TestMoAddTranslationPreservesEotSuffix(t *testing.T) {
+func TestMoParsePreservesEotSuffix(t *testing.T) {
 	mo := NewMo()
-	mo.addTranslation(
-		[]byte("menu\x04item\x04suffix\x00items"),
-		[]byte("one\x00many"),
-	)
+	mo.Parse(makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{
+			msgid:  []byte("menu\x04item\x04suffix\x00items"),
+			msgstr: []byte("one\x00many"),
+		},
+	))
 
 	translation, ok := mo.GetDomain().contextTranslations["menu"]["item\x04suffix"]
 	if !ok {
 		t.Fatal("expected context translation with EOT suffix")
 	}
 	if got := translation.ID; got != "item\x04suffix" {
-		t.Fatalf("translation ID = %q, want %q", got, "item\\x04suffix")
+		t.Fatalf("translation ID = %q, want %q", got, "item\x04suffix")
 	}
 	if got := translation.PluralID; got != "items" {
 		t.Fatalf("plural ID = %q, want %q", got, "items")
+	}
+	if got := mo.GetNC("item\x04suffix", "items", 2, "menu"); got != "many" {
+		t.Fatalf("plural context lookup = %q, want %q", got, "many")
 	}
 }
 
@@ -529,7 +550,7 @@ func TestMoParseTruncatedHeaderPreservesSeed(t *testing.T) {
 
 func TestMoParseRejectsDirectoryOneByteOverflow(t *testing.T) {
 	buf := make([]byte, 35)
-	binary.LittleEndian.PutUint32(buf[0:4], MoMagicLittleEndian)
+	copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
 	binary.LittleEndian.PutUint32(buf[8:12], 1)
 	binary.LittleEndian.PutUint32(buf[12:16], 28)
 	binary.LittleEndian.PutUint32(buf[16:20], 28)

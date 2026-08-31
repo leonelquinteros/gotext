@@ -733,8 +733,6 @@ func TestGotext_MissingWrappers(t *testing.T) {
 		t.Error("GetStorage should not be nil")
 	}
 
-	SetStorage(GetStorage()) // Coverage
-
 	Configure("fixtures", "en_US", "default")
 	if GetD("default", "My text") != translatedText {
 		t.Error("GetD failed")

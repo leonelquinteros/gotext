@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/leonelquinteros/gotext/cli/xgotext/parser"
@@ -17,15 +18,9 @@ func TestParsePkgTree(t *testing.T) {
 	data := &parser.DomainMap{
 		Default: defaultDomain,
 	}
-	currentPath, err := os.Getwd()
-	pkgPath := filepath.Join(filepath.Dir(filepath.Dir(currentPath)), "fixtures")
-	println(pkgPath)
-	if err != nil {
-		t.Error(err)
-	}
-	err = ParsePkgTree(pkgPath, data, true)
-	if err != nil {
-		t.Error(err)
+	pkgPath := filepath.Join(repositoryRoot(t), "cli", "xgotext", "fixtures")
+	if err := ParsePkgTree(pkgPath, data, true); err != nil {
+		t.Fatal(err)
 	}
 
 	translations := []string{"inside sub package", "My text on 'domain-name' domain", "alias call", "Singular", "SingularVar", "translate package", "translate sub package", "inside dummy",
@@ -78,8 +73,7 @@ EOL`, "multline\nending with EOL\n", "type alias", "locale constructor call",
 		t.Error("dynamic domain should not be extracted")
 	}
 }
-
-func TestLoadPackageReturnsErrorForEmptyResults(t *testing.T) {
+func TestLoadPackageReturnsErrorForMissingRoot(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
 	if _, err := loadPackage(missing); err == nil {
 		t.Fatal("loadPackage unexpectedly succeeded without a package")
@@ -95,8 +89,12 @@ func TestLoadPackageReturnsPackageDiagnostics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := loadPackage(root); err == nil {
+	_, err := loadPackage(root)
+	if err == nil {
 		t.Fatal("loadPackage unexpectedly ignored package diagnostics")
+	}
+	if !strings.Contains(err.Error(), `package "example.com/broken" has diagnostics`) {
+		t.Fatalf("loadPackage error = %v, want package diagnostics", err)
 	}
 }
 
@@ -131,8 +129,8 @@ func TestFilterPkgsCacheScope(t *testing.T) {
 
 func TestParsePkgTreeIndependentGraphs(t *testing.T) {
 	repoRoot := repositoryRoot(t)
-	firstRoot := writeTestGraph(t, repoRoot, "first graph")
-	secondRoot := writeTestGraph(t, repoRoot, "second graph")
+	firstRoot := writeTestGraph(t, repoRoot, "example.com/first", "first graph")
+	secondRoot := writeTestGraph(t, repoRoot, "example.com/second", "second graph")
 
 	firstData := &parser.DomainMap{Default: "default"}
 	if err := ParsePkgTree(firstRoot, firstData, false); err != nil {
@@ -140,6 +138,9 @@ func TestParsePkgTreeIndependentGraphs(t *testing.T) {
 	}
 	if !hasTestTranslation(firstData, "first graph") {
 		t.Fatal("first graph translation was not extracted")
+	}
+	if hasTestTranslation(firstData, "second graph") {
+		t.Fatal("first graph reused a package from the second graph")
 	}
 
 	secondData := &parser.DomainMap{Default: "default"}
@@ -152,6 +153,40 @@ func TestParsePkgTreeIndependentGraphs(t *testing.T) {
 	if hasTestTranslation(secondData, "first graph") {
 		t.Fatal("second graph reused a package from the first graph")
 	}
+}
+func writeTestGraph(t *testing.T, repoRoot, modulePath, message string) string {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(fmt.Sprintf(`module %s
+
+go 1.27
+
+require github.com/leonelquinteros/gotext v0.0.0
+
+replace github.com/leonelquinteros/gotext => %s
+`, modulePath, repoRoot)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "shared"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(fmt.Sprintf(`package app
+
+import %q
+
+func Run() { shared.Run() }
+`, modulePath+"/shared")), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "shared", "shared.go"), []byte(fmt.Sprintf(`package shared
+
+import "github.com/leonelquinteros/gotext"
+
+func Run() { gotext.Get(%q) }
+`, message)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 func hasTestTranslation(data *parser.DomainMap, message string) bool {
@@ -170,39 +205,4 @@ func repositoryRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller failed")
 	}
 	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", ".."))
-}
-
-func writeTestGraph(t *testing.T, repoRoot, message string) string {
-	t.Helper()
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte(fmt.Sprintf(`module example.com/repeated
-
-go 1.27
-
-require github.com/leonelquinteros/gotext v0.0.0
-
-replace github.com/leonelquinteros/gotext => %s
-`, repoRoot)), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(root, "shared"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte(`package app
-
-import "example.com/repeated/shared"
-
-func Run() { shared.Run() }
-`), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "shared", "shared.go"), []byte(fmt.Sprintf(`package shared
-
-import "github.com/leonelquinteros/gotext"
-
-func Run() { gotext.Get(%q) }
-`, message)), 0644); err != nil {
-		t.Fatal(err)
-	}
-	return root
 }

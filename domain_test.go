@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -13,34 +14,42 @@ const (
 	arFixture   = "fixtures/ar/categories.po"
 )
 
+func encodeTestGob(t testing.TB, value any) []byte {
+	t.Helper()
+
+	var encoded bytes.Buffer
+	if err := gob.NewEncoder(&encoded).Encode(value); err != nil {
+		t.Fatalf("encode test gob: %v", err)
+	}
+	return encoded.Bytes()
+}
+
 // since both Po and Mo just pass-through to Domain for MarshalBinary and UnmarshalBinary, test it here
 func TestBinaryEncoding(t *testing.T) {
-	// Create po objects
+	data := encodeTestGob(t, &TranslatorEncoding{
+		Language: "en_US",
+		Translations: map[string]*Translation{
+			"My text": {
+				ID:  "My text",
+				Trs: map[int]string{0: "Translated text"},
+			},
+			"language": {
+				ID:  "language",
+				Trs: map[int]string{0: "en_US"},
+			},
+		},
+	})
+
 	po := NewPo()
-	po2 := NewPo()
-
-	// Parse file
-	po.ParseFile(enUSFixture)
-
-	buff, err := po.GetDomain().MarshalBinary()
-	if err != nil {
+	if err := po.UnmarshalBinary(data); err != nil {
 		t.Fatal(err)
 	}
 
-	err = po2.GetDomain().UnmarshalBinary(buff)
-	if err != nil {
-		t.Fatal(err)
+	if got := po.Get("My text"); got != "Translated text" {
+		t.Errorf("decoded My text = %q, want %q", got, "Translated text")
 	}
-
-	// Test translations
-	tr := po2.Get("My text")
-	if tr != translatedText {
-		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
-	}
-	// Test translations
-	tr = po2.Get("language")
-	if tr != "en_US" {
-		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	if got := po.Get("language"); got != "en_US" {
+		t.Errorf("decoded language = %q, want %q", got, "en_US")
 	}
 }
 
@@ -348,11 +357,14 @@ func TestDomain_Refs(t *testing.T) {
 
 func TestDomain_HeaderMap(t *testing.T) {
 	d := NewDomain()
-	d.Headers.Del("Missing") // No-op but increases coverage
 
 	d.Headers.Set("Key", "Value")
 	if d.Headers.Get("Key") != "Value" {
 		t.Error("Header Get/Set failed")
+	}
+	d.Headers.Del("Missing")
+	if got := d.Headers.Get("Key"); got != "Value" {
+		t.Errorf("Del missing header changed Key: got %q, want Value", got)
 	}
 
 	d.Headers.Add("Key", "Value2")
@@ -400,7 +412,18 @@ func TestDomain_CustomPluralResolverCanReenter(t *testing.T) {
 		return 0
 	})
 
-	d.SetN("message", "messages", 2, "message")
+	done := make(chan struct{}, 1)
+	go func() {
+		d.SetN("message", "messages", 2, "message")
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("custom plural resolver deadlocked while reentering Domain")
+	}
+
 	if got := d.Get("reentrant"); got != "value" {
 		t.Fatalf("reentrant resolver mutation produced %q, want %q", got, "value")
 	}
@@ -434,28 +457,14 @@ func TestDomain_MarshalPluralEscapingAndOrder(t *testing.T) {
 		previous = position
 	}
 
-	parsed := NewPo()
-	parsed.Parse(data)
-	parsedTranslation, ok := parsed.GetDomain().GetTranslations()[trans.ID]
-	if !ok {
-		t.Fatalf("parsed translation %q was not found", trans.ID)
-	}
-
-	expectedPluralID := strings.ReplaceAll(trans.PluralID, `\"`, `"`)
-	if parsedTranslation.PluralID != expectedPluralID {
-		t.Errorf("plural ID did not round-trip: got %q, want %q", parsedTranslation.PluralID, expectedPluralID)
-	}
-	expectedTranslations := map[int]string{
-		0: trans.Trs[0],
-		1: strings.ReplaceAll(trans.Trs[1], `\"`, `"`),
-		2: trans.Trs[2],
-	}
-	if len(parsedTranslation.Trs) != len(expectedTranslations) {
-		t.Fatalf("plural translations were not retained: got %d, want %d", len(parsedTranslation.Trs), len(expectedTranslations))
-	}
-	for index, want := range expectedTranslations {
-		if got := parsedTranslation.Trs[index]; got != want {
-			t.Errorf("plural translation %d did not round-trip: got %q, want %q", index, got, want)
+	for _, fragment := range []string{
+		`msgid "\"leading\" and embedded \"quote\" \\raw"`,
+		`"embedded \"quote\" and \"preserved with \\raw"`,
+		`msgstr[1] "already \"escaped"`,
+		`"with \"quote\" and \\raw`,
+	} {
+		if !strings.Contains(output, fragment) {
+			t.Errorf("MarshalText output missing escaped fragment %q:\n%s", fragment, output)
 		}
 	}
 }

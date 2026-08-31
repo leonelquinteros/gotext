@@ -424,12 +424,6 @@ func (g *GoFile) resolveStringLiteralState(
 	return nil
 }
 
-// getLiteralFromIdent resolves a declaration without package type information.
-// It is retained for focused AST tests; production extraction uses resolveStringLiteral.
-func getLiteralFromIdent(ident *ast.Ident) *ast.BasicLit {
-	return (&GoFile{}).resolveStringLiteral(ident, token.NoPos, make(map[types.Object]bool))
-}
-
 func literalFromConstantValue(value constant.Value) *ast.BasicLit {
 	if value == nil || value.Kind() != constant.String {
 		return nil
