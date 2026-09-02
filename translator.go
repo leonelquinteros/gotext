@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+
+	"github.com/leonelquinteros/gotext/plurals"
 )
 
 // Translator interface is used by Locale and Po objects.Translator
@@ -63,14 +65,58 @@ type TranslatorEncoding struct {
 // deserialize into a Po-compatible object.
 func (te *TranslatorEncoding) GetTranslator() Translator {
 	po := NewPo()
-	po.domain = NewDomain()
-	po.domain.Headers = te.Headers
+	if te == nil {
+		return po
+	}
+
+	headers := te.Headers
+	if headers == nil {
+		headers = make(HeaderMap)
+	}
+	translations := te.Translations
+	if translations == nil {
+		translations = make(map[string]*Translation)
+	}
+	for id, translation := range translations {
+		if translation == nil {
+			translation = NewTranslation()
+			translation.ID = id
+			translations[id] = translation
+		}
+	}
+	contexts := te.Contexts
+	if contexts == nil {
+		contexts = make(map[string]map[string]*Translation)
+	}
+	for context, translationsForContext := range contexts {
+		if translationsForContext == nil {
+			contexts[context] = make(map[string]*Translation)
+			continue
+		}
+		for id, translation := range translationsForContext {
+			if translation == nil {
+				translation = NewTranslation()
+				translation.ID = id
+				translationsForContext[id] = translation
+			}
+		}
+	}
+
+	po.domain.Headers = headers
 	po.domain.Language = te.Language
 	po.domain.PluralForms = te.PluralForms
 	po.domain.nplurals = te.Nplurals
 	po.domain.plural = te.Plural
-	po.domain.translations = te.Translations
-	po.domain.contextTranslations = te.Contexts
+	po.domain.translations = translations
+	po.domain.contextTranslations = contexts
+
+	if expr, err := plurals.Compile(te.Plural); err == nil {
+		po.domain.pluralforms = expr
+	}
+
+	po.Headers = po.domain.Headers
+	po.Language = po.domain.Language
+	po.PluralForms = po.domain.PluralForms
 
 	return po
 }

@@ -1,7 +1,12 @@
 package gotext
 
 import (
+	"bytes"
+	"encoding/gob"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -9,34 +14,42 @@ const (
 	arFixture   = "fixtures/ar/categories.po"
 )
 
+func encodeTestGob(t testing.TB, value any) []byte {
+	t.Helper()
+
+	var encoded bytes.Buffer
+	if err := gob.NewEncoder(&encoded).Encode(value); err != nil {
+		t.Fatalf("encode test gob: %v", err)
+	}
+	return encoded.Bytes()
+}
+
 // since both Po and Mo just pass-through to Domain for MarshalBinary and UnmarshalBinary, test it here
 func TestBinaryEncoding(t *testing.T) {
-	// Create po objects
+	data := encodeTestGob(t, &TranslatorEncoding{
+		Language: "en_US",
+		Translations: map[string]*Translation{
+			"My text": {
+				ID:  "My text",
+				Trs: map[int]string{0: "Translated text"},
+			},
+			"language": {
+				ID:  "language",
+				Trs: map[int]string{0: "en_US"},
+			},
+		},
+	})
+
 	po := NewPo()
-	po2 := NewPo()
-
-	// Parse file
-	po.ParseFile(enUSFixture)
-
-	buff, err := po.GetDomain().MarshalBinary()
-	if err != nil {
+	if err := po.UnmarshalBinary(data); err != nil {
 		t.Fatal(err)
 	}
 
-	err = po2.GetDomain().UnmarshalBinary(buff)
-	if err != nil {
-		t.Fatal(err)
+	if got := po.Get("My text"); got != "Translated text" {
+		t.Errorf("decoded My text = %q, want %q", got, "Translated text")
 	}
-
-	// Test translations
-	tr := po2.Get("My text")
-	if tr != translatedText {
-		t.Errorf("Expected '%s' but got '%s'", translatedText, tr)
-	}
-	// Test translations
-	tr = po2.Get("language")
-	if tr != "en_US" {
-		t.Errorf("Expected 'en_US' but got '%s'", tr)
+	if got := po.Get("language"); got != "en_US" {
+		t.Errorf("decoded language = %q, want %q", got, "en_US")
 	}
 }
 
@@ -110,6 +123,34 @@ func TestDomain_GetCtxTranslations(t *testing.T) {
 			}
 		}
 
+	}
+}
+
+func TestDomain_TranslationCopiesOwnPluralMap(t *testing.T) {
+	d := NewDomain()
+
+	translation := NewTranslation()
+	translation.ID = "id"
+	translation.Trs[2] = "plural"
+	d.translations[translation.ID] = translation
+
+	contextTranslation := NewTranslation()
+	contextTranslation.ID = "contextual id"
+	contextTranslation.Trs[1] = "contextual plural"
+	d.contextTranslations["context"] = map[string]*Translation{
+		contextTranslation.ID: contextTranslation,
+	}
+
+	copied := d.GetTranslations()[translation.ID]
+	copied.Trs[2] = "changed"
+	if got := d.translations[translation.ID].Trs[2]; got != "plural" {
+		t.Fatalf("GetTranslations should own its Trs map, got %q in source", got)
+	}
+
+	copiedContext := d.GetCtxTranslations()["context"][contextTranslation.ID]
+	copiedContext.Trs[1] = "changed"
+	if got := d.contextTranslations["context"][contextTranslation.ID].Trs[1]; got != "contextual plural" {
+		t.Fatalf("GetCtxTranslations should own its Trs map, got %q in source", got)
 	}
 }
 
@@ -316,11 +357,14 @@ func TestDomain_Refs(t *testing.T) {
 
 func TestDomain_HeaderMap(t *testing.T) {
 	d := NewDomain()
-	d.Headers.Del("Missing") // No-op but increases coverage
 
 	d.Headers.Set("Key", "Value")
 	if d.Headers.Get("Key") != "Value" {
 		t.Error("Header Get/Set failed")
+	}
+	d.Headers.Del("Missing")
+	if got := d.Headers.Get("Key"); got != "Value" {
+		t.Errorf("Del missing header changed Key: got %q, want Value", got)
 	}
 
 	d.Headers.Add("Key", "Value2")
@@ -351,4 +395,303 @@ func TestDomain_SetPluralResolver(t *testing.T) {
 	if d.pluralForm(10) != 5 {
 		t.Error("Custom plural resolver failed")
 	}
+
+	po := NewPo()
+	po.SetPluralResolver(func(n int) int {
+		return 6
+	})
+	if got := po.GetDomain().pluralForm(10); got != 6 {
+		t.Errorf("Po custom plural resolver = %d, want 6", got)
+	}
+}
+
+func TestDomain_CustomPluralResolverCanReenter(t *testing.T) {
+	d := NewDomain()
+	d.SetPluralResolver(func(int) int {
+		d.Set("reentrant", "value")
+		return 0
+	})
+
+	done := make(chan struct{}, 1)
+	go func() {
+		d.SetN("message", "messages", 2, "message")
+		done <- struct{}{}
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("custom plural resolver deadlocked while reentering Domain")
+	}
+
+	if got := d.Get("reentrant"); got != "value" {
+		t.Fatalf("reentrant resolver mutation produced %q, want %q", got, "value")
+	}
+}
+
+func TestDomain_MarshalPluralEscapingAndOrder(t *testing.T) {
+	d := NewDomain()
+	trans := NewTranslation()
+	trans.ID = "\"leading\" and embedded \"quote\" \\raw"
+	trans.PluralID = "\"plural leading\nembedded \"quote\" and \\\"preserved with \\raw"
+	trans.Trs[2] = "line two\nwith \"quote\" and \\raw"
+	trans.Trs[0] = "\"translation leading\nwith \\raw"
+	trans.Trs[1] = `already \"escaped`
+	d.translations[trans.ID] = trans
+
+	data, err := d.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := string(data)
+	previous := strings.Index(output, "msgid_plural")
+	if previous == -1 {
+		t.Fatal("expected a plural message")
+	}
+	for _, marker := range []string{"msgstr[0]", "msgstr[1]", "msgstr[2]"} {
+		position := strings.Index(output, marker)
+		if position <= previous {
+			t.Fatalf("expected %s after the preceding plural field in %q", marker, output)
+		}
+		previous = position
+	}
+
+	for _, fragment := range []string{
+		`msgid "\"leading\" and embedded \"quote\" \\raw"`,
+		`"embedded \"quote\" and \"preserved with \\raw"`,
+		`msgstr[1] "already \"escaped"`,
+		`"with \"quote\" and \\raw`,
+	} {
+		if !strings.Contains(output, fragment) {
+			t.Errorf("MarshalText output missing escaped fragment %q:\n%s", fragment, output)
+		}
+	}
+}
+
+func TestDomain_ParseHeadersUsesSplitSeqAndCut(t *testing.T) {
+	d := NewDomain()
+	header := NewTranslation()
+	header.Trs[0] = "\n\nlanguage: en_US:UTF-8\nLANGUAGE: en_GB\nX-Custom: value=with=equals\nX-Custom: duplicate\npLuRaL-fOrMs: nplurals=3; malformed; plural=n != 1; ignored=a=b\n"
+	d.translations[""] = header
+
+	d.parseHeaders()
+
+	if got := d.Language; got != "en_GB" {
+		t.Errorf("Language = %q, want %q", got, "en_GB")
+	}
+	if got := d.Headers.Get("language"); got != "en_US:UTF-8" {
+		t.Errorf("lower-case Language header = %q, want %q", got, "en_US:UTF-8")
+	}
+	if got := d.Headers.Get("LANGUAGE"); got != "en_GB" {
+		t.Errorf("upper-case Language header = %q, want %q", got, "en_GB")
+	}
+	customValues := d.Headers.Values("X-Custom")
+	if len(customValues) != 2 || customValues[0] != "value=with=equals" || customValues[1] != "duplicate" {
+		t.Errorf("duplicate custom headers = %v", customValues)
+	}
+
+	wantPluralForms := "nplurals=3; malformed; plural=n != 1; ignored=a=b"
+	if d.PluralForms != wantPluralForms {
+		t.Errorf("PluralForms = %q, want %q", d.PluralForms, wantPluralForms)
+	}
+	if d.nplurals != 3 {
+		t.Errorf("nplurals = %d, want 3", d.nplurals)
+	}
+	if d.plural != "n != 1" {
+		t.Errorf("plural expression = %q, want %q", d.plural, "n != 1")
+	}
+	if got := d.pluralForm(1); got != 0 {
+		t.Errorf("plural form for one = %d, want 0", got)
+	}
+	if got := d.pluralForm(2); got != 1 {
+		t.Errorf("plural form for two = %d, want 1", got)
+	}
+}
+
+func TestDomain_SetRefsOwnsSliceAndRefreshesExisting(t *testing.T) {
+	d := NewDomain()
+	trans := NewTranslation()
+	trans.ID = "message"
+	d.translations[trans.ID] = trans
+
+	refs := []string{"file.go:1"}
+	d.SetRefs(trans.ID, refs)
+	refs[0] = "file.go:2"
+
+	if got := d.GetRefs(trans.ID); len(got) != 1 || got[0] != "file.go:1" {
+		t.Fatalf("SetRefs should own its input, got %v", got)
+	}
+	if trans.IsStale() {
+		t.Fatal("SetRefs should mark an existing translation dirty")
+	}
+	d.DropStaleTranslations()
+	if _, ok := d.translations[trans.ID]; !ok {
+		t.Fatal("DropStaleTranslations removed a translation refreshed by SetRefs")
+	}
+
+	got := d.GetRefs(trans.ID)
+	got[0] = "file.go:3"
+	if got = d.GetRefs(trans.ID); got[0] != "file.go:1" {
+		t.Fatalf("GetRefs should return an independent slice, got %v", got)
+	}
+}
+
+func TestDomain_BinarySnapshotAndInvalidDecodeAreSafe(t *testing.T) {
+	d := NewDomain()
+	d.Headers.Set("X-Test", "before")
+	d.Set("message", "before")
+	d.SetRefs("message", []string{"file.go:1"})
+
+	data, err := d.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	d.Headers.Set("X-Test", "after")
+	d.Set("message", "after")
+
+	restored := NewDomain()
+	if err := restored.UnmarshalBinary(data); err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.Get("message"); got != "before" {
+		t.Fatalf("binary snapshot message = %q, want %q", got, "before")
+	}
+	if got := restored.Headers.Get("X-Test"); got != "before" {
+		t.Fatalf("binary snapshot header = %q, want %q", got, "before")
+	}
+	if got := restored.GetRefs("message"); len(got) != 1 || got[0] != "file.go:1" {
+		t.Fatalf("binary snapshot refs = %v", got)
+	}
+
+	if err := d.UnmarshalBinary([]byte("not gob")); err == nil {
+		t.Fatal("invalid binary should return an error")
+	}
+	if got := d.Get("message"); got != "after" {
+		t.Fatalf("invalid decode changed translation to %q", got)
+	}
+	if got := d.Headers.Get("X-Test"); got != "after" {
+		t.Fatalf("invalid decode changed header to %q", got)
+	}
+}
+
+func TestDomain_UnmarshalBinaryInvalidPluralUsesFallback(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := gob.NewEncoder(&encoded).Encode(&TranslatorEncoding{
+		Plural: "n +",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	d := NewDomain()
+	d.SetPluralResolver(func(int) int {
+		return 7
+	})
+	if err := d.UnmarshalBinary(encoded.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.pluralForm(2); got != 7 {
+		t.Fatalf("invalid plural should use custom fallback, got %d", got)
+	}
+
+	d.SetPluralResolver(nil)
+	if got := d.pluralForm(1); got != 0 {
+		t.Fatalf("invalid plural singular fallback = %d, want 0", got)
+	}
+	if got := d.pluralForm(2); got != 1 {
+		t.Fatalf("invalid plural plural fallback = %d, want 1", got)
+	}
+}
+
+func TestDomainConcurrentSupportedAccess(t *testing.T) {
+	d := NewDomain()
+	d.Set("message", "initial")
+	d.SetC("message", "context", "initial context")
+	d.SetRefs("message", []string{"file.go:1"})
+	seed, err := d.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const iterations = 128
+	var wg sync.WaitGroup
+	wg.Add(8)
+
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			d.Set("message", "value")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			d.SetC("message", "context", "context value")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := range iterations {
+			d.SetN("message", "messages", i, "plural value")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			d.SetRefs("message", []string{"file.go:1", "file.go:2"})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := range iterations {
+			if i%2 == 0 {
+				d.SetPluralResolver(func(int) int { return 0 })
+			} else {
+				d.SetPluralResolver(func(int) int { return 1 })
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			refs := d.GetRefs("message")
+			if len(refs) > 0 {
+				refs[0] = "caller mutation"
+			}
+			for _, trans := range d.GetTranslations() {
+				if trans != nil {
+					trans.Trs[0] = "caller mutation"
+				}
+			}
+			for _, translations := range d.GetCtxTranslations() {
+				for _, trans := range translations {
+					if trans != nil {
+						trans.Trs[0] = "caller mutation"
+					}
+				}
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			if _, err := d.MarshalText(); err != nil {
+				t.Errorf("MarshalText: %v", err)
+			}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			if _, err := d.MarshalBinary(); err != nil {
+				t.Errorf("MarshalBinary: %v", err)
+			}
+			if err := d.UnmarshalBinary(seed); err != nil {
+				t.Errorf("UnmarshalBinary: %v", err)
+			}
+		}
+	}()
+
+	wg.Wait()
 }

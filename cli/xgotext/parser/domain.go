@@ -18,8 +18,11 @@ type Translation struct {
 
 // AddLocations to translation
 func (t *Translation) AddLocations(locations []string) {
+	if t == nil || len(locations) == 0 {
+		return
+	}
 	if t.SourceLocations == nil {
-		t.SourceLocations = locations
+		t.SourceLocations = append([]string(nil), locations...)
 	} else {
 		t.SourceLocations = append(t.SourceLocations, locations...)
 	}
@@ -27,9 +30,14 @@ func (t *Translation) AddLocations(locations []string) {
 
 // Dump translation as string
 func (t *Translation) Dump() string {
+	if t == nil {
+		return ""
+	}
+
 	data := make([]string, 0, len(t.SourceLocations)+5)
 
-	locations := t.SourceLocations
+	locations := make([]string, len(t.SourceLocations))
+	copy(locations, t.SourceLocations)
 	sort.Strings(locations)
 	for _, location := range locations {
 		data = append(data, "#: "+location)
@@ -110,7 +118,11 @@ func (m TranslationMap) Dump() string {
 
 	data := make([]string, 0, len(m))
 	for _, key := range keys {
-		data = append(data, (m)[key].Dump())
+		if translation := m[key]; translation != nil {
+			if dump := translation.Dump(); dump != "" {
+				data = append(data, dump)
+			}
+		}
 	}
 	return strings.Join(data, "\n\n")
 }
@@ -123,23 +135,28 @@ type Domain struct {
 
 // AddTranslation to the domain
 func (d *Domain) AddTranslation(translation *Translation) {
+	if d == nil || translation == nil {
+		return
+	}
 	if d.Translations == nil {
 		d.Translations = make(TranslationMap)
+	}
+	if d.ContextTranslations == nil {
 		d.ContextTranslations = make(map[string]TranslationMap)
 	}
 
 	if translation.Context == "" {
-		if t, ok := d.Translations[translation.MsgID]; ok {
+		if t, ok := d.Translations[translation.MsgID]; ok && t != nil {
 			t.AddLocations(translation.SourceLocations)
 		} else {
 			d.Translations[translation.MsgID] = translation
 		}
 	} else {
-		if _, ok := d.ContextTranslations[translation.Context]; !ok {
+		if _, ok := d.ContextTranslations[translation.Context]; !ok || d.ContextTranslations[translation.Context] == nil {
 			d.ContextTranslations[translation.Context] = make(TranslationMap)
 		}
 
-		if t, ok := d.ContextTranslations[translation.Context][translation.MsgID]; ok {
+		if t, ok := d.ContextTranslations[translation.Context][translation.MsgID]; ok && t != nil {
 			t.AddLocations(translation.SourceLocations)
 		} else {
 			d.ContextTranslations[translation.Context][translation.MsgID] = translation
@@ -149,8 +166,14 @@ func (d *Domain) AddTranslation(translation *Translation) {
 
 // Dump the domain as string
 func (d *Domain) Dump() string {
+	if d == nil {
+		return ""
+	}
+
 	data := make([]string, 0, len(d.ContextTranslations)+1)
-	data = append(data, d.Translations.Dump())
+	if dump := d.Translations.Dump(); dump != "" {
+		data = append(data, dump)
+	}
 
 	// sort context translations by context for consistence output
 	keys := make([]string, 0, len(d.ContextTranslations))
@@ -160,7 +183,9 @@ func (d *Domain) Dump() string {
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		data = append(data, d.ContextTranslations[key].Dump())
+		if dump := d.ContextTranslations[key].Dump(); dump != "" {
+			data = append(data, dump)
+		}
 	}
 	return strings.Join(data, "\n\n")
 }
@@ -203,6 +228,9 @@ type DomainMap struct {
 
 // AddTranslation to domain map
 func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
+	if m == nil || translation == nil {
+		return
+	}
 	if m.Domains == nil {
 		m.Domains = make(map[string]*Domain, 1)
 	}
@@ -217,7 +245,7 @@ func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
 		domain = m.Default
 	}
 
-	if _, ok := m.Domains[domain]; !ok {
+	if _, ok := m.Domains[domain]; !ok || m.Domains[domain] == nil {
 		m.Domains[domain] = new(Domain)
 	}
 	m.Domains[domain].AddTranslation(translation)
@@ -225,6 +253,9 @@ func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
 
 // Save domains to directory
 func (m *DomainMap) Save(directory string) error {
+	if m == nil {
+		return nil
+	}
 	// ensure output directory exist
 	err := os.MkdirAll(directory, os.ModePerm)
 	if err != nil {
@@ -233,6 +264,9 @@ func (m *DomainMap) Save(directory string) error {
 
 	// save each domain in a separate po file
 	for name, domain := range m.Domains {
+		if domain == nil {
+			continue
+		}
 		err := domain.Save(filepath.Join(directory, name+".pot"))
 		if err != nil {
 			return fmt.Errorf("failed to save domain %s: %v", name, err)

@@ -6,8 +6,12 @@
 package gotext
 
 import (
+	"encoding/binary"
+	"fmt"
 	"os"
 	"path"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -269,4 +273,502 @@ func TestMo_MissingWrappers(t *testing.T) {
 	if mo.IsTranslatedNC("id", 1, "ctx") {
 		t.Error("Mo.IsTranslatedNC failed")
 	}
+}
+
+func TestMoParseRejectsHugeCount(t *testing.T) {
+	buf := make([]byte, 28)
+	copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
+	binary.LittleEndian.PutUint32(buf[8:12], ^uint32(0))
+
+	mo := NewMo()
+	mo.GetDomain().Set("seed", "preserved")
+	mo.Parse(buf)
+
+	if got := mo.Get("seed"); got != "preserved" {
+		t.Fatalf("seed translation = %q, want %q", got, "preserved")
+	}
+	if len(mo.domain.translations) != 1 {
+		t.Fatalf("translations = %v, want only the seed", mo.domain.translations)
+	}
+}
+
+func TestMoParseRejectsInvalidPayloadWithoutMutation(t *testing.T) {
+	t.Run("payload extends past file", func(t *testing.T) {
+		buf := make([]byte, 46)
+		copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
+		binary.LittleEndian.PutUint32(buf[8:12], 1)
+		binary.LittleEndian.PutUint32(buf[12:16], 28)
+		binary.LittleEndian.PutUint32(buf[16:20], 36)
+		binary.LittleEndian.PutUint32(buf[28:32], 4)
+		binary.LittleEndian.PutUint32(buf[32:36], 44)
+		binary.LittleEndian.PutUint32(buf[36:40], 1)
+		binary.LittleEndian.PutUint32(buf[40:44], 45)
+		copy(buf[44:], "xy")
+
+		mo := NewMo()
+		mo.GetDomain().Set("seed", "preserved")
+		mo.Parse(buf)
+
+		if got := mo.Get("seed"); got != "preserved" {
+			t.Fatalf("seed translation = %q, want %q", got, "preserved")
+		}
+		if len(mo.domain.translations) != 1 {
+			t.Fatalf("translations = %v, want only the seed", mo.domain.translations)
+		}
+	})
+
+	t.Run("later payload invalidates all entries", func(t *testing.T) {
+		buf := make([]byte, 70)
+		copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
+		binary.LittleEndian.PutUint32(buf[8:12], 2)
+		binary.LittleEndian.PutUint32(buf[12:16], 28)
+		binary.LittleEndian.PutUint32(buf[16:20], 44)
+
+		binary.LittleEndian.PutUint32(buf[28:32], 3)
+		binary.LittleEndian.PutUint32(buf[32:36], 60)
+		binary.LittleEndian.PutUint32(buf[36:40], 3)
+		binary.LittleEndian.PutUint32(buf[40:44], 66)
+
+		binary.LittleEndian.PutUint32(buf[44:48], 3)
+		binary.LittleEndian.PutUint32(buf[48:52], 63)
+		binary.LittleEndian.PutUint32(buf[52:56], 3)
+		binary.LittleEndian.PutUint32(buf[56:60], 69)
+		copy(buf[60:], "oneONEtwoT")
+
+		mo := NewMo()
+		mo.GetDomain().Set("seed", "preserved")
+		mo.Parse(buf)
+
+		if got := mo.Get("seed"); got != "preserved" {
+			t.Fatalf("seed translation = %q, want %q", got, "preserved")
+		}
+		if len(mo.domain.translations) != 1 {
+			t.Fatalf("translations = %v, want only the seed", mo.domain.translations)
+		}
+	})
+}
+
+func TestMoParsePreservesPluralBytes(t *testing.T) {
+	mo := NewMo()
+	mo.Parse(makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{
+			msgid:  []byte("id\x00plural\x00extra"),
+			msgstr: []byte("one\x00two\x00three"),
+		},
+		moFixtureEntry{
+			msgid:  []byte("singular"),
+			msgstr: []byte("translated"),
+		},
+	))
+
+	translation, ok := mo.domain.translations["id"]
+	if !ok {
+		t.Fatal("expected translation for repeated-NUL msgid")
+	}
+	if got := translation.PluralID; got != "plural\x00extra" {
+		t.Fatalf("plural ID = %q, want %q", got, "plural\x00extra")
+	}
+	for i, want := range map[int]string{0: "one", 1: "two", 2: "three"} {
+		if got := translation.Trs[i]; got != want {
+			t.Fatalf("translation form %d = %q, want %q", i, got, want)
+		}
+	}
+	if len(translation.Trs) != 3 {
+		t.Fatalf("translation forms = %v, want 3 forms", translation.Trs)
+	}
+
+	translation, ok = mo.domain.translations["singular"]
+	if !ok {
+		t.Fatal("expected singular translation")
+	}
+	if got := translation.PluralID; got != "" {
+		t.Fatalf("singular plural ID = %q, want empty", got)
+	}
+	if got := translation.Trs[0]; got != "translated" {
+		t.Fatalf("singular translation = %q, want %q", got, "translated")
+	}
+}
+
+type moFixtureEntry struct {
+	msgid  []byte
+	msgstr []byte
+}
+
+func makeMoFixture(order binary.ByteOrder, entries ...moFixtureEntry) []byte {
+	const (
+		headerSize = 28
+		moMagic    = uint32(0x950412de)
+	)
+	directorySize := len(entries) * 8
+	msgIDOffset := headerSize
+	msgStrOffset := msgIDOffset + directorySize
+	dataOffset := msgStrOffset + directorySize
+
+	dataSize := 0
+	for _, entry := range entries {
+		// MO string lengths exclude their trailing NUL bytes.
+		dataSize += len(entry.msgid) + 1 + len(entry.msgstr) + 1
+	}
+	buf := make([]byte, dataOffset+dataSize)
+
+	order.PutUint32(buf[0:4], moMagic)
+	order.PutUint32(buf[8:12], uint32(len(entries)))
+	order.PutUint32(buf[12:16], uint32(msgIDOffset))
+	order.PutUint32(buf[16:20], uint32(msgStrOffset))
+
+	cursor := dataOffset
+	for i, entry := range entries {
+		idEntry := msgIDOffset + i*8
+		strEntry := msgStrOffset + i*8
+		order.PutUint32(buf[idEntry:idEntry+4], uint32(len(entry.msgid)))
+		order.PutUint32(buf[idEntry+4:idEntry+8], uint32(cursor))
+		copy(buf[cursor:], entry.msgid)
+		cursor += len(entry.msgid) + 1
+
+		order.PutUint32(buf[strEntry:strEntry+4], uint32(len(entry.msgstr)))
+		order.PutUint32(buf[strEntry+4:strEntry+8], uint32(cursor))
+		copy(buf[cursor:], entry.msgstr)
+		cursor += len(entry.msgstr) + 1
+	}
+
+	return buf
+}
+
+func TestMoParseBigEndianSingularContextPlural(t *testing.T) {
+	catalog := makeMoFixture(
+		binary.BigEndian,
+		moFixtureEntry{
+			msgid:  []byte(""),
+			msgstr: []byte("Language: xx\nPlural-Forms: nplurals=2; plural=(n != 1);\n"),
+		},
+		moFixtureEntry{
+			msgid:  []byte("hello"),
+			msgstr: []byte("bonjour"),
+		},
+		moFixtureEntry{
+			msgid:  []byte("menu\x04title"),
+			msgstr: []byte("Title"),
+		},
+		moFixtureEntry{
+			msgid:  []byte("menu\x04item\x00items"),
+			msgstr: []byte("one\x00many"),
+		},
+	)
+
+	mo := NewMo()
+	mo.Parse(catalog)
+
+	if got := mo.Get("hello"); got != "bonjour" {
+		t.Fatalf("singular lookup = %q, want %q", got, "bonjour")
+	}
+	if got := mo.GetC("title", "menu"); got != "Title" {
+		t.Fatalf("context lookup = %q, want %q", got, "Title")
+	}
+
+	translation, ok := mo.GetDomain().contextTranslations["menu"]["item"]
+	if !ok {
+		t.Fatal("expected big-endian context translation")
+	}
+	if got := translation.PluralID; got != "items" {
+		t.Fatalf("plural ID = %q, want %q", got, "items")
+	}
+	if got := translation.Trs[0]; got != "one" {
+		t.Fatalf("translation form 0 = %q, want %q", got, "one")
+	}
+	if got := translation.Trs[1]; got != "many" {
+		t.Fatalf("translation form 1 = %q, want %q", got, "many")
+	}
+	if got := mo.GetNC("item", "items", 2, "menu"); got != "many" {
+		t.Fatalf("plural context lookup = %q, want %q", got, "many")
+	}
+}
+
+func TestMoParseRejectsInvalidMagicWithoutMutation(t *testing.T) {
+	catalog := makeMoFixture(
+		binary.BigEndian,
+		moFixtureEntry{msgid: []byte("id"), msgstr: []byte("translated")},
+	)
+	copy(catalog[:4], []byte{0x95, 0x04, 0x12, 0xdf})
+
+	mo := NewMo()
+	mo.GetDomain().Set("sentinel", "preserved")
+	mo.Parse(catalog)
+
+	if got := mo.Get("sentinel"); got != "preserved" {
+		t.Fatalf("sentinel translation = %q, want %q", got, "preserved")
+	}
+	if len(mo.GetDomain().translations) != 1 {
+		t.Fatalf("translations = %v, want only the sentinel", mo.GetDomain().translations)
+	}
+}
+
+func TestMoParsePreservesEotSuffix(t *testing.T) {
+	mo := NewMo()
+	mo.Parse(makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{
+			msgid:  []byte("menu\x04item\x04suffix\x00items"),
+			msgstr: []byte("one\x00many"),
+		},
+	))
+
+	translation, ok := mo.GetDomain().contextTranslations["menu"]["item\x04suffix"]
+	if !ok {
+		t.Fatal("expected context translation with EOT suffix")
+	}
+	if got := translation.ID; got != "item\x04suffix" {
+		t.Fatalf("translation ID = %q, want %q", got, "item\x04suffix")
+	}
+	if got := translation.PluralID; got != "items" {
+		t.Fatalf("plural ID = %q, want %q", got, "items")
+	}
+	if got := mo.GetNC("item\x04suffix", "items", 2, "menu"); got != "many" {
+		t.Fatalf("plural context lookup = %q, want %q", got, "many")
+	}
+}
+
+func TestMoParseTruncatedHeaderPreservesSeed(t *testing.T) {
+	catalog := makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{msgid: []byte("id"), msgstr: []byte("translated")},
+	)
+
+	for size := 0; size <= 27; size++ {
+		t.Run(fmt.Sprintf("truncate_%d", size), func(t *testing.T) {
+			mo := NewMo()
+			mo.GetDomain().Set("sentinel", "preserved")
+			mo.Parse(catalog[:size])
+
+			if got := mo.Get("sentinel"); got != "preserved" {
+				t.Fatalf("sentinel translation = %q, want %q", got, "preserved")
+			}
+			if len(mo.GetDomain().translations) != 1 {
+				t.Fatalf("translations = %v, want only the sentinel", mo.GetDomain().translations)
+			}
+		})
+	}
+}
+
+func TestMoParseRejectsDirectoryOneByteOverflow(t *testing.T) {
+	buf := make([]byte, 35)
+	copy(buf[0:4], []byte{0xde, 0x12, 0x04, 0x95})
+	binary.LittleEndian.PutUint32(buf[8:12], 1)
+	binary.LittleEndian.PutUint32(buf[12:16], 28)
+	binary.LittleEndian.PutUint32(buf[16:20], 28)
+
+	mo := NewMo()
+	mo.GetDomain().Set("sentinel", "preserved")
+	mo.Parse(buf)
+
+	if got := mo.Get("sentinel"); got != "preserved" {
+		t.Fatalf("sentinel translation = %q, want %q", got, "preserved")
+	}
+	if len(mo.GetDomain().translations) != 1 {
+		t.Fatalf("translations = %v, want only the sentinel", mo.GetDomain().translations)
+	}
+}
+
+func TestMoParseRejectsNearMaxUint32Offsets(t *testing.T) {
+	base := makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{msgid: []byte("id"), msgstr: []byte("translated")},
+	)
+	maxUint32 := ^uint32(0)
+	tests := []struct {
+		name   string
+		mutate func([]byte)
+	}{
+		{
+			name: "msgid directory offset",
+			mutate: func(buf []byte) {
+				binary.LittleEndian.PutUint32(buf[12:16], maxUint32)
+			},
+		},
+		{
+			name: "msgstr directory offset",
+			mutate: func(buf []byte) {
+				binary.LittleEndian.PutUint32(buf[16:20], maxUint32)
+			},
+		},
+		{
+			name: "msgid payload offset",
+			mutate: func(buf []byte) {
+				binary.LittleEndian.PutUint32(buf[32:36], maxUint32)
+			},
+		},
+		{
+			name: "msgstr payload offset",
+			mutate: func(buf []byte) {
+				binary.LittleEndian.PutUint32(buf[40:44], maxUint32)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			catalog := append([]byte(nil), base...)
+			test.mutate(catalog)
+
+			mo := NewMo()
+			mo.GetDomain().Set("sentinel", "preserved")
+			mo.Parse(catalog)
+
+			if got := mo.Get("sentinel"); got != "preserved" {
+				t.Fatalf("sentinel translation = %q, want %q", got, "preserved")
+			}
+			if len(mo.GetDomain().translations) != 1 {
+				t.Fatalf("translations = %v, want only the sentinel", mo.GetDomain().translations)
+			}
+		})
+	}
+}
+
+func FuzzMoParseBoundedCatalog(f *testing.F) {
+	littleEndianCatalog := makeMoFixture(
+		binary.LittleEndian,
+		moFixtureEntry{msgid: []byte("id"), msgstr: []byte("translated")},
+	)
+	bigEndianCatalog := makeMoFixture(
+		binary.BigEndian,
+		moFixtureEntry{msgid: []byte("id"), msgstr: []byte("translated")},
+	)
+
+	f.Add(littleEndianCatalog)
+	f.Add(bigEndianCatalog)
+	f.Add([]byte{})
+	f.Add([]byte("not an MO catalog"))
+	f.Add(littleEndianCatalog[:27])
+	f.Add([]byte{0xde, 0x12, 0x04, 0x95, 0, 0, 0, 0})
+
+	f.Fuzz(func(t *testing.T, input []byte) {
+		if len(input) > 64<<10 {
+			return
+		}
+
+		mo := NewMo()
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				t.Fatalf("Parse panicked: %v", recovered)
+			}
+		}()
+
+		mo.Parse(input)
+		for id, translation := range mo.GetDomain().translations {
+			if translation == nil {
+				t.Fatalf("translation %q is nil", id)
+			}
+		}
+		for context, translations := range mo.GetDomain().contextTranslations {
+			for id, translation := range translations {
+				if translation == nil {
+					t.Fatalf("context translation %q/%q is nil", context, id)
+				}
+			}
+		}
+	})
+}
+
+func FuzzMoRejectedCatalogDoesNotMutate(f *testing.F) {
+	f.Add([]byte("rejected catalog"), uint8(0))
+	f.Add([]byte{}, uint8(1))
+	f.Add([]byte("big endian"), uint8(3))
+
+	f.Fuzz(func(t *testing.T, input []byte, mode uint8) {
+		if len(input) > 64<<10 {
+			return
+		}
+
+		mo := NewMo()
+		mo.GetDomain().Set("ordinary id", "ordinary translation")
+		mo.GetDomain().SetC("contextual id", "context", "contextual translation")
+
+		wantTranslations := mo.GetDomain().GetTranslations()
+		wantContextTranslations := mo.GetDomain().GetCtxTranslations()
+
+		var order binary.ByteOrder = binary.LittleEndian
+		if mode&1 != 0 {
+			order = binary.BigEndian
+		}
+		msgID := append([]byte("id:"), input...)
+		buf := makeMoFixture(
+			order,
+			moFixtureEntry{msgid: msgID, msgstr: []byte("translated")},
+		)
+
+		switch mode % 5 {
+		case 0:
+			// Keep both directories valid, but truncate the translation payload.
+			buf = buf[:len(buf)-2]
+		case 1:
+			// Overflow the original string length after both directories decode.
+			order.PutUint32(buf[28:32], ^uint32(0))
+		case 2:
+			// Point the translation payload just beyond the complete catalog.
+			order.PutUint32(buf[40:44], uint32(len(buf)+1))
+		case 3:
+			// Overflow the translation string length after both directories decode.
+			order.PutUint32(buf[36:40], ^uint32(0))
+		case 4:
+			// Corrupt the selected endian encoding's canonical magic.
+			buf[0] ^= 0xff
+		}
+
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				t.Fatalf("Parse panicked: %v", recovered)
+			}
+		}()
+
+		mo.Parse(buf)
+
+		if got := mo.GetDomain().GetTranslations(); !reflect.DeepEqual(got, wantTranslations) {
+			t.Fatalf("ordinary translations changed: got %#v, want %#v", got, wantTranslations)
+		}
+		if got := mo.GetDomain().GetCtxTranslations(); !reflect.DeepEqual(got, wantContextTranslations) {
+			t.Fatalf("context translations changed: got %#v, want %#v", got, wantContextTranslations)
+		}
+	})
+}
+
+func FuzzMoSharedTranslationPayload(f *testing.F) {
+	f.Add("shared translation", uint8(0))
+	f.Add("geteilte Übersetzung", uint8(1))
+
+	f.Fuzz(func(t *testing.T, suffix string, mode uint8) {
+		if len(suffix) > 64<<10 || strings.IndexByte(suffix, 0) >= 0 {
+			return
+		}
+
+		var order binary.ByteOrder = binary.LittleEndian
+		if mode&1 != 0 {
+			order = binary.BigEndian
+		}
+		shared := []byte("shared:" + suffix)
+		buf := makeMoFixture(
+			order,
+			moFixtureEntry{msgid: []byte("first"), msgstr: shared},
+			moFixtureEntry{msgid: []byte("second"), msgstr: []byte("unused")},
+		)
+
+		const (
+			firstTranslationDescriptor  = 44
+			secondTranslationDescriptor = 52
+		)
+		copy(
+			buf[secondTranslationDescriptor:secondTranslationDescriptor+8],
+			buf[firstTranslationDescriptor:firstTranslationDescriptor+8],
+		)
+
+		mo := NewMo()
+		mo.Parse(buf)
+
+		want := string(shared)
+		if got := mo.Get("first"); got != want {
+			t.Fatalf("first translation = %q, want %q", got, want)
+		}
+		if got := mo.Get("second"); got != want {
+			t.Fatalf("shared translation = %q, want %q", got, want)
+		}
+	})
 }

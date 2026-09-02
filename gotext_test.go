@@ -480,11 +480,14 @@ func TestOverrideLocale(t *testing.T) {
 
 func TestPackageRace(t *testing.T) {
 	// Set PO content
-	str := `# Some comment
+	str := `msgid ""
+msgstr ""
+"Language: en_US\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
 msgid "My text"
 msgstr "Translated text"
 
-# More comments
 msgid "Another string"
 msgstr ""
 
@@ -497,55 +500,56 @@ msgstr[2] "And this is the second plural form: %s"
 msgctxt "Ctx"
 msgid "Some random in a context"
 msgstr "Some random Translation in a context"
-
 	`
 
-	// Create Locales directory on default location
-	dirname := path.Join("/tmp", "en_US")
+	library := t.TempDir()
+	dirname := filepath.Join(library, "en_US")
 	err := os.MkdirAll(dirname, os.ModePerm)
 	if err != nil {
 		t.Fatalf("Can't create test directory: %s", err.Error())
 	}
 
-	// Write PO content to default domain file
-	filename := path.Join("/tmp", GetDomain()+".po")
-
-	f, err := os.Create(filename)
-	if err != nil {
-		t.Fatalf("Can't create test file: %s", err.Error())
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-
-	_, err = f.WriteString(str)
+	filename := filepath.Join(dirname, "default.po")
+	err = os.WriteFile(filename, []byte(str), 0o644)
 	if err != nil {
 		t.Fatalf("Can't write to test file: %s", err.Error())
 	}
 
+	Configure(library, "en_US", "default")
+
 	var wg sync.WaitGroup
+	results := make(chan [2]string, 1000)
 
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		// Test translations
-		go func() {
-			defer wg.Done()
-
+	for range 1000 {
+		wg.Go(func() {
+			// Test translations
 			GetLibrary()
-			SetLibrary(path.Join("/tmp", "gotextlib"))
+			SetLibrary(library)
 			GetDomain()
 			SetDomain("default")
 			GetLanguage()
 			SetLanguage("en_US")
-			Configure("/tmp", "en_US", "default")
+			Configure(library, "en_US", "default")
 
-			Get("My text")
+			results <- [2]string{
+				Get("My text"),
+				GetC("Some random in a context", "Ctx"),
+			}
 			GetN("One with var: %s", "Several with vars: %s", 0, "test")
-			GetC("Some random in a context", "Ctx")
-		}()
+		})
 	}
 
 	wg.Wait()
+	close(results)
+
+	for result := range results {
+		if result[0] != "Translated text" {
+			t.Errorf("Expected 'Translated text', got '%s'", result[0])
+		}
+		if result[1] != "Some random Translation in a context" {
+			t.Errorf("Expected contextual translation, got '%s'", result[1])
+		}
+	}
 }
 
 func TestPackageArabicTranslation(t *testing.T) {
@@ -724,15 +728,178 @@ func TestGotext_MissingWrappers(t *testing.T) {
 	if IsTranslatedDC("missing", "id", "ctx") {
 		t.Error("IsTranslatedDC failed")
 	}
-	
+
 	if GetStorage() == nil {
 		t.Error("GetStorage should not be nil")
 	}
-	
-	SetStorage(GetStorage()) // Coverage
-	
+
 	Configure("fixtures", "en_US", "default")
 	if GetD("default", "My text") != translatedText {
 		t.Error("GetD failed")
+	}
+}
+func TestGlobalEmptyLocaleStorageIsSafe(t *testing.T) {
+	previousLocales := GetLocales()
+	previousLanguages := GetLanguages()
+	previousLibrary := GetLibrary()
+	previousDomain := GetDomain()
+	defer func() {
+		globalConfig.Lock()
+		globalConfig.locales = append(make([]*Locale, 0, len(previousLocales)), previousLocales...)
+		globalConfig.languages = append(make([]string, 0, len(previousLanguages)), previousLanguages...)
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	}()
+
+	tests := []struct {
+		name   string
+		setter func()
+		count  int
+	}{
+		{name: "nil", setter: func() { SetLocales(nil) }},
+		{name: "empty", setter: func() { SetLocales([]*Locale{}) }},
+		{name: "nil element", setter: func() { SetLocales([]*Locale{nil}) }, count: 1},
+		{name: "nil storage", setter: func() { SetStorage(nil) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setter()
+
+			if got := len(GetLocales()); got != tt.count {
+				t.Fatalf("GetLocales length = %d, want %d", got, tt.count)
+			}
+			if got := GetDomain(); got != previousDomain {
+				t.Errorf("GetDomain = %q, want configured fallback %q", got, previousDomain)
+			}
+			if got := GetLibrary(); got != previousLibrary {
+				t.Errorf("GetLibrary = %q, want configured fallback %q", got, previousLibrary)
+			}
+			if got := GetLanguage(); got != FallbackLocale {
+				t.Errorf("GetLanguage = %q, want fallback %q", got, FallbackLocale)
+			}
+			if got := len(GetLanguages()); got != 0 {
+				t.Errorf("GetLanguages length = %d, want 0", got)
+			}
+			if got := Get("source %s", "value"); got != "source value" {
+				t.Errorf("Get fallback = %q, want %q", got, "source value")
+			}
+			if got := GetN("one", "many", 1); got != "one" {
+				t.Errorf("GetN singular fallback = %q, want %q", got, "one")
+			}
+			if got := GetN("one", "many", 2); got != "many" {
+				t.Errorf("GetN plural fallback = %q, want %q", got, "many")
+			}
+			if got := GetC("source", "context"); got != "source" {
+				t.Errorf("GetC fallback = %q, want %q", got, "source")
+			}
+			if got := GetNC("one", "many", 2, "context"); got != "many" {
+				t.Errorf("GetNC plural fallback = %q, want %q", got, "many")
+			}
+			if GetStorage() != nil {
+				t.Error("GetStorage should be nil for an empty/nil locale state")
+			}
+		})
+	}
+}
+
+func TestSetLocalesCopiesCallerSlices(t *testing.T) {
+	previousLocales := GetLocales()
+	previousLanguages := GetLanguages()
+	previousLibrary := GetLibrary()
+	previousDomain := GetDomain()
+	defer func() {
+		globalConfig.Lock()
+		globalConfig.locales = append(make([]*Locale, 0, len(previousLocales)), previousLocales...)
+		globalConfig.languages = append(make([]string, 0, len(previousLanguages)), previousLanguages...)
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	}()
+
+	locale := NewLocale("caller-path", "caller")
+	locale.SetDomain("caller-domain")
+	input := []*Locale{locale}
+	SetLocales(input)
+	input[0] = nil
+
+	if got := GetStorage(); got != locale {
+		t.Fatalf("mutating SetLocales input changed storage: got %p, want %p", got, locale)
+	}
+
+	output := GetLocales()
+	output[0] = nil
+	if got := GetStorage(); got != locale {
+		t.Fatalf("mutating GetLocales result changed storage: got %p, want %p", got, locale)
+	}
+
+	languages := GetLanguages()
+	languages[0] = "mutated"
+	if got := GetLanguage(); got != "caller" {
+		t.Errorf("mutating GetLanguages result changed storage: got %q, want %q", got, "caller")
+	}
+}
+
+func TestConcurrentSetDomainKeepsGlobalAndLocaleDomainsInSync(t *testing.T) {
+	globalConfig.RLock()
+	previousLocales := append(make([]*Locale, 0, len(globalConfig.locales)), globalConfig.locales...)
+	previousLanguages := append(make([]string, 0, len(globalConfig.languages)), globalConfig.languages...)
+	previousLibrary := globalConfig.library
+	previousDomain := globalConfig.domain
+	globalConfig.RUnlock()
+	defer func() {
+		globalConfig.Lock()
+		globalConfig.locales = previousLocales
+		globalConfig.languages = previousLanguages
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	}()
+
+	SetLocales([]*Locale{
+		NewLocale("", "en_US"),
+		NewLocale("", "fr_FR"),
+	})
+
+	domains := []string{"domain-a", "domain-b", "domain-c", "domain-d"}
+	const setterCount = 32
+	const rounds = 8
+	start := make(chan struct{})
+	var setters sync.WaitGroup
+	setters.Add(setterCount)
+	for worker := range setterCount {
+		go func(worker int) {
+			defer setters.Done()
+			<-start
+			for round := range rounds {
+				SetDomain(domains[(worker+round)%len(domains)])
+			}
+		}(worker)
+	}
+	close(start)
+	setters.Wait()
+
+	globalConfig.RLock()
+	authoritativeDomain := globalConfig.domain
+	installedLocales := append(make([]*Locale, 0, len(globalConfig.locales)), globalConfig.locales...)
+	globalConfig.RUnlock()
+
+	if got := GetDomain(); got != authoritativeDomain {
+		t.Fatalf("GetDomain = %q, want authoritative global domain %q", got, authoritativeDomain)
+	}
+
+	installed := 0
+	for i, locale := range installedLocales {
+		if locale == nil {
+			continue
+		}
+		installed++
+		if got := locale.GetDomain(); got != authoritativeDomain {
+			t.Errorf("installed locale %d GetDomain = %q, want authoritative global domain %q", i, got, authoritativeDomain)
+		}
+	}
+	if installed == 0 {
+		t.Fatal("concurrent SetDomain test installed no nonnil locales")
 	}
 }

@@ -69,33 +69,32 @@ func Sprintf(format string, params map[string]any) string {
 func parseSprintf(format string, params map[string]any) (string, []any) {
 	f, n := reformatSprintf(format)
 	var p []any
-	for _, v := range n {
-		p = append(p, params[v])
+	if len(n) > 0 {
+		p = make([]any, len(n))
+		for i, v := range n {
+			p[i] = params[v]
+		}
 	}
 	return f, p
 }
 
 func reformatSprintf(f string) (string, []string) {
-	m := re.FindAllStringSubmatch(f, -1)
-	i := re.FindAllStringSubmatchIndex(f, -1)
+	matches := re.FindAllStringSubmatchIndex(f, -1)
+	ord := make([]string, 0, len(matches))
+	pair := make([]int, 1, 1+2*len(matches))
+	pair[0] = 0
 
-	ord := []string{}
-	for _, v := range m {
-		ord = append(ord, v[1])
-	}
-
-	pair := []int{0}
-	for _, v := range i {
-		pair = append(pair, v[2]-1)
-		pair = append(pair, v[3]+1)
+	for _, match := range matches {
+		ord = append(ord, f[match[2]:match[3]])
+		pair = append(pair, match[2]-1, match[3]+1)
 	}
 	pair = append(pair, len(f))
-	plen := len(pair)
 
-	out := ""
-	for n := 0; n < plen; n += 2 {
-		out += f[pair[n]:pair[n+1]]
+	var out strings.Builder
+	out.Grow(len(f))
+	for n := 0; n < len(pair); n += 2 {
+		out.WriteString(f[pair[n]:pair[n+1]])
 	}
 
-	return out, ord
+	return out.String(), ord
 }

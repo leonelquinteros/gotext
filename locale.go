@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"sync"
@@ -90,91 +91,111 @@ func NewLocaleFSWithPath(l string, filesystem fs.FS, p string) *Locale {
 	return loc
 }
 
-func (l *Locale) findExt(dom, ext string) string {
-	filename := path.Join(l.path, l.lang, "LC_MESSAGES", dom+"."+ext)
-	if l.fileExists(filename) {
-		return filename
+func (l *Locale) snapshotPathLanguageFS() (string, string, fs.FS) {
+	if l == nil {
+		return "", "", nil
 	}
 
-	if len(l.lang) > 2 {
-		filename = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+"."+ext)
-		if l.fileExists(filename) {
-			return filename
-		}
-	}
-
-	filename = path.Join(l.path, l.lang, dom+"."+ext)
-	if l.fileExists(filename) {
-		return filename
-	}
-
-	if len(l.lang) > 2 {
-		filename = path.Join(l.path, l.lang[:2], dom+"."+ext)
-		if l.fileExists(filename) {
-			return filename
-		}
-	}
-
-	return ""
+	l.RLock()
+	p := l.path
+	lang := l.lang
+	filesystem := l.fs
+	l.RUnlock()
+	return p, lang, filesystem
 }
 
-// GetActualLanguage inspects the filesystem and decides whether to strip
-// a CC part of the ll_CC locale string.
-func (l *Locale) GetActualLanguage(dom string) string {
-	extensions := []string{"mo", "po"}
-	var fp string
-	for _, ext := range extensions {
-		// 'll' (or 'll_CC') exists, and it was specified as-is
-		fp = path.Join(l.path, l.lang, "LC_MESSAGES", dom+"."+ext)
-		if l.fileExists(fp) {
-			return l.lang
-		}
-		// 'll' exists, but 'll_CC' was specified
-		if len(l.lang) > 2 {
-			fp = path.Join(l.path, l.lang[:2], "LC_MESSAGES", dom+"."+ext)
-			if l.fileExists(fp) {
-				return l.lang[:2]
-			}
-		}
-		// 'll' (or 'll_CC') exists outside of LC_category, and it was specified as-is
-		fp = path.Join(l.path, l.lang, dom+"."+ext)
-		if l.fileExists(fp) {
-			return l.lang
-		}
-		// 'll' exists outside of LC_category, but 'll_CC' was specified
-		if len(l.lang) > 2 {
-			fp = path.Join(l.path, l.lang[:2], dom+"."+ext)
-			if l.fileExists(fp) {
-				return l.lang[:2]
-			}
-		}
-	}
-	return ""
-}
-
-func (l *Locale) fileExists(filename string) bool {
-	if l.fs != nil {
-		_, err := fs.Stat(l.fs, filename)
+func fileExistsIn(filesystem fs.FS, filename string) bool {
+	if filesystem != nil {
+		_, err := fs.Stat(filesystem, filename)
 		return err == nil
 	}
 	_, err := os.Stat(filename)
 	return err == nil
 }
 
+func (l *Locale) findExtWithFS(dom, ext string) (fs.FS, string) {
+	p, lang, filesystem := l.snapshotPathLanguageFS()
+
+	filename := path.Join(p, lang, "LC_MESSAGES", dom+"."+ext)
+	if fileExistsIn(filesystem, filename) {
+		return filesystem, filename
+	}
+
+	if len(lang) > 2 {
+		filename = path.Join(p, lang[:2], "LC_MESSAGES", dom+"."+ext)
+		if fileExistsIn(filesystem, filename) {
+			return filesystem, filename
+		}
+	}
+
+	filename = path.Join(p, lang, dom+"."+ext)
+	if fileExistsIn(filesystem, filename) {
+		return filesystem, filename
+	}
+
+	if len(lang) > 2 {
+		filename = path.Join(p, lang[:2], dom+"."+ext)
+		if fileExistsIn(filesystem, filename) {
+			return filesystem, filename
+		}
+	}
+
+	return filesystem, ""
+}
+
+// GetActualLanguage inspects the filesystem and decides whether to strip
+// a CC part of the ll_CC locale string.
+func (l *Locale) GetActualLanguage(dom string) string {
+	p, lang, filesystem := l.snapshotPathLanguageFS()
+	extensions := []string{"mo", "po"}
+	var fp string
+	for _, ext := range extensions {
+		// 'll' (or 'll_CC') exists, and it was specified as-is
+		fp = path.Join(p, lang, "LC_MESSAGES", dom+"."+ext)
+		if fileExistsIn(filesystem, fp) {
+			return lang
+		}
+		// 'll' exists, but 'll_CC' was specified
+		if len(lang) > 2 {
+			fp = path.Join(p, lang[:2], "LC_MESSAGES", dom+"."+ext)
+			if fileExistsIn(filesystem, fp) {
+				return lang[:2]
+			}
+		}
+		// 'll' (or 'll_CC') exists outside of LC_category, and it was specified as-is
+		fp = path.Join(p, lang, dom+"."+ext)
+		if fileExistsIn(filesystem, fp) {
+			return lang
+		}
+		// 'll' exists outside of LC_category, but 'll_CC' was specified
+		if len(lang) > 2 {
+			fp = path.Join(p, lang[:2], dom+"."+ext)
+			if fileExistsIn(filesystem, fp) {
+				return lang[:2]
+			}
+		}
+	}
+	return ""
+}
+
 // AddDomain creates a new domain for a given locale object and initializes the Po object.
 // If the domain exists, it gets reloaded.
 func (l *Locale) AddDomain(dom string) {
+	if l == nil {
+		return
+	}
+
 	var poObj Translator
 
-	file := l.findExt(dom, "po")
+	filesystem, file := l.findExtWithFS(dom, "po")
 	if file != "" {
-		poObj = NewPoFS(l.fs)
+		poObj = NewPoFS(filesystem)
 		// Parse file.
 		poObj.ParseFile(file)
 	} else {
-		file = l.findExt(dom, "mo")
+		filesystem, file = l.findExtWithFS(dom, "mo")
 		if file != "" {
-			poObj = NewMoFS(l.fs)
+			poObj = NewMoFS(filesystem)
 			// Parse file.
 			poObj.ParseFile(file)
 		} else {
@@ -212,9 +233,34 @@ func (l *Locale) AddTranslator(dom string, tr Translator) {
 
 	l.Unlock()
 }
+func (l *Locale) translatorFor(dom string) Translator {
+	if l == nil {
+		return nil
+	}
+
+	l.RLock()
+	translator := l.Domains[dom]
+	l.RUnlock()
+	return translator
+}
+
+func (l *Locale) hasDomain(dom string) bool {
+	if l == nil {
+		return false
+	}
+
+	l.RLock()
+	_, ok := l.Domains[dom]
+	l.RUnlock()
+	return ok
+}
 
 // GetDomain is the domain getter for Locale configuration
 func (l *Locale) GetDomain() string {
+	if l == nil {
+		return ""
+	}
+
 	l.RLock()
 	dom := l.defaultDomain
 	l.RUnlock()
@@ -223,6 +269,10 @@ func (l *Locale) GetDomain() string {
 
 // SetDomain sets the name for the domain to be used.
 func (l *Locale) SetDomain(dom string) {
+	if l == nil {
+		return
+	}
+
 	l.Lock()
 	l.defaultDomain = dom
 	l.Unlock()
@@ -230,6 +280,10 @@ func (l *Locale) SetDomain(dom string) {
 
 // GetLanguage is the lang getter for Locale configuration
 func (l *Locale) GetLanguage() string {
+	if l == nil {
+		return ""
+	}
+
 	l.RLock()
 	lang := l.lang
 	l.RUnlock()
@@ -251,16 +305,9 @@ func (l *Locale) GetN(str, plural string, n int, vars ...any) string {
 // GetD returns the corresponding Translation in the given domain for the given string.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetD(dom, str string, vars ...any) string {
-	// Sync read
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.Domains != nil {
-		if _, ok := l.Domains[dom]; ok {
-			if l.Domains[dom] != nil {
-				return l.Domains[dom].Get(str, vars...)
-			}
-		}
+	translator := l.translatorFor(dom)
+	if translator != nil {
+		return translator.Get(str, vars...)
 	}
 
 	return FormatString(str, vars...)
@@ -269,16 +316,9 @@ func (l *Locale) GetD(dom, str string, vars ...any) string {
 // GetND retrieves the (N)th plural form of Translation in the given domain for the given string.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetND(dom, str, plural string, n int, vars ...any) string {
-	// Sync read
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.Domains != nil {
-		if _, ok := l.Domains[dom]; ok {
-			if l.Domains[dom] != nil {
-				return l.Domains[dom].GetN(str, plural, n, vars...)
-			}
-		}
+	translator := l.translatorFor(dom)
+	if translator != nil {
+		return translator.GetN(str, plural, n, vars...)
 	}
 
 	// Use western default rule (plural > 1) to handle missing domain default result.
@@ -303,16 +343,9 @@ func (l *Locale) GetNC(str, plural string, n int, ctx string, vars ...any) strin
 // GetDC returns the corresponding Translation in the given domain for the given string in the given context.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetDC(dom, str, ctx string, vars ...any) string {
-	// Sync read
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.Domains != nil {
-		if _, ok := l.Domains[dom]; ok {
-			if l.Domains[dom] != nil {
-				return l.Domains[dom].GetC(str, ctx, vars...)
-			}
-		}
+	translator := l.translatorFor(dom)
+	if translator != nil {
+		return translator.GetC(str, ctx, vars...)
 	}
 
 	return FormatString(str, vars...)
@@ -321,16 +354,9 @@ func (l *Locale) GetDC(dom, str, ctx string, vars ...any) string {
 // GetNDC retrieves the (N)th plural form of Translation in the given domain for the given string in the given context.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...any) string {
-	// Sync read
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.Domains != nil {
-		if _, ok := l.Domains[dom]; ok {
-			if l.Domains[dom] != nil {
-				return l.Domains[dom].GetNC(str, plural, n, ctx, vars...)
-			}
-		}
+	translator := l.translatorFor(dom)
+	if translator != nil {
+		return translator.GetNC(str, plural, n, ctx, vars...)
 	}
 
 	// Use western default rule (plural > 1) to handle missing domain default result.
@@ -343,13 +369,26 @@ func (l *Locale) GetNDC(dom, str, plural string, n int, ctx string, vars ...any)
 // GetTranslations returns a copy of all translations in all domains of this locale. It does not support contexts.
 func (l *Locale) GetTranslations() map[string]*Translation {
 	all := make(map[string]*Translation)
+	if l == nil {
+		return all
+	}
 
 	l.RLock()
-	defer l.RUnlock()
+	translators := make([]Translator, 0, len(l.Domains))
 	for _, translator := range l.Domains {
-		for msgID, trans := range translator.GetDomain().GetTranslations() {
-			all[msgID] = trans
+		translators = append(translators, translator)
+	}
+	l.RUnlock()
+
+	for _, translator := range translators {
+		if translator == nil {
+			continue
 		}
+		domain := translator.GetDomain()
+		if domain == nil {
+			continue
+		}
+		maps.Copy(all, domain.GetTranslations())
 	}
 
 	return all
@@ -372,17 +411,15 @@ func (l *Locale) IsTranslatedD(dom, str string) bool {
 
 // IsTranslatedND reports whether a plural domain string is translated
 func (l *Locale) IsTranslatedND(dom, str string, n int) bool {
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.Domains == nil {
+	translator := l.translatorFor(dom)
+	if translator == nil {
 		return false
 	}
-	translator, ok := l.Domains[dom]
-	if !ok {
+	domain := translator.GetDomain()
+	if domain == nil {
 		return false
 	}
-	return translator.GetDomain().IsTranslatedN(str, n)
+	return domain.IsTranslatedN(str, n)
 }
 
 // IsTranslatedC reports whether a context string is translated
@@ -402,17 +439,15 @@ func (l *Locale) IsTranslatedDC(dom, str, ctx string) bool {
 
 // IsTranslatedNDC reports whether a plural domain context string is translated
 func (l *Locale) IsTranslatedNDC(dom string, str string, n int, ctx string) bool {
-	l.RLock()
-	defer l.RUnlock()
-
-	if l.Domains == nil {
+	translator := l.translatorFor(dom)
+	if translator == nil {
 		return false
 	}
-	translator, ok := l.Domains[dom]
-	if !ok {
+	domain := translator.GetDomain()
+	if domain == nil {
 		return false
 	}
-	return translator.GetDomain().IsTranslatedNC(str, n, ctx)
+	return domain.IsTranslatedNC(str, n, ctx)
 }
 
 // LocaleEncoding is used as intermediary storage to encode Locale objects to Gob.
@@ -425,18 +460,35 @@ type LocaleEncoding struct {
 
 // MarshalBinary implements encoding BinaryMarshaler interface
 func (l *Locale) MarshalBinary() ([]byte, error) {
-	obj := new(LocaleEncoding)
-	obj.DefaultDomain = l.defaultDomain
-	obj.Domains = make(map[string][]byte)
-	for k, v := range l.Domains {
-		var err error
-		obj.Domains[k], err = v.MarshalBinary()
+	var localePath, lang, defaultDomain string
+	domains := make(map[string]Translator)
+	if l != nil {
+		l.RLock()
+		localePath = l.path
+		lang = l.lang
+		defaultDomain = l.defaultDomain
+		domains = make(map[string]Translator, len(l.Domains))
+		for name, translator := range l.Domains {
+			if translator != nil {
+				domains[name] = translator
+			}
+		}
+		l.RUnlock()
+	}
+
+	obj := &LocaleEncoding{
+		Path:          localePath,
+		Lang:          lang,
+		Domains:       make(map[string][]byte, len(domains)),
+		DefaultDomain: defaultDomain,
+	}
+	for name, translator := range domains {
+		data, err := translator.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}
+		obj.Domains[name] = data
 	}
-	obj.Lang = l.lang
-	obj.Path = l.path
 
 	var buff bytes.Buffer
 	encoder := gob.NewEncoder(&buff)
@@ -445,7 +497,7 @@ func (l *Locale) MarshalBinary() ([]byte, error) {
 	return buff.Bytes(), err
 }
 
-// UnmarshalBinary implements encoding BinaryUnmarshaler interface
+// UnmarshalBinary implements encoding.BinaryUnmarshaler interface
 func (l *Locale) UnmarshalBinary(data []byte) error {
 	buff := bytes.NewBuffer(data)
 	obj := new(LocaleEncoding)
@@ -456,12 +508,7 @@ func (l *Locale) UnmarshalBinary(data []byte) error {
 		return err
 	}
 
-	l.defaultDomain = obj.DefaultDomain
-	l.lang = obj.Lang
-	l.path = obj.Path
-
-	// Decode Domains
-	l.Domains = make(map[string]Translator)
+	domains := make(map[string]Translator, len(obj.Domains))
 	for k, v := range obj.Domains {
 		var tr TranslatorEncoding
 		buff := bytes.NewBuffer(v)
@@ -471,8 +518,15 @@ func (l *Locale) UnmarshalBinary(data []byte) error {
 			return err
 		}
 
-		l.Domains[k] = tr.GetTranslator()
+		domains[k] = tr.GetTranslator()
 	}
+
+	l.Lock()
+	l.defaultDomain = obj.DefaultDomain
+	l.lang = obj.Lang
+	l.path = obj.Path
+	l.Domains = domains
+	l.Unlock()
 
 	return nil
 }

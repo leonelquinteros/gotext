@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"regexp"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -100,29 +100,132 @@ func NewDomain() *Domain {
 	return domain
 }
 
+func cloneRefs(refs []string) []string {
+	if refs == nil {
+		return nil
+	}
+
+	owned := make([]string, len(refs))
+	copy(owned, refs)
+	return owned
+}
+
+func cloneHeaderMap(headers HeaderMap) HeaderMap {
+	if headers == nil {
+		return nil
+	}
+
+	owned := make(HeaderMap, len(headers))
+	for key, values := range headers {
+		owned[key] = cloneRefs(values)
+	}
+	return owned
+}
+
+func cloneTranslation(trans *Translation) *Translation {
+	if trans == nil {
+		return nil
+	}
+
+	owned := NewTranslation()
+	owned.ID = trans.ID
+	owned.PluralID = trans.PluralID
+	owned.dirty = trans.dirty
+	owned.Refs = cloneRefs(trans.Refs)
+
+	maps.Copy(owned.Trs, trans.Trs)
+
+	return owned
+}
+
+func cloneTranslations(translations map[string]*Translation) map[string]*Translation {
+	if translations == nil {
+		return nil
+	}
+
+	owned := make(map[string]*Translation, len(translations))
+	for id, trans := range translations {
+		owned[id] = cloneTranslation(trans)
+	}
+	return owned
+}
+
+func cloneContextTranslations(contexts map[string]map[string]*Translation) map[string]map[string]*Translation {
+	if contexts == nil {
+		return nil
+	}
+
+	owned := make(map[string]map[string]*Translation, len(contexts))
+	for context, translations := range contexts {
+		if translations == nil {
+			owned[context] = nil
+			continue
+		}
+
+		contextOwned := make(map[string]*Translation, len(translations))
+		for id, trans := range translations {
+			contextOwned[id] = cloneTranslation(trans)
+		}
+		owned[context] = contextOwned
+	}
+	return owned
+}
+
+func (do *Domain) hasTranslation(id string) bool {
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.translations == nil {
+		return false
+	}
+	trans, ok := do.translations[id]
+	return ok && trans != nil
+}
+
+func (do *Domain) hasContextTranslation(id, context string) bool {
+	do.trMutex.RLock()
+	defer do.trMutex.RUnlock()
+
+	if do.contextTranslations == nil {
+		return false
+	}
+	translations, ok := do.contextTranslations[context]
+	if !ok || translations == nil {
+		return false
+	}
+	trans, ok := translations[id]
+	return ok && trans != nil
+}
+
 // SetPluralResolver sets a custom plural resolver function
 func (do *Domain) SetPluralResolver(f func(int) int) {
+	do.pluralMutex.Lock()
+	defer do.pluralMutex.Unlock()
+
 	do.customPluralResolver = f
 }
 
 func (do *Domain) pluralForm(n int) int {
-	// do we really need locking here? not sure how this plurals.Expression works, so sticking with it for now
+	// Snapshot plural state before calling an expression or custom resolver.
 	do.pluralMutex.RLock()
-	defer do.pluralMutex.RUnlock()
+	pluralforms := do.pluralforms
+	customPluralResolver := do.customPluralResolver
+	do.pluralMutex.RUnlock()
+
+	if pluralforms != nil {
+		return pluralforms.Eval(uint32(n))
+	}
 
 	// Failure fallback
-	if do.pluralforms == nil {
-		if do.customPluralResolver != nil {
-			return do.customPluralResolver(n)
-		}
-
-		/* Use the Germanic plural rule.  */
-		if n == 1 {
-			return 0
-		}
-		return 1
+	if customPluralResolver != nil {
+		return customPluralResolver(n)
 	}
-	return do.pluralforms.Eval(uint32(n))
+
+	/* Use the Germanic plural rule.  */
+	if n == 1 {
+		return 0
+	}
+	return 1
 }
 
 // parseHeaders retrieves data from previously parsed headers. it's called by both Mo and Po when parsing
@@ -136,18 +239,16 @@ func (do *Domain) parseHeaders() {
 	languageKey := "Language"
 	pluralFormsKey := "Plural-Forms"
 
-	rawLines := strings.Split(raw, "\n")
-	for _, line := range rawLines {
+	for line := range strings.SplitSeq(raw, "\n") {
 		if len(line) == 0 {
 			continue
 		}
 
-		colonIdx := strings.Index(line, ":")
-		if colonIdx < 0 {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
 			continue
 		}
 
-		key := line[:colonIdx]
 		lowerKey := strings.ToLower(key)
 		if lowerKey == strings.ToLower(languageKey) {
 			languageKey = key
@@ -155,7 +256,7 @@ func (do *Domain) parseHeaders() {
 			pluralFormsKey = key
 		}
 
-		value := strings.TrimSpace(line[colonIdx+1:])
+		value = strings.TrimSpace(value)
 		do.Headers.Add(key, value)
 	}
 
@@ -168,22 +269,18 @@ func (do *Domain) parseHeaders() {
 		return
 	}
 
-	// Split plural form header value
-	pfs := strings.Split(do.PluralForms, ";")
-
-	// Parse values
-	for _, i := range pfs {
-		vs := strings.SplitN(i, "=", 2)
-		if len(vs) != 2 {
+	for i := range strings.SplitSeq(do.PluralForms, ";") {
+		key, value, ok := strings.Cut(i, "=")
+		if !ok {
 			continue
 		}
 
-		switch strings.TrimSpace(vs[0]) {
+		switch strings.TrimSpace(key) {
 		case "nplurals":
-			do.nplurals, _ = strconv.Atoi(vs[1])
+			do.nplurals, _ = strconv.Atoi(value)
 
 		case "plural":
-			do.plural = vs[1]
+			do.plural = value
 
 			if expr, err := plurals.Compile(do.plural); err == nil {
 				do.pluralforms = expr
@@ -221,17 +318,19 @@ func (do *Domain) DropStaleTranslations() {
 
 // SetRefs set source references for a given translation
 func (do *Domain) SetRefs(str string, refs []string) {
+	ownedRefs := cloneRefs(refs)
+
 	do.trMutex.Lock()
 	do.pluralMutex.Lock()
 	defer do.trMutex.Unlock()
 	defer do.pluralMutex.Unlock()
 
-	if trans, ok := do.translations[str]; ok {
-		trans.Refs = refs
+	if trans, ok := do.translations[str]; ok && trans != nil {
+		trans.SetRefs(ownedRefs)
 	} else {
-		trans = NewTranslation()
+		trans := NewTranslation()
 		trans.ID = str
-		trans.SetRefs(refs)
+		trans.SetRefs(ownedRefs)
 		do.translations[str] = trans
 	}
 }
@@ -243,8 +342,8 @@ func (do *Domain) GetRefs(str string) []string {
 	defer do.trMutex.RUnlock()
 
 	if do.translations != nil {
-		if trans, ok := do.translations[str]; ok {
-			return trans.Refs
+		if trans, ok := do.translations[str]; ok && trans != nil {
+			return cloneRefs(trans.Refs)
 		}
 	}
 	return nil
@@ -324,18 +423,22 @@ func (do *Domain) SetN(id, plural string, n int, str string) {
 // GetN retrieves the (N)th plural form of Translation for the given string.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (do *Domain) GetN(str, plural string, n int, vars ...any) string {
+	// Get plural form before acquiring the translation lock so a custom
+	// resolver is never called while a project lock is held.
+	pluralForm := do.pluralForm(n)
+
 	// Sync read
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
 	if do.translations != nil {
 		if _, ok := do.translations[str]; ok {
-			return FormatString(do.translations[str].GetN(do.pluralForm(n)), vars...)
+			return FormatString(do.translations[str].GetN(pluralForm), vars...)
 		}
 	}
 
 	// Parse plural forms to distinguish between plural and singular
-	if do.pluralForm(n) == 0 {
+	if pluralForm == 0 {
 		return FormatString(str, vars...)
 	}
 	return FormatString(plural, vars...)
@@ -344,18 +447,22 @@ func (do *Domain) GetN(str, plural string, n int, vars ...any) string {
 // AppendN adds the (N)th plural form of Translation for the given string.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (do *Domain) AppendN(b []byte, str, plural string, n int, vars ...any) []byte {
+	// Get plural form before acquiring the translation lock so a custom
+	// resolver is never called while a project lock is held.
+	pluralForm := do.pluralForm(n)
+
 	// Sync read
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
 	if do.translations != nil {
 		if _, ok := do.translations[str]; ok {
-			return Appendf(b, do.translations[str].GetN(do.pluralForm(n)), vars...)
+			return Appendf(b, do.translations[str].GetN(pluralForm), vars...)
 		}
 	}
 
 	// Parse plural forms to distinguish between plural and singular
-	if do.pluralForm(n) == 0 {
+	if pluralForm == 0 {
 		return Appendf(b, str, vars...)
 	}
 	return Appendf(b, plural, vars...)
@@ -459,17 +566,20 @@ func (do *Domain) SetNC(id, plural, ctx string, n int, str string) {
 // GetNC retrieves the (N)th plural form of Translation for the given string in the given context.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...any) string {
-	do.trMutex.RLock()
-	defer do.trMutex.RUnlock()
+	if do.hasContextTranslation(str, ctx) {
+		// Get plural form before acquiring the translation lock so a custom
+		// resolver is never called while a project lock is held.
+		pluralForm := do.pluralForm(n)
 
-	if do.contextTranslations != nil {
-		if _, ok := do.contextTranslations[ctx]; ok {
-			if do.contextTranslations[ctx] != nil {
-				if _, ok := do.contextTranslations[ctx][str]; ok {
-					return FormatString(do.contextTranslations[ctx][str].GetN(do.pluralForm(n)), vars...)
-				}
+		do.trMutex.RLock()
+		if translations, ok := do.contextTranslations[ctx]; ok && translations != nil {
+			if trans, ok := translations[str]; ok && trans != nil {
+				translated := trans.GetN(pluralForm)
+				do.trMutex.RUnlock()
+				return FormatString(translated, vars...)
 			}
 		}
+		do.trMutex.RUnlock()
 	}
 
 	if n == 1 {
@@ -481,17 +591,20 @@ func (do *Domain) GetNC(str, plural string, n int, ctx string, vars ...any) stri
 // AppendNC retrieves the (N)th plural form of Translation for the given string in the given context.
 // Supports optional parameters (vars... any) to be inserted on the formatted string using the fmt.Printf syntax.
 func (do *Domain) AppendNC(b []byte, str, plural string, n int, ctx string, vars ...any) []byte {
-	do.trMutex.RLock()
-	defer do.trMutex.RUnlock()
+	if do.hasContextTranslation(str, ctx) {
+		// Get plural form before acquiring the translation lock so a custom
+		// resolver is never called while a project lock is held.
+		pluralForm := do.pluralForm(n)
 
-	if do.contextTranslations != nil {
-		if _, ok := do.contextTranslations[ctx]; ok {
-			if do.contextTranslations[ctx] != nil {
-				if _, ok := do.contextTranslations[ctx][str]; ok {
-					return Appendf(b, do.contextTranslations[ctx][str].GetN(do.pluralForm(n)), vars...)
-				}
+		do.trMutex.RLock()
+		if translations, ok := do.contextTranslations[ctx]; ok && translations != nil {
+			if trans, ok := translations[str]; ok && trans != nil {
+				translated := trans.GetN(pluralForm)
+				do.trMutex.RUnlock()
+				return Appendf(b, translated, vars...)
 			}
 		}
+		do.trMutex.RUnlock()
 	}
 
 	if n == 1 {
@@ -507,6 +620,14 @@ func (do *Domain) IsTranslated(str string) bool {
 
 // IsTranslatedN reports whether a plural string is translated
 func (do *Domain) IsTranslatedN(str string, n int) bool {
+	if !do.hasTranslation(str) {
+		return false
+	}
+
+	// Get plural form before acquiring the translation lock so a custom
+	// resolver is never called while a project lock is held.
+	pluralForm := do.pluralForm(n)
+
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
@@ -514,10 +635,10 @@ func (do *Domain) IsTranslatedN(str string, n int) bool {
 		return false
 	}
 	tr, ok := do.translations[str]
-	if !ok {
+	if !ok || tr == nil {
 		return false
 	}
-	return tr.IsTranslatedN(do.pluralForm(n))
+	return tr.IsTranslatedN(pluralForm)
 }
 
 // IsTranslatedC reports whether a context string is translated
@@ -527,6 +648,14 @@ func (do *Domain) IsTranslatedC(str, ctx string) bool {
 
 // IsTranslatedNC reports whether a plural context string is translated
 func (do *Domain) IsTranslatedNC(str string, n int, ctx string) bool {
+	if !do.hasContextTranslation(str, ctx) {
+		return false
+	}
+
+	// Get plural form before acquiring the translation lock so a custom
+	// resolver is never called while a project lock is held.
+	pluralForm := do.pluralForm(n)
+
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
@@ -534,36 +663,24 @@ func (do *Domain) IsTranslatedNC(str string, n int, ctx string) bool {
 		return false
 	}
 	translations, ok := do.contextTranslations[ctx]
-	if !ok {
+	if !ok || translations == nil {
 		return false
 	}
 	tr, ok := translations[str]
-	if !ok {
+	if !ok || tr == nil {
 		return false
 	}
-	return tr.IsTranslatedN(do.pluralForm(n))
+	return tr.IsTranslatedN(pluralForm)
 }
 
 // GetTranslations returns a copy of every translation in the domain. It does not support contexts.
 func (do *Domain) GetTranslations() map[string]*Translation {
-	all := make(map[string]*Translation, len(do.translations))
-
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
+	all := make(map[string]*Translation, len(do.translations))
 	for msgID, trans := range do.translations {
-		newTrans := NewTranslation()
-		newTrans.ID = trans.ID
-		newTrans.PluralID = trans.PluralID
-		newTrans.dirty = trans.dirty
-		if len(trans.Refs) > 0 {
-			newTrans.Refs = make([]string, len(trans.Refs))
-			copy(newTrans.Refs, trans.Refs)
-		}
-		for k, v := range trans.Trs {
-			newTrans.Trs[k] = v
-		}
-		all[msgID] = newTrans
+		all[msgID] = cloneTranslation(trans)
 	}
 
 	return all
@@ -571,32 +688,18 @@ func (do *Domain) GetTranslations() map[string]*Translation {
 
 // GetCtxTranslations returns a copy of every translation in the domain with context
 func (do *Domain) GetCtxTranslations() map[string]map[string]*Translation {
-	all := make(map[string]map[string]*Translation, len(do.contextTranslations))
-
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
+	all := make(map[string]map[string]*Translation, len(do.contextTranslations))
 	for ctx, translations := range do.contextTranslations {
 		for msgID, trans := range translations {
-			newTrans := NewTranslation()
-			newTrans.ID = trans.ID
-			newTrans.PluralID = trans.PluralID
-			newTrans.dirty = trans.dirty
-			if len(trans.Refs) > 0 {
-				newTrans.Refs = make([]string, len(trans.Refs))
-				copy(newTrans.Refs, trans.Refs)
-			}
-			for k, v := range trans.Trs {
-				newTrans.Trs[k] = v
-			}
-
 			if all[ctx] == nil {
 				all[ctx] = make(map[string]*Translation)
 			}
 
-			all[ctx][msgID] = newTrans
+			all[ctx][msgID] = cloneTranslation(trans)
 		}
-
 	}
 
 	return all
@@ -627,6 +730,11 @@ func extractPathAndLine(ref string) (string, int) {
 // MarshalText implements encoding.TextMarshaler interface
 // Assists round-trip of POT/PO content
 func (do *Domain) MarshalText() ([]byte, error) {
+	do.trMutex.RLock()
+	do.pluralMutex.RLock()
+	defer do.trMutex.RUnlock()
+	defer do.pluralMutex.RUnlock()
+
 	var buf bytes.Buffer
 	if len(do.headerComments) > 0 {
 		buf.WriteString(strings.Join(do.headerComments, "\n"))
@@ -774,9 +882,16 @@ func (do *Domain) MarshalText() ([]byte, error) {
 		if trans.PluralID == "" {
 			buf.WriteString("\nmsgstr \"" + EscapeSpecialCharacters(trans.Trs[0]) + "\"")
 		} else {
-			buf.WriteString("\nmsgid_plural \"" + trans.PluralID + "\"")
-			for i, tr := range trans.Trs {
-				buf.WriteString("\nmsgstr[" + EscapeSpecialCharacters(strconv.Itoa(i)) + "] \"" + tr + "\"")
+			buf.WriteString("\nmsgid_plural \"" + EscapeSpecialCharacters(trans.PluralID) + "\"")
+
+			pluralIndexes := make([]int, 0, len(trans.Trs))
+			for i := range trans.Trs {
+				pluralIndexes = append(pluralIndexes, i)
+			}
+			sort.Ints(pluralIndexes)
+
+			for _, i := range pluralIndexes {
+				buf.WriteString("\nmsgstr[" + strconv.Itoa(i) + "] \"" + EscapeSpecialCharacters(trans.Trs[i]) + "\"")
 			}
 		}
 	}
@@ -786,8 +901,28 @@ func (do *Domain) MarshalText() ([]byte, error) {
 
 // EscapeSpecialCharacters escapes special characters in a string
 func EscapeSpecialCharacters(s string) string {
-	s = regexp.MustCompile(`([^\\])(")`).ReplaceAllString(s, "$1\\\"") // Escape non-escaped double quotation marks
+	var escaped strings.Builder
+	escaped.Grow(len(s))
 
+	for i := range s {
+		switch s[i] {
+		case '\\':
+			escaped.WriteByte('\\')
+			// Preserve already-escaped quote sequences for compatibility.
+			if i+1 >= len(s) || s[i+1] != '"' {
+				escaped.WriteByte('\\')
+			}
+		case '"':
+			if i == 0 || s[i-1] != '\\' {
+				escaped.WriteByte('\\')
+			}
+			escaped.WriteByte('"')
+		default:
+			escaped.WriteByte(s[i])
+		}
+	}
+
+	s = escaped.String()
 	if strings.Count(s, "\n") == 0 {
 		return s
 	}
@@ -821,16 +956,26 @@ func EscapeSpecialCharacters(s string) string {
 	return strings.Join(data, "\n")
 }
 
+func (do *Domain) translatorEncodingSnapshot() *TranslatorEncoding {
+	do.trMutex.RLock()
+	do.pluralMutex.RLock()
+	defer do.trMutex.RUnlock()
+	defer do.pluralMutex.RUnlock()
+
+	return &TranslatorEncoding{
+		Headers:      cloneHeaderMap(do.Headers),
+		Language:     do.Language,
+		PluralForms:  do.PluralForms,
+		Nplurals:     do.nplurals,
+		Plural:       do.plural,
+		Translations: cloneTranslations(do.translations),
+		Contexts:     cloneContextTranslations(do.contextTranslations),
+	}
+}
+
 // MarshalBinary implements encoding.BinaryMarshaler interface
 func (do *Domain) MarshalBinary() ([]byte, error) {
-	obj := new(TranslatorEncoding)
-	obj.Headers = do.Headers
-	obj.Language = do.Language
-	obj.PluralForms = do.PluralForms
-	obj.Nplurals = do.nplurals
-	obj.Plural = do.plural
-	obj.Translations = do.translations
-	obj.Contexts = do.contextTranslations
+	obj := do.translatorEncodingSnapshot()
 
 	var buff bytes.Buffer
 	encoder := gob.NewEncoder(&buff)
@@ -845,22 +990,68 @@ func (do *Domain) UnmarshalBinary(data []byte) error {
 	obj := new(TranslatorEncoding)
 
 	decoder := gob.NewDecoder(buff)
-	err := decoder.Decode(obj)
-	if err != nil {
+	if err := decoder.Decode(obj); err != nil {
 		return err
 	}
 
-	do.Headers = obj.Headers
+	headers := cloneHeaderMap(obj.Headers)
+	if headers == nil {
+		headers = make(HeaderMap)
+	}
+	translations := cloneTranslations(obj.Translations)
+	if translations == nil {
+		translations = make(map[string]*Translation)
+	}
+	contextTranslations := cloneContextTranslations(obj.Contexts)
+	if contextTranslations == nil {
+		contextTranslations = make(map[string]map[string]*Translation)
+	}
+
+	for id, trans := range translations {
+		if trans == nil {
+			trans = NewTranslation()
+			trans.ID = id
+			translations[id] = trans
+		}
+	}
+	for context, translationsForContext := range contextTranslations {
+		if translationsForContext == nil {
+			contextTranslations[context] = make(map[string]*Translation)
+			continue
+		}
+		for id, trans := range translationsForContext {
+			if trans == nil {
+				trans = NewTranslation()
+				trans.ID = id
+				translationsForContext[id] = trans
+			}
+		}
+	}
+
+	var pluralforms plurals.Expression
+	if expr, err := plurals.Compile(obj.Plural); err == nil {
+		pluralforms = expr
+	}
+
+	do.trMutex.Lock()
+	do.pluralMutex.Lock()
+
+	do.Headers = headers
 	do.Language = obj.Language
 	do.PluralForms = obj.PluralForms
 	do.nplurals = obj.Nplurals
 	do.plural = obj.Plural
-	do.translations = obj.Translations
-	do.contextTranslations = obj.Contexts
+	do.pluralforms = pluralforms
+	do.translations = translations
+	do.contextTranslations = contextTranslations
+	do.pluralTranslations = make(map[string]*Translation)
+	do.headerComments = make([]string, 0)
+	do.trBuffer = nil
+	do.ctxBuffer = ""
+	do.refBuffer = ""
 
-	if expr, err := plurals.Compile(do.plural); err == nil {
-		do.pluralforms = expr
-	}
+	do.pluralMutex.Unlock()
+	do.trMutex.Unlock()
 
 	return nil
 }

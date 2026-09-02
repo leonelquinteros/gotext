@@ -6,6 +6,8 @@
 package gotext
 
 import (
+	"io"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -90,8 +92,31 @@ func TestNPrintf(t *testing.T) {
 		"brother": "Louis",
 	}
 
+	originalStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Errorf("closing stdout reader: %v", err)
+		}
+	})
+	os.Stdout = writer
 	NPrintf(pat, params)
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = originalStdout
 
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "Louis loves Susan. Susan also loves Louis.\n"
+	if string(output) != want {
+		t.Errorf("NPrintf output = %q, want %q", output, want)
+	}
 }
 
 func TestSprintfFloatsWithPrecision(t *testing.T) {
@@ -116,5 +141,85 @@ func TestHelper_Appendf(t *testing.T) {
 	res := Appendf(b, "Hello %s", "World")
 	if string(res) != "test: Hello World" {
 		t.Errorf("Expected 'test: Hello World', got '%s'", string(res))
+	}
+}
+
+func TestReformatSprintfEdgeCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		format     string
+		wantFormat string
+		wantNames  []string
+	}{
+		{
+			name:       "repeated names",
+			format:     "%(name)s %(name)q",
+			wantFormat: "%s %q",
+			wantNames:  []string{"name", "name"},
+		},
+		{
+			name:       "width and precision",
+			format:     "%(amount)08.2f",
+			wantFormat: "%08.2f",
+			wantNames:  []string{"amount"},
+		},
+		{
+			name:       "adjacent placeholders",
+			format:     "%(left)s%(right)d",
+			wantFormat: "%s%d",
+			wantNames:  []string{"left", "right"},
+		},
+		{
+			name:       "no placeholders",
+			format:     "literal text",
+			wantFormat: "literal text",
+			wantNames:  []string{},
+		},
+		{
+			name:       "long placeholder list",
+			format:     "%(p0)s %(p1)s %(p2)s %(p3)s %(p4)s %(p5)s %(p6)s %(p7)s %(p8)s %(p9)s",
+			wantFormat: "%s %s %s %s %s %s %s %s %s %s",
+			wantNames:  []string{"p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"},
+		},
+		{
+			name:       "malformed placeholders",
+			format:     "%(bad-name)s %(unterminated",
+			wantFormat: "%(bad-name)s %(unterminated",
+			wantNames:  []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotFormat, gotNames := reformatSprintf(test.format)
+			if gotFormat != test.wantFormat {
+				t.Errorf("rewritten format = %q, want %q", gotFormat, test.wantFormat)
+			}
+			if !reflect.DeepEqual(gotNames, test.wantNames) {
+				t.Errorf("ordered names = %v, want %v", gotNames, test.wantNames)
+			}
+		})
+	}
+}
+
+func TestParseSprintfPreservesArgumentOrder(t *testing.T) {
+	format := "%(first)s%(second)d%(first)s"
+	params := map[string]any{
+		"first":  "one",
+		"second": 2,
+	}
+
+	gotFormat, gotParams := parseSprintf(format, params)
+	if gotFormat != "%s%d%s" {
+		t.Errorf("rewritten format = %q, want %q", gotFormat, "%s%d%s")
+	}
+	wantParams := []any{"one", 2, "one"}
+	if !reflect.DeepEqual(gotParams, wantParams) {
+		t.Errorf("ordered params = %v, want %v", gotParams, wantParams)
+	}
+
+	_, gotParams = parseSprintf("%(bad-name)s", params)
+	if gotParams != nil {
+		t.Errorf("malformed format should have no bound params, got %v", gotParams)
 	}
 }
