@@ -96,10 +96,6 @@ func (constValStruct) compile(tokens []string) (expr Expression, err error) {
 	return constValue{value: i}, nil
 }
 
-func compileLogicTest(tokens []string, sep string, builder logicTestBuild) (test test, err error) {
-	return compileLogicTestDepth(tokens, sep, builder, 0)
-}
-
 func compileLogicTestDepth(tokens []string, sep string, builder logicTestBuild, depth int) (test test, err error) {
 	if depth > maxParseDepth {
 		return nil, errors.New("expression nesting is too deep")
@@ -119,24 +115,10 @@ func compileLogicTestDepth(tokens []string, sep string, builder logicTestBuild, 
 	return builder(left, right), nil
 }
 
-var orToken orStruct
-
-type orStruct struct{}
-
-func (orStruct) compile(tokens []string) (test test, err error) {
-	return compileLogicTest(tokens, "||", buildOr)
-}
 func buildOr(left test, right test) test {
 	return or{left: left, right: right}
 }
 
-var andToken andStruct
-
-type andStruct struct{}
-
-func (andStruct) compile(tokens []string) (test test, err error) {
-	return compileLogicTest(tokens, "&&", buildAnd)
-}
 func buildAnd(left test, right test) test {
 	return and{left: left, right: right}
 }
@@ -328,8 +310,8 @@ type testTokenDef struct {
 }
 
 var precedence = []testTokenDef{
-	{op: "||", token: orToken},
-	{op: "&&", token: andToken},
+	{op: "||"},
+	{op: "&&"},
 	{op: "==", token: eqToken},
 	{op: "!=", token: neqToken},
 	{op: ">=", token: gteToken},
@@ -533,23 +515,13 @@ func tokenize(s string) ([]string, error) {
 // Compile a string containing a plural form expression to a Expression object.
 func Compile(s string) (expr Expression, err error) {
 	s = trimLexicalWhitespace(s)
-	if s == "0" {
-		return constValue{value: 0}, nil
-	}
 	if s == "" {
 		return nil, errors.New("empty expression")
 	}
-	if !strings.Contains(s, "?") {
-		s += "?1:0"
-	}
-	return compileExpression(s)
-}
-
-// Compiles an expression (ternary or constant)
-func compileExpression(s string) (expr Expression, err error) {
 	return compileExpressionDepth(s, 0)
 }
 
+// Compiles an expression (ternary, numeric leaf, or test).
 func compileExpressionDepth(s string, depth int) (expr Expression, err error) {
 	if depth > maxParseDepth {
 		return nil, errors.New("expression nesting is too deep")
@@ -560,6 +532,26 @@ func compileExpressionDepth(s string, depth int) (expr Expression, err error) {
 	}
 	if slices.Contains(tokens, "?") {
 		return compileTernary(tokens, depth)
+	}
+	for _, tokenDef := range precedence {
+		if !slices.Contains(tokens, tokenDef.op) {
+			continue
+		}
+		condition, err := compileTestDepth(s, depth+1)
+		if err != nil {
+			return nil, err
+		}
+		return testValue{condition: condition}, nil
+	}
+	if isSimpleN(tokens) {
+		return variableValue{}, nil
+	}
+	if slices.Contains(tokens, "%") {
+		modifier, err := compileMod(tokens)
+		if err != nil {
+			return nil, err
+		}
+		return mathValue{value: modifier}, nil
 	}
 	return constToken.compile(tokens)
 }
@@ -593,7 +585,7 @@ func compileTestDepth(s string, depth int) (test test, err error) {
 		}
 		return pipe{
 			modifier: m,
-			action:   equal{value: 0}, // default to testing for 0
+			action:   notequal{value: 0},
 		}, nil
 	}
 	if len(tokens) == 1 && strings.HasPrefix(tokens[0], "(") {
@@ -607,7 +599,10 @@ func compileTestDepth(s string, depth int) (test test, err error) {
 		return compileTestDepth(tokens[0], depth+1)
 	}
 	if len(tokens) == 1 && tokens[0] == "n" {
-		return equal{value: 1}, nil
+		return notequal{value: 0}, nil
+	}
+	if value, err := parseLiteralTokens(tokens); err == nil {
+		return literalTest{value: value}, nil
 	}
 	return nil, errors.New("cannot compile")
 }

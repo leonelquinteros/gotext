@@ -64,9 +64,6 @@ func (m HeaderMap) Del(key string) {
 
 // Get value for key from HeaderMap
 func (m HeaderMap) Get(key string) string {
-	if m == nil {
-		return ""
-	}
 	v := m[key]
 	if len(v) == 0 {
 		return ""
@@ -81,9 +78,6 @@ func (m HeaderMap) Set(key, value string) {
 
 // Values returns all values for a given key from HeaderMap
 func (m HeaderMap) Values(key string) []string {
-	if m == nil {
-		return nil
-	}
 	return m[key]
 }
 
@@ -157,16 +151,7 @@ func cloneContextTranslations(contexts map[string]map[string]*Translation) map[s
 
 	owned := make(map[string]map[string]*Translation, len(contexts))
 	for context, translations := range contexts {
-		if translations == nil {
-			owned[context] = nil
-			continue
-		}
-
-		contextOwned := make(map[string]*Translation, len(translations))
-		for id, trans := range translations {
-			contextOwned[id] = cloneTranslation(trans)
-		}
-		owned[context] = contextOwned
+		owned[context] = cloneTranslations(translations)
 	}
 	return owned
 }
@@ -175,26 +160,14 @@ func (do *Domain) hasTranslation(id string) bool {
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
-	if do.translations == nil {
-		return false
-	}
-	trans, ok := do.translations[id]
-	return ok && trans != nil
+	return do.translations[id] != nil
 }
 
 func (do *Domain) hasContextTranslation(id, context string) bool {
 	do.trMutex.RLock()
 	defer do.trMutex.RUnlock()
 
-	if do.contextTranslations == nil {
-		return false
-	}
-	translations, ok := do.contextTranslations[context]
-	if !ok || translations == nil {
-		return false
-	}
-	trans, ok := translations[id]
-	return ok && trans != nil
+	return do.contextTranslations[context][id] != nil
 }
 
 // SetPluralResolver sets a custom plural resolver function
@@ -550,12 +523,14 @@ func (do *Domain) SetNC(id, plural, ctx string, n int, str string) {
 		} else {
 			trans = NewTranslation()
 			trans.ID = id
+			trans.PluralID = plural
 			trans.SetN(pluralForm, str)
 			context[id] = trans
 		}
 	} else {
 		trans := NewTranslation()
 		trans.ID = id
+		trans.PluralID = plural
 		trans.SetN(pluralForm, str)
 		do.contextTranslations[ctx] = map[string]*Translation{
 			id: trans,
@@ -707,10 +682,11 @@ func (do *Domain) GetCtxTranslations() map[string]map[string]*Translation {
 
 // SourceReference is a struct to hold source reference information
 type SourceReference struct {
-	path    string
-	line    int
-	context string
-	trans   *Translation
+	path       string
+	line       int
+	context    string
+	hasContext bool
+	trans      *Translation
 }
 
 func extractPathAndLine(ref string) (string, int) {
@@ -789,31 +765,29 @@ func (do *Domain) MarshalText() ([]byte, error) {
 		v := do.Headers[k]
 
 		for _, value := range v {
-			buf.WriteString("\n\"" + k + ": " + value + "\\n\"")
+			encoded := EscapeSpecialCharacters(k + ": " + value + "\n")
+			buf.WriteString("\n\"" + encoded + "\"")
 		}
 	}
 
 	// Just as with headers, output translations in consistent order (to minimise diffs between round-trips), with (first) source reference taking priority, followed by context and finally ID
 	references := make([]SourceReference, 0)
 	for name, ctx := range do.contextTranslations {
-		for id, trans := range ctx {
-			if id == "" {
-				continue
-			}
+		for _, trans := range ctx {
 			if len(trans.Refs) > 0 {
 				path, line := extractPathAndLine(trans.Refs[0])
 				references = append(references, SourceReference{
-					path,
-					line,
-					name,
-					trans,
+					path:       path,
+					line:       line,
+					context:    name,
+					hasContext: true,
+					trans:      trans,
 				})
 			} else {
 				references = append(references, SourceReference{
-					"",
-					0,
-					name,
-					trans,
+					context:    name,
+					hasContext: true,
+					trans:      trans,
 				})
 			}
 		}
@@ -827,17 +801,13 @@ func (do *Domain) MarshalText() ([]byte, error) {
 		if len(trans.Refs) > 0 {
 			path, line := extractPathAndLine(trans.Refs[0])
 			references = append(references, SourceReference{
-				path,
-				line,
-				"",
-				trans,
+				path:  path,
+				line:  line,
+				trans: trans,
 			})
 		} else {
 			references = append(references, SourceReference{
-				"",
-				0,
-				"",
-				trans,
+				trans: trans,
 			})
 		}
 	}
@@ -862,6 +832,9 @@ func (do *Domain) MarshalText() ([]byte, error) {
 		if references[i].context > references[j].context {
 			return false
 		}
+		if references[i].hasContext != references[j].hasContext {
+			return !references[i].hasContext
+		}
 		return references[i].trans.ID < references[j].trans.ID
 	})
 
@@ -873,7 +846,7 @@ func (do *Domain) MarshalText() ([]byte, error) {
 			buf.WriteByte(byte('\n'))
 		}
 
-		if ref.context == "" {
+		if !ref.hasContext {
 			buf.WriteString("\nmsgid \"" + EscapeSpecialCharacters(trans.ID) + "\"")
 		} else {
 			buf.WriteString("\nmsgctxt \"" + EscapeSpecialCharacters(ref.context) + "\"\nmsgid \"" + EscapeSpecialCharacters(trans.ID) + "\"")
@@ -904,18 +877,13 @@ func EscapeSpecialCharacters(s string) string {
 	var escaped strings.Builder
 	escaped.Grow(len(s))
 
-	for i := range s {
+	for i := range len(s) {
 		switch s[i] {
 		case '\\':
 			escaped.WriteByte('\\')
-			// Preserve already-escaped quote sequences for compatibility.
-			if i+1 >= len(s) || s[i+1] != '"' {
-				escaped.WriteByte('\\')
-			}
+			escaped.WriteByte('\\')
 		case '"':
-			if i == 0 || s[i-1] != '\\' {
-				escaped.WriteByte('\\')
-			}
+			escaped.WriteByte('\\')
 			escaped.WriteByte('"')
 		default:
 			escaped.WriteByte(s[i])

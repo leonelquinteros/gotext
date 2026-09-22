@@ -43,8 +43,9 @@ type Po struct {
 	domain *Domain
 	fs     fs.FS
 
-	parseBufferHasID     bool
-	parseBufferHasPlural bool
+	parseBufferHasID      bool
+	parseBufferHasPlural  bool
+	parseBufferHasContext bool
 }
 
 type parseState int
@@ -224,6 +225,7 @@ func (po *Po) Parse(buf []byte) {
 	po.domain.refBuffer = ""
 	po.parseBufferHasID = false
 	po.parseBufferHasPlural = false
+	po.parseBufferHasContext = false
 
 	state := head
 	activeMsgStrIndex := 0
@@ -326,20 +328,16 @@ func (po *Po) saveBuffer() {
 		po.domain.pluralTranslations[po.domain.trBuffer.PluralID] = po.domain.trBuffer
 	}
 
-	// With no context...
-	if po.domain.ctxBuffer == "" {
-		po.domain.translations[po.domain.trBuffer.ID] = po.domain.trBuffer
-	} else {
-		// With context...
+	if po.parseBufferHasContext {
 		if _, ok := po.domain.contextTranslations[po.domain.ctxBuffer]; !ok {
 			po.domain.contextTranslations[po.domain.ctxBuffer] = make(map[string]*Translation)
 		}
 		po.domain.contextTranslations[po.domain.ctxBuffer][po.domain.trBuffer.ID] = po.domain.trBuffer
-
-		// Cleanup current context buffer if needed
-		if po.domain.trBuffer.ID != "" {
-			po.domain.ctxBuffer = ""
-		}
+		// Context applies only to the record it prefixes, even when its ID is empty.
+		po.domain.ctxBuffer = ""
+		po.parseBufferHasContext = false
+	} else {
+		po.domain.translations[po.domain.trBuffer.ID] = po.domain.trBuffer
 	}
 
 	po.parseBufferHasID = false
@@ -380,8 +378,9 @@ func (po *Po) parseContext(l string) bool {
 	// Save current Translation buffer.
 	po.saveBuffer()
 
-	// Buffer context
+	// Buffer context, including an explicitly empty context.
 	po.domain.ctxBuffer = value
+	po.parseBufferHasContext = true
 	return true
 }
 
@@ -436,8 +435,8 @@ func (po *Po) parseMessage(l string) (int, bool) {
 		}
 
 		// Parse Translation string
-		clean, err := strconv.Unquote(strings.TrimSpace(l[idx+1:]))
-		if err != nil {
+		clean, ok := decodePOQuotedString(strings.TrimSpace(l[idx+1:]))
+		if !ok {
 			return 0, false
 		}
 		po.domain.trBuffer.Trs[i] = clean
@@ -446,8 +445,8 @@ func (po *Po) parseMessage(l string) (int, bool) {
 	}
 
 	// Save single Translation form under 0 index
-	clean, err := strconv.Unquote(l)
-	if err != nil {
+	clean, ok := decodePOQuotedString(l)
+	if !ok {
 		return 0, false
 	}
 	po.domain.trBuffer.Trs[0] = clean
@@ -461,8 +460,8 @@ func (po *Po) parseString(l string, state parseState, activeMsgStrIndex int) boo
 		return false
 	}
 
-	clean, err := strconv.Unquote(l)
-	if err != nil {
+	clean, ok := decodePOQuotedString(l)
+	if !ok {
 		return false
 	}
 
@@ -526,11 +525,120 @@ func (po *Po) parseQuotedDirective(l, keyword string) (string, bool) {
 		return "", false
 	}
 
-	value, err := strconv.Unquote(strings.TrimSpace(l[len(keyword):]))
-	if err != nil {
+	value, ok := decodePOQuotedString(strings.TrimSpace(l[len(keyword):]))
+	if !ok {
 		return "", false
 	}
 	return value, true
+}
+
+// decodePOQuotedString decodes a GNU PO double-quoted string.
+func decodePOQuotedString(source string) (string, bool) {
+	if len(source) < 2 || source[0] != '"' {
+		return "", false
+	}
+
+	var decoded []byte
+	for i := 1; i < len(source); {
+		switch source[i] {
+		case '"':
+			if i != len(source)-1 {
+				return "", false
+			}
+			if decoded == nil {
+				return source[1:i], true
+			}
+			return string(decoded), true
+
+		case '\\':
+			if decoded == nil {
+				decoded = make([]byte, 0, len(source)-2)
+				decoded = append(decoded, source[1:i]...)
+			}
+			i++
+			if i >= len(source) {
+				return "", false
+			}
+
+			switch source[i] {
+			case 'a':
+				decoded = append(decoded, '\a')
+				i++
+			case 'b':
+				decoded = append(decoded, '\b')
+				i++
+			case 'f':
+				decoded = append(decoded, '\f')
+				i++
+			case 'n':
+				decoded = append(decoded, '\n')
+				i++
+			case 'r':
+				decoded = append(decoded, '\r')
+				i++
+			case 't':
+				decoded = append(decoded, '\t')
+				i++
+			case 'v':
+				decoded = append(decoded, '\v')
+				i++
+			case '\\':
+				decoded = append(decoded, '\\')
+				i++
+			case '"':
+				decoded = append(decoded, '"')
+				i++
+			case '0', '1', '2', '3', '4', '5', '6', '7':
+				var value byte
+				for digits := 0; i < len(source) && digits < 3; digits++ {
+					if source[i] < '0' || source[i] > '7' {
+						break
+					}
+					value = value<<3 | (source[i] - '0')
+					i++
+				}
+				decoded = append(decoded, value)
+			case 'x':
+				i++
+				if i >= len(source) || !isPOHexDigit(source[i]) {
+					return "", false
+				}
+				var value byte
+				for i < len(source) && isPOHexDigit(source[i]) {
+					value = value<<4 | poHexValue(source[i])
+					i++
+				}
+				decoded = append(decoded, value)
+			default:
+				return "", false
+			}
+
+		default:
+			if decoded != nil {
+				decoded = append(decoded, source[i])
+			}
+			i++
+		}
+	}
+
+	return "", false
+}
+
+func isPOHexDigit(c byte) bool {
+	return c >= '0' && c <= '9' ||
+		c >= 'a' && c <= 'f' ||
+		c >= 'A' && c <= 'F'
+}
+
+func poHexValue(c byte) byte {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0'
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10
+	default:
+		return c - 'A' + 10
+	}
 }
 
 func isASCIIPluralIndex(index string) bool {

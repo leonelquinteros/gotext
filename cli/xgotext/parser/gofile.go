@@ -125,6 +125,7 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 
 	var name string
 	var object types.Object
+	var argumentOffset int
 	switch fun := n.Fun.(type) {
 	case *ast.Ident:
 		name = fun.Name
@@ -148,6 +149,7 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 		if _, ok := gotextGetter[name]; !ok {
 			return
 		}
+		selection := g.selectorSelection(fun)
 		object = g.selectorObject(fun)
 		if object != nil {
 			if !isGotextGetterObject(object, name) {
@@ -165,14 +167,20 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 		} else if !g.isGotextPackageSelector(fun) {
 			return
 		}
+		if selection != nil && selection.Kind() == types.MethodExpr {
+			argumentOffset = 1
+		}
 
 	default:
 		return
 	}
 
-	args := make([]*ast.BasicLit, len(n.Args))
+	if argumentOffset > len(n.Args) {
+		return
+	}
+	args := make([]*ast.BasicLit, len(n.Args)-argumentOffset)
 	resolving := make(map[types.Object]bool)
-	for idx, arg := range n.Args {
+	for idx, arg := range n.Args[argumentOffset:] {
 		args[idx] = g.resolveStringLiteral(arg, n.Pos(), resolving)
 	}
 
@@ -181,19 +189,38 @@ func (g *GoFile) InspectCallExpr(n *ast.CallExpr) {
 
 func isGotextGetterObject(object types.Object, name string) bool {
 	function, ok := object.(*types.Func)
-	return ok && function.Name() == name && function.Pkg() != nil && function.Pkg().Path() == gotextPackagePath
+	if !ok || function.Name() != name || function.Pkg() == nil || function.Pkg().Path() != gotextPackagePath {
+		return false
+	}
+	signature, ok := function.Type().(*types.Signature)
+	return ok && signature.Variadic()
 }
 
-func (g *GoFile) selectorObject(expr *ast.SelectorExpr) types.Object {
-	if g == nil || expr == nil || expr.Sel == nil {
+func (g *GoFile) selectorSelection(expr *ast.SelectorExpr) *types.Selection {
+	if g == nil || expr == nil {
 		return nil
 	}
 	for _, pkg := range g.ImportedPackages {
 		if pkg == nil || pkg.TypesInfo == nil {
 			continue
 		}
-		if selection := pkg.TypesInfo.Selections[expr]; selection != nil && selection.Obj() != nil {
-			return selection.Obj()
+		if selection := pkg.TypesInfo.Selections[expr]; selection != nil {
+			return selection
+		}
+	}
+	return nil
+}
+
+func (g *GoFile) selectorObject(expr *ast.SelectorExpr) types.Object {
+	if g == nil || expr == nil || expr.Sel == nil {
+		return nil
+	}
+	if selection := g.selectorSelection(expr); selection != nil && selection.Obj() != nil {
+		return selection.Obj()
+	}
+	for _, pkg := range g.ImportedPackages {
+		if pkg == nil || pkg.TypesInfo == nil {
+			continue
 		}
 		if object := pkg.TypesInfo.Uses[expr.Sel]; object != nil {
 			return object
@@ -279,11 +306,12 @@ func (g *GoFile) ParseGetter(def GetterDef, args []*ast.BasicLit, pos string) {
 		trans.MsgIDPlural = msgIDPlural
 	}
 	if def.Context != -1 {
-		// Context must be a string
-		if !isStringArgument(args, def.Context, "context", pos) {
+		context, ok := getStringArgument(args, def.Context, "context", pos)
+		if !ok {
 			return
 		}
-		trans.Context = args[def.Context].Value
+		trans.Context = context
+		trans.HasContext = true
 	}
 
 	g.Data.AddTranslation(domain, &trans)
@@ -527,14 +555,19 @@ func (g *GoFile) getObject(ident *ast.Ident) types.Object {
 	return nil
 }
 
-// isMutatedBefore reports whether a variable has been assigned a new value before its use.
+// isMutatedBefore reports whether a variable can have been assigned a new value before its use.
+// Package variables and writes from another function are treated conservatively because source
+// order does not establish their execution order.
 func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
 	if g == nil {
 		return false
 	}
-	if _, ok := object.(*types.Var); !ok {
+	variable, ok := object.(*types.Var)
+	if !ok {
 		return false
 	}
+	packageVariable := variable.Pkg() != nil && variable.Parent() == variable.Pkg().Scope()
+	callFunction := g.enclosingFunction(before)
 
 	for _, pkg := range g.ImportedPackages {
 		if !packageOwnsObject(pkg, object) || pkg.TypesInfo == nil {
@@ -544,28 +577,27 @@ func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
 			if file == nil {
 				continue
 			}
+			if g.hasAddressUse(pkg, file, object) {
+				return true
+			}
 			for node := range ast.Preorder(file) {
 				switch node := node.(type) {
 				case *ast.AssignStmt:
-					if node.Pos() >= before {
-						continue
-					}
 					for _, lhs := range node.Lhs {
-						if ident, ok := lhs.(*ast.Ident); ok && pkg.TypesInfo.Uses[ident] == object {
+						if ident, ok := lhs.(*ast.Ident); ok && pkg.TypesInfo.Uses[ident] == object &&
+							g.mutationRelevant(node.Pos(), before, callFunction, packageVariable) {
 							return true
 						}
 					}
 
 				case *ast.IncDecStmt:
-					if node.Pos() >= before {
-						continue
-					}
-					if ident, ok := node.X.(*ast.Ident); ok && pkg.TypesInfo.Uses[ident] == object {
+					if ident, ok := node.X.(*ast.Ident); ok && pkg.TypesInfo.Uses[ident] == object &&
+						g.mutationRelevant(node.Pos(), before, callFunction, packageVariable) {
 						return true
 					}
 
 				case *ast.RangeStmt:
-					if node.Body == nil || node.Body.Pos() >= before {
+					if node.Body == nil {
 						continue
 					}
 					for _, candidate := range []ast.Expr{node.Key, node.Value} {
@@ -575,11 +607,13 @@ func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
 						}
 						switch node.Tok {
 						case token.DEFINE:
-							if pkg.TypesInfo.Defs[ident] == object {
+							if pkg.TypesInfo.Defs[ident] == object &&
+								g.mutationRelevant(node.Pos(), before, callFunction, packageVariable) {
 								return true
 							}
 						case token.ASSIGN:
-							if pkg.TypesInfo.Uses[ident] == object {
+							if pkg.TypesInfo.Uses[ident] == object &&
+								g.mutationRelevant(node.Pos(), before, callFunction, packageVariable) {
 								return true
 							}
 						}
@@ -589,4 +623,108 @@ func (g *GoFile) isMutatedBefore(object types.Object, before token.Pos) bool {
 		}
 	}
 	return false
+}
+
+func (g *GoFile) mutationRelevant(
+	writePos, before token.Pos,
+	callFunction ast.Node,
+	packageVariable bool,
+) bool {
+	if packageVariable {
+		return true
+	}
+	writeFunction := g.enclosingFunction(writePos)
+	if callFunction == nil || writeFunction == nil || callFunction != writeFunction {
+		return true
+	}
+	if writePos < before {
+		return true
+	}
+	for node := range ast.Preorder(callFunction) {
+		switch node.(type) {
+		case *ast.ForStmt, *ast.RangeStmt:
+			if node.Pos() <= before && writePos < node.End() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (g *GoFile) hasAddressUse(pkg *packages.Package, file *ast.File, object types.Object) bool {
+	if pkg == nil || pkg.TypesInfo == nil || file == nil {
+		return false
+	}
+	for node := range ast.Preorder(file) {
+		unary, ok := node.(*ast.UnaryExpr)
+		if !ok || unary.Op != token.AND {
+			continue
+		}
+		ident := addressedIdent(unary.X)
+		if ident != nil && pkg.TypesInfo.Uses[ident] == object {
+			return true
+		}
+	}
+	return false
+}
+
+func addressedIdent(expr ast.Expr) *ast.Ident {
+	for {
+		switch value := expr.(type) {
+		case *ast.Ident:
+			return value
+		case *ast.ParenExpr:
+			if value == nil {
+				return nil
+			}
+			expr = value.X
+		default:
+			return nil
+		}
+	}
+}
+
+func (g *GoFile) enclosingFunction(pos token.Pos) ast.Node {
+	if g == nil || pos == token.NoPos {
+		return nil
+	}
+	var targetFile *token.File
+	if g.FileSet != nil {
+		targetFile = g.FileSet.File(pos)
+	}
+	for _, pkg := range g.ImportedPackages {
+		if pkg == nil {
+			continue
+		}
+		for _, file := range pkg.Syntax {
+			if file == nil {
+				continue
+			}
+			if targetFile != nil {
+				if g.FileSet == nil || g.FileSet.File(file.Pos()) != targetFile {
+					continue
+				}
+			} else if pos < file.Pos() || pos > file.End() {
+				continue
+			}
+			var function ast.Node
+			ast.Inspect(file, func(node ast.Node) bool {
+				switch fn := node.(type) {
+				case *ast.FuncDecl:
+					if fn.Body != nil && pos >= fn.Body.Pos() && pos <= fn.Body.End() {
+						function = fn
+					}
+				case *ast.FuncLit:
+					if fn.Body != nil && pos >= fn.Body.Pos() && pos <= fn.Body.End() {
+						function = fn
+					}
+				}
+				return true
+			})
+			if function != nil {
+				return function
+			}
+		}
+	}
+	return nil
 }

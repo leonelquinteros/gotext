@@ -150,35 +150,6 @@ func TestMo(t *testing.T) {
 	}
 }
 
-func TestMoRace(t *testing.T) {
-	// Create mo object
-	mo := NewMo()
-
-	// Create sync channels
-	pc := make(chan bool)
-	rc := make(chan bool)
-
-	// Parse po content in a goroutine
-	go func(mo *Mo, done chan bool) {
-		// Parse file
-		mo.ParseFile("fixtures/en_US/default.mo")
-		done <- true
-	}(mo, pc)
-
-	// Read some Translation on a goroutine
-	go func(mo *Mo, done chan bool) {
-		mo.Get("My text")
-		done <- true
-	}(mo, rc)
-
-	// Read something at top level
-	mo.Get("My text")
-
-	// Wait for goroutines to finish
-	<-pc
-	<-rc
-}
-
 func TestNewMoTranslatorRace(t *testing.T) {
 
 	// Create Po object

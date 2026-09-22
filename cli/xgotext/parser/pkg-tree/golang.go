@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"sync"
 
 	"golang.org/x/tools/go/packages"
 
@@ -20,7 +19,6 @@ func ParsePkgTree(pkgPath string, data *parser.DomainMap, verbose bool) error {
 	if err != nil {
 		return err
 	}
-	resetPackageCache()
 	return pkgParser(pkgPath, basePath, data, verbose)
 }
 
@@ -55,23 +53,6 @@ func pkgParser(dirPath, basePath string, data *parser.DomainMap, verbose bool) e
 	}
 
 	return nil
-}
-
-var (
-	pkgCache   = make(map[string]*packages.Package)
-	pkgCacheMu sync.RWMutex
-)
-
-func resetPackageCache() {
-	pkgCacheMu.Lock()
-	pkgCache = make(map[string]*packages.Package)
-	pkgCacheMu.Unlock()
-}
-
-func setPackageCache(cache map[string]*packages.Package) {
-	pkgCacheMu.Lock()
-	pkgCache = cache
-	pkgCacheMu.Unlock()
 }
 
 func loadPackage(name string) (*packages.Package, error) {
@@ -131,12 +112,6 @@ func packageDiagnostics(pkgs []*packages.Package) error {
 	return nil
 }
 
-func filterPkgs(pkg *packages.Package) []*packages.Package {
-	result, cache := filterPkgsScoped(pkg)
-	setPackageCache(cache)
-	return result
-}
-
 func filterPkgsScoped(pkg *packages.Package) ([]*packages.Package, map[string]*packages.Package) {
 	cache := make(map[string]*packages.Package, 100)
 	return filterPkgsRecWithCache(pkg, cache), cache
@@ -175,20 +150,10 @@ type GoFile struct {
 
 // GetPackage loads module by name
 func (g *GoFile) GetPackage(name string) (*packages.Package, error) {
-	if g.packageCache != nil {
-		if pkg, ok := g.packageCache[name]; ok {
-			return pkg, nil
-		}
-		return nil, fmt.Errorf("not found in cache")
+	if pkg, ok := g.packageCache[name]; ok {
+		return pkg, nil
 	}
-
-	pkgCacheMu.RLock()
-	pkg, ok := pkgCache[name]
-	pkgCacheMu.RUnlock()
-	if !ok {
-		return nil, fmt.Errorf("not found in cache")
-	}
-	return pkg, nil
+	return nil, fmt.Errorf("not found in cache")
 }
 
 // InspectFile inspects the AST node
@@ -213,8 +178,6 @@ func (g *GoFile) InspectFile(n ast.Node) bool {
 	case *ast.CallExpr:
 		g.InspectCallExpr(x)
 
-	default:
-		print()
 	}
 
 	return true

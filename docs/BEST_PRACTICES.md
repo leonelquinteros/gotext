@@ -51,10 +51,10 @@ msgstr "Abierto"
 
 ## 4. Automate String Extraction
 
-Never manually edit `msgid` entries in your `.po` files. Use the `xgotext` CLI tool to scan your code and update your translation files. This ensures your code and translations stay in sync.
+Never manually edit `msgid` entries in your `.po` files. Use the `xgotext` CLI tool to scan your code and generate `.pot` templates. Merge those templates into language-specific `.po` files to keep your code and translations in sync.
 
 ```bash
-xgotext -p . -o locales/en_US/default.po
+xgotext -in . -out locales/templates
 ```
 
 ## 5. Thread Safety

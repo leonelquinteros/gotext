@@ -1,18 +1,20 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 )
 
 // Translation for a text to translate
 type Translation struct {
-	MsgID           string
-	MsgIDPlural     string
-	Context         string
+	MsgID       string
+	MsgIDPlural string
+	Context     string
+	// HasContext reports whether Context was present in source, including an empty value.
+	HasContext      bool
 	SourceLocations []string
 }
 
@@ -21,11 +23,7 @@ func (t *Translation) AddLocations(locations []string) {
 	if t == nil || len(locations) == 0 {
 		return
 	}
-	if t.SourceLocations == nil {
-		t.SourceLocations = append([]string(nil), locations...)
-	} else {
-		t.SourceLocations = append(t.SourceLocations, locations...)
-	}
+	t.SourceLocations = append(t.SourceLocations, locations...)
 }
 
 // Dump translation as string
@@ -43,8 +41,8 @@ func (t *Translation) Dump() string {
 		data = append(data, "#: "+location)
 	}
 
-	if t.Context != "" {
-		data = append(data, "msgctxt "+t.Context)
+	if t.HasContext || t.Context != "" {
+		data = append(data, toMsgIDString("msgctxt", t.Context))
 	}
 
 	data = append(data, toMsgIDString("msgid", t.MsgID))
@@ -119,9 +117,7 @@ func (m TranslationMap) Dump() string {
 	data := make([]string, 0, len(m))
 	for _, key := range keys {
 		if translation := m[key]; translation != nil {
-			if dump := translation.Dump(); dump != "" {
-				data = append(data, dump)
-			}
+			data = append(data, translation.Dump())
 		}
 	}
 	return strings.Join(data, "\n\n")
@@ -145,18 +141,18 @@ func (d *Domain) AddTranslation(translation *Translation) {
 		d.ContextTranslations = make(map[string]TranslationMap)
 	}
 
-	if translation.Context == "" {
-		if t, ok := d.Translations[translation.MsgID]; ok && t != nil {
+	if !translation.HasContext && translation.Context == "" {
+		if t := d.Translations[translation.MsgID]; t != nil {
 			t.AddLocations(translation.SourceLocations)
 		} else {
 			d.Translations[translation.MsgID] = translation
 		}
 	} else {
-		if _, ok := d.ContextTranslations[translation.Context]; !ok || d.ContextTranslations[translation.Context] == nil {
+		if d.ContextTranslations[translation.Context] == nil {
 			d.ContextTranslations[translation.Context] = make(TranslationMap)
 		}
 
-		if t, ok := d.ContextTranslations[translation.Context][translation.MsgID]; ok && t != nil {
+		if t := d.ContextTranslations[translation.Context][translation.MsgID]; t != nil {
 			t.AddLocations(translation.SourceLocations)
 		} else {
 			d.ContextTranslations[translation.Context][translation.MsgID] = translation
@@ -190,18 +186,9 @@ func (d *Domain) Dump() string {
 	return strings.Join(data, "\n\n")
 }
 
-// Save domain to file
-func (d *Domain) Save(path string) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to domain: %v", err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	// write header
-	_, err = file.WriteString(`msgid ""
+// writePOT writes a domain's header and content to an open file.
+func (d *Domain) writePOT(file *os.File) error {
+	if _, err := file.WriteString(`msgid ""
 msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
@@ -210,14 +197,24 @@ msgstr ""
 "Language: \n"
 "X-Generator: xgotext\n"
 
-`)
-	if err != nil {
+`); err != nil {
 		return err
 	}
 
-	// write domain content
-	_, err = file.WriteString(d.Dump())
+	_, err := file.WriteString(d.Dump())
 	return err
+}
+
+// Save domain to file
+func (d *Domain) Save(path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to domain: %w", err)
+	}
+
+	writeErr := d.writePOT(file)
+	closeErr := file.Close()
+	return errors.Join(writeErr, closeErr)
 }
 
 // DomainMap contains multiple domains as map with name as key
@@ -245,31 +242,45 @@ func (m *DomainMap) AddTranslation(domain string, translation *Translation) {
 		domain = m.Default
 	}
 
-	if _, ok := m.Domains[domain]; !ok || m.Domains[domain] == nil {
+	if m.Domains[domain] == nil {
 		m.Domains[domain] = new(Domain)
 	}
 	m.Domains[domain].AddTranslation(translation)
 }
 
 // Save domains to directory
-func (m *DomainMap) Save(directory string) error {
+func (m *DomainMap) Save(directory string) (err error) {
 	if m == nil {
 		return nil
 	}
 	// ensure output directory exist
-	err := os.MkdirAll(directory, os.ModePerm)
-	if err != nil {
-		return fmt.Errorf("failed to create output dir: %v", err)
+	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create output dir: %w", err)
 	}
+
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return fmt.Errorf("failed to open output dir: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
 
 	// save each domain in a separate po file
 	for name, domain := range m.Domains {
 		if domain == nil {
 			continue
 		}
-		err := domain.Save(filepath.Join(directory, name+".pot"))
-		if err != nil {
-			return fmt.Errorf("failed to save domain %s: %v", name, err)
+
+		file, createErr := root.Create(name + ".pot")
+		if createErr != nil {
+			return fmt.Errorf("failed to save domain %s: %w", name, createErr)
+		}
+
+		writeErr := domain.writePOT(file)
+		closeErr := file.Close()
+		if saveErr := errors.Join(writeErr, closeErr); saveErr != nil {
+			return fmt.Errorf("failed to save domain %s: %w", name, saveErr)
 		}
 	}
 	return nil

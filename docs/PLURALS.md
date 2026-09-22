@@ -1,6 +1,6 @@
 # Plural Forms with gotext
 
-`gotext` fully supports GNU Gettext plural forms. This guide explains how to use plural forms in your Go code and PO files.
+`gotext` selects plural translations using the catalog's GNU Gettext `Plural-Forms` header. This guide explains how to use plural forms in your Go code and PO files.
 
 ## 1. Using Plural Forms in Go
 
@@ -61,5 +61,7 @@ msgstr[2] "Mam %d jabłek."
 1.  **Header Parsing**: When `gotext` loads a PO file, it parses the `Plural-Forms` header.
 2.  **Expression Evaluation**: When `GetN` is called, `gotext` evaluates the plural expression with the provided `n`.
 3.  **Result Indexing**: The evaluation result (0, 1, 2, etc.) is used as an index to select the correct `msgstr[n]` from the translation entry.
+
+The expression result is a numeric form index, not necessarily a boolean. For example, `nplurals=3; plural=n % 3;` selects forms `0`, `1`, and `2`. Numeric expressions can also appear in ternary branches. Conditions use C truthiness: zero is false and any nonzero value is true; comparison and logical operators produce `0` or `1`.
 
 For more information on plural form rules for different languages, see the [GNU Gettext manual](https://www.gnu.org/savannah-checkouts/gnu/gettext/manual/html_node/Plural-forms.html).

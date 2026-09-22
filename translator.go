@@ -13,9 +13,9 @@ import (
 	"github.com/leonelquinteros/gotext/plurals"
 )
 
-// Translator interface is used by Locale and Po objects.Translator
+// Translator interface is used by Locale and Po objects.
 // It contains all methods needed to parse translation sources and obtain corresponding translations.
-// Also implements gob.GobEncoder/gob.DobDecoder interfaces to allow serialization of Locale objects.
+// It includes encoding.BinaryMarshaler and encoding.BinaryUnmarshaler methods for Locale serialization.
 type Translator interface {
 	ParseFile(f string)
 	Parse(buf []byte)

@@ -230,6 +230,205 @@ msgstr "Another text on another domain"
 	}
 }
 
+func preserveGlobalConfig(t *testing.T) {
+	t.Helper()
+	globalConfig.RLock()
+	previousLocales := globalConfig.locales
+	previousLanguages := globalConfig.languages
+	previousLibrary := globalConfig.library
+	previousDomain := globalConfig.domain
+	globalConfig.RUnlock()
+	t.Cleanup(func() {
+		globalConfig.Lock()
+		globalConfig.locales = previousLocales
+		globalConfig.languages = previousLanguages
+		globalConfig.library = previousLibrary
+		globalConfig.domain = previousDomain
+		globalConfig.Unlock()
+	})
+}
+
+const frenchMenuCatalog = `msgid ""
+msgstr ""
+
+msgid "hello"
+msgstr "bonjour"
+
+msgctxt "menu"
+msgid "hello"
+msgstr "bonjour menu"
+`
+
+func writeTestCatalog(t *testing.T, library, language, domain, contents string) {
+	t.Helper()
+	dir := filepath.Join(library, language, "LC_MESSAGES")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create catalog directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, domain+".po"), []byte(contents), 0o644); err != nil {
+		t.Fatalf("write catalog: %v", err)
+	}
+}
+
+func TestGlobalIsTranslatedSearchesLaterLocales(t *testing.T) {
+	preserveGlobalConfig(t)
+
+	library := t.TempDir()
+	writeTestCatalog(t, library, "en_US", "default", `msgid ""
+msgstr ""
+"Language: en_US\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "hello"
+msgstr ""
+
+msgctxt "context"
+msgid "hello"
+msgstr ""
+`)
+	writeTestCatalog(t, library, "fr", "default", `msgid ""
+msgstr ""
+"Language: fr\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "hello"
+msgstr "bonjour"
+
+msgctxt "context"
+msgid "hello"
+msgstr "bonjour context"
+`)
+
+	Configure(library, "en_US:fr", "default")
+
+	if got := Get("hello"); got != "bonjour" {
+		t.Errorf("Get(hello) = %q, want %q", got, "bonjour")
+	}
+	if got := GetC("hello", "context"); got != "bonjour context" {
+		t.Errorf("GetC(hello, context) = %q, want %q", got, "bonjour context")
+	}
+
+	checks := []struct {
+		name string
+		got  bool
+		want bool
+	}{
+		{name: "default noncontextual", got: IsTranslated("hello"), want: true},
+		{name: "explicit noncontextual", got: IsTranslated("hello", "en_US", "fr"), want: true},
+		{name: "untranslated first locale", got: IsTranslated("hello", "en_US"), want: false},
+		{name: "default contextual", got: IsTranslatedC("hello", "context"), want: true},
+		{name: "explicit contextual", got: IsTranslatedC("hello", "context", "en_US", "fr"), want: true},
+		{name: "untranslated first contextual locale", got: IsTranslatedC("hello", "context", "en_US"), want: false},
+		{name: "missing noncontextual", got: IsTranslated("missing"), want: false},
+		{name: "missing contextual", got: IsTranslatedC("missing", "context"), want: false},
+		{name: "singular contextual domain", got: IsTranslatedDC("default", "hello", "context", "fr"), want: true},
+	}
+	for _, check := range checks {
+		if check.got != check.want {
+			t.Errorf("%s = %t, want %t", check.name, check.got, check.want)
+		}
+	}
+}
+func TestGlobalIsTranslatedUsesConfiguredAndActualLanguage(t *testing.T) {
+	preserveGlobalConfig(t)
+
+	library := t.TempDir()
+	writeTestCatalog(t, library, "fr", "default", frenchMenuCatalog)
+
+	Configure(library, "fr_FR", "default")
+	if got := Get("hello"); got != "bonjour" {
+		t.Errorf("Get(hello) = %q, want %q", got, "bonjour")
+	}
+	if got := GetC("hello", "menu"); got != "bonjour menu" {
+		t.Errorf("GetC(hello, menu) = %q, want %q", got, "bonjour menu")
+	}
+
+	checks := []struct {
+		name string
+		got  bool
+		want bool
+	}{
+		{name: "configured noncontextual", got: IsTranslated("hello", "fr_FR"), want: true},
+		{name: "actual noncontextual", got: IsTranslated("hello", "fr"), want: true},
+		{name: "configured contextual", got: IsTranslatedC("hello", "menu", "fr_FR"), want: true},
+		{name: "actual contextual", got: IsTranslatedC("hello", "menu", "fr"), want: true},
+		{name: "unrelated noncontextual", got: IsTranslated("hello", "de"), want: false},
+		{name: "unrelated contextual", got: IsTranslatedC("hello", "menu", "de"), want: false},
+	}
+	for _, check := range checks {
+		if check.got != check.want {
+			t.Errorf("%s = %t, want %t", check.name, check.got, check.want)
+		}
+	}
+}
+
+func TestGlobalIsTranslatedUsesConfiguredLanguageForInMemoryLocale(t *testing.T) {
+	preserveGlobalConfig(t)
+
+	po := NewPo()
+	po.Set("hello", "bonjour")
+	po.SetC("hello", "menu", "bonjour menu")
+	locale := NewLocale(filepath.Join(t.TempDir(), "missing"), "fr_FR")
+	locale.AddTranslator("default", po)
+	SetLocales([]*Locale{locale})
+	if got := Get("hello"); got != "bonjour" {
+		t.Errorf("Get(hello) = %q, want %q", got, "bonjour")
+	}
+	if got := GetC("hello", "menu"); got != "bonjour menu" {
+		t.Errorf("GetC(hello, menu) = %q, want %q", got, "bonjour menu")
+	}
+
+	checks := []struct {
+		name string
+		got  bool
+		want bool
+	}{
+		{name: "configured noncontextual", got: IsTranslated("hello", "fr_FR"), want: true},
+		{name: "configured contextual", got: IsTranslatedC("hello", "menu", "fr_FR"), want: true},
+		{name: "unrelated noncontextual", got: IsTranslated("hello", "de"), want: false},
+		{name: "unrelated contextual", got: IsTranslatedC("hello", "menu", "de"), want: false},
+	}
+	for _, check := range checks {
+		if check.got != check.want {
+			t.Errorf("%s = %t, want %t", check.name, check.got, check.want)
+		}
+	}
+}
+
+func TestGlobalIsTranslatedLoadsColdNondefaultDomains(t *testing.T) {
+	preserveGlobalConfig(t)
+
+	for _, tt := range []struct {
+		name       string
+		contextual bool
+	}{
+		{name: "noncontextual", contextual: false},
+		{name: "contextual", contextual: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			library := t.TempDir()
+			writeTestCatalog(t, library, "fr", "extra", frenchMenuCatalog)
+
+			Configure(library, "fr", "default")
+			if tt.contextual {
+				if !IsTranslatedDC("extra", "hello", "menu", "fr") {
+					t.Fatal("cold contextual domain should be reported as translated")
+				}
+				if got := GetDC("extra", "hello", "menu"); got != "bonjour menu" {
+					t.Errorf("GetDC(extra, hello, menu) = %q, want %q", got, "bonjour menu")
+				}
+			} else {
+				if !IsTranslatedD("extra", "hello", "fr") {
+					t.Fatal("cold domain should be reported as translated")
+				}
+				if got := GetD("extra", "hello"); got != "bonjour" {
+					t.Errorf("GetD(extra, hello) = %q, want %q", got, "bonjour")
+				}
+			}
+		})
+	}
+}
+
 func TestUntranslated(t *testing.T) {
 	// Set PO content
 	str := `
@@ -739,18 +938,9 @@ func TestGotext_MissingWrappers(t *testing.T) {
 	}
 }
 func TestGlobalEmptyLocaleStorageIsSafe(t *testing.T) {
-	previousLocales := GetLocales()
-	previousLanguages := GetLanguages()
+	preserveGlobalConfig(t)
 	previousLibrary := GetLibrary()
 	previousDomain := GetDomain()
-	defer func() {
-		globalConfig.Lock()
-		globalConfig.locales = append(make([]*Locale, 0, len(previousLocales)), previousLocales...)
-		globalConfig.languages = append(make([]string, 0, len(previousLanguages)), previousLanguages...)
-		globalConfig.library = previousLibrary
-		globalConfig.domain = previousDomain
-		globalConfig.Unlock()
-	}()
 
 	tests := []struct {
 		name   string
@@ -805,18 +995,7 @@ func TestGlobalEmptyLocaleStorageIsSafe(t *testing.T) {
 }
 
 func TestSetLocalesCopiesCallerSlices(t *testing.T) {
-	previousLocales := GetLocales()
-	previousLanguages := GetLanguages()
-	previousLibrary := GetLibrary()
-	previousDomain := GetDomain()
-	defer func() {
-		globalConfig.Lock()
-		globalConfig.locales = append(make([]*Locale, 0, len(previousLocales)), previousLocales...)
-		globalConfig.languages = append(make([]string, 0, len(previousLanguages)), previousLanguages...)
-		globalConfig.library = previousLibrary
-		globalConfig.domain = previousDomain
-		globalConfig.Unlock()
-	}()
+	preserveGlobalConfig(t)
 
 	locale := NewLocale("caller-path", "caller")
 	locale.SetDomain("caller-domain")
@@ -842,20 +1021,7 @@ func TestSetLocalesCopiesCallerSlices(t *testing.T) {
 }
 
 func TestConcurrentSetDomainKeepsGlobalAndLocaleDomainsInSync(t *testing.T) {
-	globalConfig.RLock()
-	previousLocales := append(make([]*Locale, 0, len(globalConfig.locales)), globalConfig.locales...)
-	previousLanguages := append(make([]string, 0, len(globalConfig.languages)), globalConfig.languages...)
-	previousLibrary := globalConfig.library
-	previousDomain := globalConfig.domain
-	globalConfig.RUnlock()
-	defer func() {
-		globalConfig.Lock()
-		globalConfig.locales = previousLocales
-		globalConfig.languages = previousLanguages
-		globalConfig.library = previousLibrary
-		globalConfig.domain = previousDomain
-		globalConfig.Unlock()
-	}()
+	preserveGlobalConfig(t)
 
 	SetLocales([]*Locale{
 		NewLocale("", "en_US"),

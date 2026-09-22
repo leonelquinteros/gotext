@@ -22,6 +22,14 @@ func (e notequal) test(n uint32) bool {
 	return n != e.value
 }
 
+type literalTest struct {
+	value uint32
+}
+
+func (l literalTest) test(n uint32) bool {
+	return l.value != 0
+}
+
 type gt struct {
 	value   uint32
 	flipped bool

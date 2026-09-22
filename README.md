@@ -89,8 +89,9 @@ go install github.com/leonelquinteros/gotext/cli/xgotext@latest
 
 **Extract strings:**
 ```bash
-xgotext -p . -o locales/en_US/default.po
+xgotext -in . -out locales/templates
 ```
+The command generates `.pot` templates under `locales/templates`; merge those templates into language-specific `.po` files.
 
 See the [xgotext Documentation](docs/xgotext.md) for full usage details.
 

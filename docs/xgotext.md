@@ -24,6 +24,10 @@ xgotext -pkg-tree . -out locales/templates
 
 Exactly one of `-in` and `-pkg-tree` is required.
 
+Directories without Go source, or whose Go files are excluded by the active build constraints, are skipped. Parsing and type-checking errors in active Go packages stop extraction instead of silently producing incomplete templates.
+
+Domain-derived output paths are confined to `-out`; relative traversal and symlinks that escape that directory are rejected.
+
 ### Options
 
 | Option | Description |
@@ -46,9 +50,11 @@ gotext.GetD("errors", "Unable to save")
 gotext.GetC("Open", "menu action")
 ```
 
+Direct method expressions such as `(*gotext.Locale).Get(locale, "Save")` are also supported. Contexts are decoded before de-duplication, so equivalent raw and interpreted string literals share one entry. An explicit empty context remains distinct from a call without context.
+
 ## Constants and variables
 
-String constants are supported, including aliases and constant expressions. Variables are supported when their declaration-time value is statically resolvable and the variable is not assigned a new value before the getter call.
+String constants are supported, including aliases and constant expressions. Variables are supported when their declaration-time value is statically resolvable and remains known at the getter call.
 
 ```go
 const saveLabel = "Save"
@@ -60,7 +66,7 @@ gotext.Get(saveLabel)
 gotext.GetC(cancelLabel, menuContext)
 ```
 
-For correctness, xgotext deliberately skips a mutable variable after it has been reassigned. For example, this does **not** extract either value:
+For correctness, xgotext skips variables whose values may have changed through reassignment, pointer access, another function, or a previous loop iteration. A later straight-line assignment to a local variable does not affect an earlier call. For example, this does **not** extract either value:
 
 ```go
 label := "Before"

@@ -62,9 +62,7 @@ func init() {
 	gob.Register(TranslatorEncoding{})
 }
 
-// loadLocales creates a new Locale object for every language (specified using Configure)
-// at package level based on the configuration of global configuration .
-// It is called when trying to use Get or GetD methods.
+// loadLocales ensures package-level locales and their configured domain are loaded.
 func loadLocales(rebuildCache bool) {
 	globalConfig.Lock()
 
@@ -428,10 +426,15 @@ func IsTranslatedND(dom, str string, n int, langs ...string) bool {
 			if supportedLocale == nil {
 				continue
 			}
-			if lang != supportedLocale.GetActualLanguage(dom) {
+			if lang != supportedLocale.GetLanguage() && lang != supportedLocale.GetActualLanguage(dom) {
 				continue
 			}
-			return supportedLocale.IsTranslatedND(dom, str, n)
+			if !supportedLocale.hasDomain(dom) {
+				supportedLocale.AddDomain(dom)
+			}
+			if supportedLocale.IsTranslatedND(dom, str, n) {
+				return true
+			}
 		}
 	}
 	return false
@@ -452,7 +455,7 @@ func IsTranslatedNC(str string, n int, ctx string, langs ...string) bool {
 // IsTranslatedDC reports whether a domain context string is translated in given languages.
 // When the langs argument is omitted, the output of GetLanguages is used.
 func IsTranslatedDC(dom, str, ctx string, langs ...string) bool {
-	return IsTranslatedNDC(dom, str, 0, ctx, langs...)
+	return IsTranslatedNDC(dom, str, 1, ctx, langs...)
 }
 
 // IsTranslatedNDC reports whether a plural domain context string is translated in any of given languages.
@@ -471,10 +474,15 @@ func IsTranslatedNDC(dom, str string, n int, ctx string, langs ...string) bool {
 			if supportedLocale == nil {
 				continue
 			}
-			if lang != supportedLocale.GetActualLanguage(dom) {
+			if lang != supportedLocale.GetLanguage() && lang != supportedLocale.GetActualLanguage(dom) {
 				continue
 			}
-			return supportedLocale.IsTranslatedNDC(dom, str, n, ctx)
+			if !supportedLocale.hasDomain(dom) {
+				supportedLocale.AddDomain(dom)
+			}
+			if supportedLocale.IsTranslatedNDC(dom, str, n, ctx) {
+				return true
+			}
 		}
 	}
 	return false

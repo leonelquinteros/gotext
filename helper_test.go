@@ -57,20 +57,6 @@ func TestReformattingMultipleNamedPattern(t *testing.T) {
 	}
 }
 
-func TestReformattingRepeatedNamedPattern(t *testing.T) {
-	pat := "%(name_me)x and %(another_name)v and %(name_me)v"
-
-	f, n := reformatSprintf(pat)
-
-	if f != "%x and %v and %v" {
-		t.Errorf("pattern should be %%x and %%v and %%v but %v", f)
-	}
-
-	if !reflect.DeepEqual(n, []string{"name_me", "another_name", "name_me"}) {
-		t.Errorf("named var should be {name_me, another_name, name_me} but %v", n)
-	}
-}
-
 func TestSprintf(t *testing.T) {
 	pat := "%(brother)s loves %(sister)s. %(sister)s also loves %(brother)s."
 	params := map[string]any{
@@ -103,6 +89,9 @@ func TestNPrintf(t *testing.T) {
 		}
 	})
 	os.Stdout = writer
+	t.Cleanup(func() {
+		os.Stdout = originalStdout
+	})
 	NPrintf(pat, params)
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)

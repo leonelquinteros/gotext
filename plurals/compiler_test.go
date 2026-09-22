@@ -35,7 +35,6 @@ func TestCompiler(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, data := range fixtures {
-		data := data
 		t.Run(data.PluralForm, func(t *testing.T) {
 			expr, err := Compile(data.PluralForm)
 			if err != nil {
@@ -60,8 +59,9 @@ func TestCompileEvalGNUExpressions(t *testing.T) {
 		n    uint32
 		want int
 	}{
-		{name: "implicit equality true", expr: "n", n: 1, want: 1},
-		{name: "implicit equality false", expr: "n", n: 2, want: 0},
+		{name: "variable result zero", expr: "n", n: 0, want: 0},
+		{name: "variable result nonzero", expr: "n", n: 2, want: 2},
+		{name: "constant result", expr: "2", n: 0, want: 2},
 		{name: "equality true", expr: "n == 1", n: 1, want: 1},
 		{name: "equality false", expr: "n == 1", n: 2, want: 0},
 		{name: "inequality true", expr: "n != 1", n: 2, want: 1},
@@ -74,12 +74,23 @@ func TestCompileEvalGNUExpressions(t *testing.T) {
 		{name: "less false", expr: "n < 2", n: 2, want: 0},
 		{name: "less equal boundary", expr: "n <= 1", n: 1, want: 1},
 		{name: "less equal false", expr: "n <= 1", n: 2, want: 0},
-		{name: "modulo default true", expr: "n % 10", n: 10, want: 1},
-		{name: "modulo default false", expr: "n % 10", n: 3, want: 0},
+		{name: "modulo result zero", expr: "n % 3", n: 3, want: 0},
+		{name: "modulo result one", expr: "n % 3", n: 4, want: 1},
+		{name: "modulo result two", expr: "n % 3", n: 5, want: 2},
 		{name: "modulo equality", expr: "n % 10 == 3", n: 13, want: 1},
 		{name: "modulo equality false", expr: "n % 10 == 3", n: 14, want: 0},
 		{name: "reversed modulo equality", expr: "3 == n % 10", n: 13, want: 1},
 		{name: "reversed modulo inequality", expr: "3 != n % 10", n: 13, want: 0},
+		{name: "logical result true", expr: "n == 1 || n == 2", n: 2, want: 1},
+		{name: "logical result false", expr: "n == 1 || n == 2", n: 3, want: 0},
+		{name: "nonzero variable ternary condition", expr: "n ? 7 : 9", n: 2, want: 7},
+		{name: "zero variable ternary condition", expr: "n ? 7 : 9", n: 0, want: 9},
+		{name: "nonzero modulo ternary condition", expr: "n % 3 ? 7 : 9", n: 4, want: 7},
+		{name: "zero modulo ternary condition", expr: "n % 3 ? 7 : 9", n: 3, want: 9},
+		{name: "nonzero literal ternary condition", expr: "2 ? 7 : 9", n: 0, want: 7},
+		{name: "zero literal ternary condition", expr: "0 ? 7 : 9", n: 0, want: 9},
+		{name: "numeric ternary variable arm", expr: "n == 1 ? n : n % 3", n: 1, want: 1},
+		{name: "numeric ternary modulo arm", expr: "n == 1 ? n : n % 3", n: 5, want: 2},
 		{name: "simple ternary true", expr: "n == 1 ? 7 : 9", n: 1, want: 7},
 		{name: "simple ternary false", expr: "n == 1 ? 7 : 9", n: 2, want: 9},
 		{name: "nested ternary inner true", expr: "n < 3 ? n == 2 ? 10 : 11 : 12", n: 2, want: 10},
@@ -88,7 +99,6 @@ func TestCompileEvalGNUExpressions(t *testing.T) {
 		{name: "nested false arm", expr: "n == 0 ? 0 : n == 1 ? 1 : 2", n: 2, want: 2},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			expr, err := Compile(tt.expr)
 			if err != nil {
@@ -173,7 +183,6 @@ func TestCompileEvalPrecedenceAndParentheses(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			expr, err := Compile(tt.expr)
 			if err != nil {
@@ -224,7 +233,6 @@ func TestCompileEvalLogicalShortCircuitCases(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			expr, err := Compile(tt.expr)
 			if err != nil {
@@ -246,7 +254,6 @@ func TestCompileEvalLogicalShortCircuitCases(t *testing.T) {
 
 func TestCompileEvalWhitespaceAndUint32Boundaries(t *testing.T) {
 	for _, input := range []string{" 0 ", "\t0\n", "\u20030\u2003"} {
-		input := input
 		t.Run("constant whitespace", func(t *testing.T) {
 			expr, err := Compile(input)
 			if err != nil {
@@ -280,7 +287,6 @@ func TestCompileEvalWhitespaceAndUint32Boundaries(t *testing.T) {
 		{name: "maximum modulo remainder", expr: "n % " + maxLiteral + " == 0", n: maxUint32, want: 1},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			expr, err := Compile(tt.expr)
 			if err != nil {
@@ -381,7 +387,6 @@ func TestCompileMalformedExpressionsReturnNil(t *testing.T) {
 		{name: "result literal overflow", expr: "n == 1 ? " + aboveMaxInt + " : 0"},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			defer func() {
 				if recovered := recover(); recovered != nil {

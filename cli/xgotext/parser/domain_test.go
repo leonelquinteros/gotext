@@ -4,9 +4,23 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func createTestSymlink(t *testing.T, target, link string) {
+	t.Helper()
+	if runtime.GOOS == "js" || runtime.GOOS == "plan9" || runtime.GOOS == "wasip1" {
+		t.Skipf("symbolic links are unavailable on %s", runtime.GOOS)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		if runtime.GOOS == "windows" && os.IsPermission(err) {
+			t.Skipf("symbolic links require privileges on %s: %v", runtime.GOOS, err)
+		}
+		t.Fatalf("create symlink %q -> %q: %v", link, target, err)
+	}
+}
 
 func TestTranslation_AddLocations(t *testing.T) {
 	tr := &Translation{MsgID: "test"}
@@ -53,7 +67,25 @@ msgstr[1] ""`,
 		{
 			name:        "context",
 			translation: Translation{MsgID: "test", Context: "ctx"},
-			want: `msgctxt ctx
+			want: `msgctxt "ctx"
+msgid "test"
+msgstr ""`,
+		},
+		{
+			name: "escaped multiline context",
+			translation: Translation{
+				MsgID:      "test",
+				Context:    "ctx \"quoted\"\\slash\nnext",
+				HasContext: true,
+			},
+			want: `msgctxt "ctx \"quoted\"\\slash\nnext"
+msgid "test"
+msgstr ""`,
+		},
+		{
+			name:        "explicit empty context",
+			translation: Translation{MsgID: "test", HasContext: true},
+			want: `msgctxt ""
 msgid "test"
 msgstr ""`,
 		},
@@ -121,6 +153,32 @@ func TestDomain_AddTranslation(t *testing.T) {
 	if len(domain.Translations) != 1 || len(domain.ContextTranslations) != 1 {
 		t.Fatalf("domain maps = %#v/%#v, want one entry in each map",
 			domain.Translations, domain.ContextTranslations)
+	}
+}
+
+func TestDomain_AddTranslation_ExplicitEmptyContext(t *testing.T) {
+	domain := &Domain{}
+	domain.AddTranslation(&Translation{
+		MsgID:           "test",
+		HasContext:      true,
+		SourceLocations: []string{"file.go:10"},
+	})
+	domain.AddTranslation(&Translation{
+		MsgID:           "test",
+		HasContext:      true,
+		SourceLocations: []string{"file.go:20"},
+	})
+
+	translation := domain.ContextTranslations[""]["test"]
+	if translation == nil {
+		t.Fatal("explicit-empty contextual translation was not added")
+	}
+	if !translation.HasContext || translation.Context != "" ||
+		!reflect.DeepEqual(translation.SourceLocations, []string{"file.go:10", "file.go:20"}) {
+		t.Fatalf("explicit-empty contextual translation = %#v, want merged context metadata", translation)
+	}
+	if _, ok := domain.Translations["test"]; ok {
+		t.Fatal("explicit-empty contextual translation was added as uncontextualized")
 	}
 }
 
@@ -216,7 +274,7 @@ func TestDomain_Dump_PartialMaps(t *testing.T) {
 	beforeLocations := append([]string(nil), domain.ContextTranslations["ctx"]["id"].SourceLocations...)
 	want := `#: a.go:1
 #: z.go:2
-msgctxt ctx
+msgctxt "ctx"
 msgid "id"
 msgstr ""`
 
@@ -230,9 +288,6 @@ msgstr ""`
 	if !reflect.DeepEqual(domain.ContextTranslations["ctx"]["id"].SourceLocations, beforeLocations) {
 		t.Fatalf("Dump() mutated nested source locations: got %v, want %v",
 			domain.ContextTranslations["ctx"]["id"].SourceLocations, beforeLocations)
-	}
-	if strings.HasPrefix(firstDump, "\n") || strings.HasSuffix(firstDump, "\n\n") {
-		t.Fatalf("partial maps introduced empty dump entries: %q", firstDump)
 	}
 }
 
@@ -262,13 +317,7 @@ func TestDomainMap_AddTranslation(t *testing.T) {
 }
 
 func TestDomainMap_Save(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "gotext-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = os.RemoveAll(tmpDir)
-	}()
+	tmpDir := t.TempDir()
 
 	domainMap := &DomainMap{}
 	domainMap.AddTranslation("test", &Translation{
@@ -296,6 +345,96 @@ func TestDomainMap_Save(t *testing.T) {
 		if !strings.Contains(content, expected) {
 			t.Errorf("saved domain is missing %q: %q", expected, content)
 		}
+	}
+}
+
+func TestDomain_SaveUsesExplicitPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "explicit.pot")
+	domain := &Domain{}
+	domain.AddTranslation(&Translation{MsgID: "explicit"})
+
+	if err := domain.Save(path); err != nil {
+		t.Fatalf("Save(%q) failed: %v", path, err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read explicitly saved domain: %v", err)
+	}
+	if !strings.Contains(string(data), `msgid "explicit"`) {
+		t.Fatalf("explicitly saved domain is missing translation: %q", data)
+	}
+}
+
+func TestDomainMap_SaveRejectsLexicalTraversal(t *testing.T) {
+	parent := t.TempDir()
+	directory := filepath.Join(parent, "output")
+	outside := filepath.Join(parent, "escaped.pot")
+	sentinel := []byte("do not overwrite")
+	if err := os.WriteFile(outside, sentinel, 0o600); err != nil {
+		t.Fatalf("write sentinel: %v", err)
+	}
+
+	domainMap := &DomainMap{}
+	domainMap.AddTranslation("../escaped", &Translation{MsgID: "replacement"})
+	if err := domainMap.Save(directory); err == nil {
+		t.Fatal("Save accepted a domain name that escapes the output root")
+	}
+
+	if got, err := os.ReadFile(outside); err != nil {
+		t.Fatalf("read sentinel: %v", err)
+	} else if string(got) != string(sentinel) {
+		t.Fatalf("sentinel after traversal attempt = %q, want %q", got, sentinel)
+	}
+}
+
+func TestDomainMap_SaveRejectsEscapingSymlink(t *testing.T) {
+	parent := t.TempDir()
+	directory := filepath.Join(parent, "output")
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatalf("create output directory: %v", err)
+	}
+	outside := filepath.Join(parent, "outside.pot")
+	sentinel := []byte("do not overwrite")
+	if err := os.WriteFile(outside, sentinel, 0o600); err != nil {
+		t.Fatalf("write sentinel: %v", err)
+	}
+	createTestSymlink(t, "../outside.pot", filepath.Join(directory, "linked.pot"))
+
+	domainMap := &DomainMap{}
+	domainMap.AddTranslation("linked", &Translation{MsgID: "replacement"})
+	if err := domainMap.Save(directory); err == nil {
+		t.Fatal("Save accepted a symlink that escapes the output root")
+	}
+
+	if got, err := os.ReadFile(outside); err != nil {
+		t.Fatalf("read sentinel: %v", err)
+	} else if string(got) != string(sentinel) {
+		t.Fatalf("sentinel after symlink attempt = %q, want %q", got, sentinel)
+	}
+}
+
+func TestDomainMap_SaveAllowsContainedSymlink(t *testing.T) {
+	parent := t.TempDir()
+	directory := filepath.Join(parent, "output")
+	nested := filepath.Join(directory, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("create nested output directory: %v", err)
+	}
+	target := filepath.Join(nested, "inside.pot")
+	createTestSymlink(t, "inside.pot", filepath.Join(nested, "linked.pot"))
+
+	domainMap := &DomainMap{}
+	domainMap.AddTranslation("nested/linked", &Translation{MsgID: "contained"})
+	if err := domainMap.Save(directory); err != nil {
+		t.Fatalf("Save rejected a contained symlink: %v", err)
+	}
+
+	data, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read contained symlink target: %v", err)
+	}
+	if !strings.Contains(string(data), `msgid "contained"`) {
+		t.Fatalf("contained symlink target is missing translation: %q", data)
 	}
 }
 

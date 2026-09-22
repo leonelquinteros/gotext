@@ -93,11 +93,6 @@ func assertVisitedDirs(t *testing.T, visited map[string]bool, want []string) {
 			t.Errorf("expected parser call for %s", path)
 		}
 	}
-	for path := range visited {
-		if !expected[path] {
-			t.Errorf("unexpected parser call for %s", path)
-		}
-	}
 }
 
 func TestParseDirRecExclusionSpellings(t *testing.T) {

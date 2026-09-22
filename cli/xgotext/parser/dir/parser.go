@@ -16,11 +16,7 @@ var knownParser []ParseDirFunc
 
 // AddParser to the known parser list
 func AddParser(parser ParseDirFunc) {
-	if knownParser == nil {
-		knownParser = []ParseDirFunc{parser}
-	} else {
-		knownParser = append(knownParser, parser)
-	}
+	knownParser = append(knownParser, parser)
 }
 
 // ParseDir calls all known parser for each directory
@@ -51,7 +47,6 @@ func ParseDirRec(dirPath string, exclude []string, data *parser.DomainMap, verbo
 	if err != nil {
 		return err
 	}
-	dirPath = filepath.Clean(dirPath)
 
 	excludeDirs := make([]string, 0, len(exclude))
 	for _, excludeDir := range exclude {

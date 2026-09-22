@@ -6,7 +6,7 @@ This guide covers the more advanced features of `gotext`: embedding translation 
 
 Instead of loading `.po`/`.mo` files from disk, you can read them from an in-memory filesystem.
 
-**`NewLocaleFS(lang string, filesystem fs.FS)`** creates a `Locale` whose translation files live at the root of the given filesystem:
+**`NewLocaleFS(lang string, filesystem fs.FS)`** creates a `Locale` whose translation files live at the root of the given filesystem. If embedded files are under a directory such as `locales/`, use `NewLocaleFSWithPath` with that prefix:
 
 ```go
 package main
@@ -22,7 +22,7 @@ import (
 var localeFS embed.FS
 
 func main() {
-    l := gotext.NewLocaleFS("en_US", localeFS)
+    l := gotext.NewLocaleFSWithPath("en_US", localeFS, "locales")
     l.AddDomain("default")
 
     fmt.Println(l.Get("Hello, world!"))
@@ -92,7 +92,7 @@ The serialized bytes are self-contained (they include all parsed domains and tra
 To use manually built `Locale` objects at the package level — for example, built from in-memory `Po` objects or from an `embed.FS` — replace the package configuration with `SetLocales`:
 
 ```go
-l := gotext.NewLocaleFS("de_DE", localeFS)
+l := gotext.NewLocaleFSWithPath("de_DE", localeFS, "locales")
 l.AddDomain("default")
 gotext.SetLocales([]*gotext.Locale{l})
 ```
@@ -119,6 +119,8 @@ fmt.Println(gotext.Get("Hello, world!"))
 ### Language Simplification
 
 If a file for the full locale code (e.g., `es_UY`) is missing, a file for the base language (e.g., `es`) is used instead. `GetActualLanguage` reports which language code the filesystem actually resolved. Files may live under an `LC_MESSAGES` subdirectory or directly under the language code — both layouts are supported.
+
+Language reporting follows the same PO-before-MO precedence as catalog loading. Package-level `IsTranslated*` checks accept both the configured locale code and its resolved base-language code. They also work with in-memory locales from `SetLocales` and lazily load nondefault domains, just like the corresponding getters.
 
 ### Domain Fallback
 
@@ -150,7 +152,7 @@ l.AddTranslator("default", myCustomTranslator)
 fmt.Println(l.Get("Hello, world!"))
 ```
 
-The `AppendTranslator` interface extends `Translator` with `Append`/`AppendN`/`AppendC`/`AppendNC` buffer builders, used to stream serialized output.
+The `AppendTranslator` interface extends `Translator` with `Append`/`AppendN`/`AppendC`/`AppendNC` methods that append formatted translations to a byte slice.
 
 ### In-Memory PO Manipulation
 

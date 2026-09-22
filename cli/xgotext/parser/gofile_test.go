@@ -110,6 +110,23 @@ func addTypedReceiver(pkg *types.Package, name string, specs []typedGetterSpec) 
 	return receiver
 }
 
+func addTypedHeaderMap(pkg *types.Package) {
+	stringType := types.Typ[types.String]
+	object := types.NewTypeName(token.NoPos, pkg, "HeaderMap", nil)
+	headerMap := types.NewNamed(
+		object,
+		types.NewMap(stringType, types.NewSlice(stringType)),
+		nil,
+	)
+	pkg.Scope().Insert(object)
+	headerMap.AddMethod(types.NewFunc(
+		token.NoPos,
+		pkg,
+		"Get",
+		typedSignature(pkg, headerMap, false, stringType),
+	))
+}
+
 func addTypedInterface(pkg *types.Package, name string, specs []typedGetterSpec) *types.Named {
 	methods := make([]*types.Func, 0, len(specs))
 	for _, spec := range specs {
@@ -155,6 +172,7 @@ func buildTypedGoFile(source string) (*GoFile, *ast.File, error) {
 	addTypedReceiver(gotextTypes, "Po", typedReceiverGetterSpecs(anyType, "Po"))
 	addTypedReceiver(gotextTypes, "Domain", typedReceiverGetterSpecs(anyType, "Domain"))
 	addTypedInterface(gotextTypes, "Translator", typedReceiverGetterSpecs(anyType, "Translator"))
+	addTypedHeaderMap(gotextTypes)
 	gotextTypes.MarkComplete()
 
 	typesInfo := typedTypesInfo()
@@ -237,16 +255,17 @@ func example() {
 
 	type expectedTranslation struct {
 		domain, id, plural, context, location string
+		contextual                            bool
 	}
 	expected := []expectedTranslation{
 		{id: "get-id", location: "typed.go:6"},
 		{id: "getn-id", plural: "getn-plural", location: "typed.go:7"},
 		{domain: "getd-domain", id: "getd-id", location: "typed.go:8"},
 		{domain: "getnd-domain", id: "getnd-id", plural: "getnd-plural", location: "typed.go:9"},
-		{id: "getc-id", context: `"getc-context"`, location: "typed.go:10"},
-		{id: "getnc-id", plural: "getnc-plural", context: `"getnc-context"`, location: "typed.go:11"},
-		{domain: "getdc-domain", id: "getdc-id", context: `"getdc-context"`, location: "typed.go:12"},
-		{domain: "getndc-domain", id: "getndc-id", plural: "getndc-plural", context: `"getndc-context"`, location: "typed.go:13"},
+		{id: "getc-id", context: "getc-context", contextual: true, location: "typed.go:10"},
+		{id: "getnc-id", plural: "getnc-plural", context: "getnc-context", contextual: true, location: "typed.go:11"},
+		{domain: "getdc-domain", id: "getdc-id", context: "getdc-context", contextual: true, location: "typed.go:12"},
+		{domain: "getndc-domain", id: "getndc-id", plural: "getndc-plural", context: "getndc-context", contextual: true, location: "typed.go:13"},
 	}
 
 	if len(g.Data.Domains) != 5 {
@@ -258,10 +277,10 @@ func example() {
 			domain = g.Data.Domains["default"]
 		}
 		var translation *Translation
-		if want.context == "" {
-			translation = domain.Translations[want.id]
-		} else {
+		if want.contextual {
 			translation = domain.ContextTranslations[want.context][want.id]
+		} else {
+			translation = domain.Translations[want.id]
 		}
 		if translation == nil {
 			t.Fatalf("missing translation %q in domain %q", want.id, want.domain)
@@ -269,10 +288,11 @@ func example() {
 		if translation.MsgID != want.id ||
 			translation.MsgIDPlural != want.plural ||
 			translation.Context != want.context ||
+			translation.HasContext != want.contextual ||
 			len(translation.SourceLocations) != 1 ||
 			translation.SourceLocations[0] != want.location {
-			t.Errorf("translation = %#v, want id=%q plural=%q context=%q location=%q",
-				translation, want.id, want.plural, want.context, want.location)
+			t.Errorf("translation = %#v, want id=%q plural=%q context=%q contextual=%t location=%q",
+				translation, want.id, want.plural, want.context, want.contextual, want.location)
 		}
 	}
 }
@@ -292,13 +312,16 @@ func example() {
 	var locale Locale
 	var pointer *Locale
 	var translator Translator
+	var headers HeaderMap
 	Get("dot-id")
 	locale.Get("named-id")
 	pointer.Get("pointer-id")
 	translator.Get("interface-id")
+	headers.Get("Content-Type")
 	var localValue local
 	localValue.Get("local-id")
-}`
+}
+`
 
 	g, file := newTypedGoFile(t, source)
 	inspectTypedCalls(g, file)
@@ -315,8 +338,83 @@ func example() {
 	if _, ok := domain.Translations["local-id"]; ok {
 		t.Error("same-named local method was extracted")
 	}
+	if _, ok := domain.Translations["Content-Type"]; ok {
+		t.Error("HeaderMap.Get key was extracted as a translation")
+	}
 	if len(domain.Translations) != 4 {
 		t.Fatalf("got %d translations, want 4", len(domain.Translations))
+	}
+}
+
+func TestGoFile_InspectCallExpr_MethodExpressions(t *testing.T) {
+	const source = `package typed
+
+import gt "github.com/leonelquinteros/gotext"
+
+func example() {
+	var locale gt.Locale
+	(*gt.Locale).Get(&locale, "method-expression")
+	(*gt.Locale).GetC(&locale, "method-context-id", "method-context")
+}`
+
+	g, file := newTypedGoFile(t, source)
+	inspectTypedCalls(g, file)
+
+	domain := g.Data.Domains["default"]
+	if domain == nil {
+		t.Fatal("method expressions did not create the default domain")
+	}
+	if translation := domain.Translations["method-expression"]; translation == nil ||
+		translation.MsgID != "method-expression" || translation.HasContext {
+		t.Fatalf("method-expression translation = %#v, want decoded uncontextualized metadata", translation)
+	}
+	translation := domain.ContextTranslations["method-context"]["method-context-id"]
+	if translation == nil ||
+		translation.MsgID != "method-context-id" ||
+		translation.Context != "method-context" ||
+		!translation.HasContext {
+		t.Fatalf("method-context translation = %#v, want decoded contextual metadata", translation)
+	}
+}
+
+func TestGoFile_InspectCallExpr_ContextDecodingAndEmptyContext(t *testing.T) {
+	const source = `package typed
+
+import gt "github.com/leonelquinteros/gotext"
+
+func example() {
+	gt.GetC("same-context", ` + "`ctx`" + `, "format")
+	gt.GetC("same-context", "ctx", "format")
+	gt.GetC("same-context", "\u0063tx", "format")
+	gt.GetC("empty-context", "", "format")
+}`
+
+	g, file := newTypedGoFile(t, source)
+	inspectTypedCalls(g, file)
+
+	domain := g.Data.Domains["default"]
+	if domain == nil {
+		t.Fatal("context calls did not create the default domain")
+	}
+	if len(domain.Translations) != 0 {
+		t.Fatalf("got %d uncontextualized translations, want none", len(domain.Translations))
+	}
+	if len(domain.ContextTranslations) != 2 {
+		t.Fatalf("got %d context buckets, want decoded ctx and empty context", len(domain.ContextTranslations))
+	}
+	contextual := domain.ContextTranslations["ctx"]["same-context"]
+	if contextual == nil ||
+		contextual.Context != "ctx" ||
+		!contextual.HasContext ||
+		len(contextual.SourceLocations) != 3 {
+		t.Fatalf("decoded context translation = %#v, want one entry with three source locations", contextual)
+	}
+	emptyContext := domain.ContextTranslations[""]["empty-context"]
+	if emptyContext == nil ||
+		emptyContext.Context != "" ||
+		!emptyContext.HasContext ||
+		len(emptyContext.SourceLocations) != 1 {
+		t.Fatalf("explicit empty context translation = %#v, want contextual empty metadata", emptyContext)
 	}
 }
 
@@ -385,7 +483,8 @@ func example() {
 		if translation == nil {
 			t.Fatalf("missing static translation %q", id)
 		}
-		if translation.MsgID != id || translation.MsgIDPlural != plural || translation.Context != "" {
+		if translation.MsgID != id || translation.MsgIDPlural != plural ||
+			translation.Context != "" || translation.HasContext {
 			t.Errorf("translation %q = %#v, want id=%q plural=%q without context",
 				id, translation, id, plural)
 		}
@@ -464,7 +563,8 @@ func example() {
 			t.Fatalf("got %d translations, want one for %q", len(domain.Translations), expected)
 		}
 		translation := domain.Translations[expected]
-		if translation == nil || translation.MsgID != expected || translation.Context != "" || translation.MsgIDPlural != "" {
+		if translation == nil || translation.MsgID != expected ||
+			translation.Context != "" || translation.HasContext || translation.MsgIDPlural != "" {
 			t.Fatalf("translation = %#v, want literal %q without plural or context", translation, expected)
 		}
 	})
@@ -563,6 +663,99 @@ func example() {
 	}
 }
 
+func TestGoFile_InspectCallExpr_TypedASTPointerEscapeRejectsStaleValue(t *testing.T) {
+	const source = `package typed
+
+import "github.com/leonelquinteros/gotext"
+
+func example() {
+	gotext.Get("control")
+	pointerValue := "stale-pointer"
+	pointer := &pointerValue
+	*pointer = "actual-pointer"
+	gotext.Get(pointerValue)
+}
+`
+
+	g, file := newTypedGoFile(t, source)
+	inspectTypedCalls(g, file)
+
+	domain := g.Data.Domains["default"]
+	if domain == nil {
+		t.Fatal("pointer escape test did not create the default domain")
+	}
+	if domain.Translations["control"] == nil {
+		t.Fatal("control translation was not extracted")
+	}
+	if _, ok := domain.Translations["stale-pointer"]; ok {
+		t.Error("address-escaped variable initializer was extracted")
+	}
+	if _, ok := domain.Translations["actual-pointer"]; ok {
+		t.Error("address-escaped variable mutation was extracted")
+	}
+}
+
+func TestGoFile_InspectCallExpr_LoopCarriedMutation(t *testing.T) {
+	const source = `package typed
+
+import "github.com/leonelquinteros/gotext"
+
+func example() {
+	value := "stale-loop"
+	for i := 0; i < 2; i++ {
+		gotext.Get(value)
+		value = "changed-loop"
+	}
+	stable := "straight-line"
+	gotext.Get(stable)
+	stable = "later"
+}`
+	g, file := newTypedGoFile(t, source)
+	inspectTypedCalls(g, file)
+	domain := g.Data.Domains["default"]
+	if domain == nil || domain.Translations["straight-line"] == nil {
+		t.Fatal("unmutated straight-line argument was not extracted")
+	}
+	if domain.Translations["stale-loop"] != nil || domain.Translations["changed-loop"] != nil {
+		t.Fatal("loop-carried variable was extracted as a fixed message")
+	}
+}
+
+func TestGoFile_InspectCallExpr_TypedASTGlobalHelperMutationRejectsStaleValue(t *testing.T) {
+	const source = `package typed
+
+import "github.com/leonelquinteros/gotext"
+
+var helperValue = "stale-global"
+
+func example() {
+	updateHelperValue()
+	gotext.Get("control")
+	gotext.Get(helperValue)
+}
+
+func updateHelperValue() {
+	helperValue = "actual-global"
+}`
+
+	g, file := newTypedGoFile(t, source)
+	inspectTypedCalls(g, file)
+
+	domain := g.Data.Domains["default"]
+	if domain == nil {
+		t.Fatal("global helper mutation test did not create the default domain")
+	}
+	if domain.Translations["control"] == nil {
+		t.Fatal("control translation was not extracted")
+	}
+	if _, ok := domain.Translations["stale-global"]; ok {
+		t.Error("global variable with helper mutation was extracted")
+	}
+	if _, ok := domain.Translations["actual-global"]; ok {
+		t.Error("global helper assignment was extracted as a message")
+	}
+}
+
 func TestGoFile_InspectCallExpr_TypedASTCycleDoesNotPoisonLaterArgumentsOrCalls(t *testing.T) {
 	const source = `package typed
 
@@ -601,7 +794,7 @@ func example() {
 		t.Fatalf("later translation = %#v, want literal call metadata", later)
 	}
 
-	contextTranslations := domain.ContextTranslations[`"context after cycle"`]
+	contextTranslations := domain.ContextTranslations["context after cycle"]
 	if len(contextTranslations) != 1 {
 		t.Fatalf("got %d contextual translations, want one", len(contextTranslations))
 	}
@@ -611,7 +804,8 @@ func example() {
 	}
 	if translation.MsgID != "id" ||
 		translation.MsgIDPlural != "plural" ||
-		translation.Context != `"context after cycle"` {
+		translation.Context != "context after cycle" ||
+		!translation.HasContext {
 		t.Errorf("contextual translation = %#v, want id/plural/context metadata", translation)
 	}
 }

@@ -6,9 +6,7 @@
 package gotext
 
 import (
-	"bytes"
 	"embed"
-	"encoding/gob"
 	"errors"
 	"maps"
 	"os"
@@ -253,6 +251,57 @@ msgstr "More Translation"
 		if tr != "More Translation" {
 			t.Errorf("Expected 'More Translation' but got '%s'", tr)
 		}
+	}
+}
+func TestGetActualLanguageMatchesAddDomainFormatPrecedence(t *testing.T) {
+	tests := []struct {
+		name               string
+		files              fstest.MapFS
+		wantTranslation    string
+		wantActualLanguage string
+	}{
+		{
+			name: "full PO wins over base MO",
+			files: fstest.MapFS{
+				"fr_FR/LC_MESSAGES/default.po": &fstest.MapFile{Data: []byte(`msgid ""
+msgstr ""
+
+msgid "hello"
+msgstr "bonjour full"
+`)},
+				"fr/LC_MESSAGES/default.mo": &fstest.MapFile{Data: []byte("ignored")},
+			},
+			wantTranslation:    "bonjour full",
+			wantActualLanguage: "fr_FR",
+		},
+		{
+			name: "base PO wins over full MO",
+			files: fstest.MapFS{
+				"fr/LC_MESSAGES/default.po": &fstest.MapFile{Data: []byte(`msgid ""
+msgstr ""
+
+msgid "hello"
+msgstr "bonjour base"
+`)},
+				"fr_FR/LC_MESSAGES/default.mo": &fstest.MapFile{Data: []byte("ignored")},
+			},
+			wantTranslation:    "bonjour base",
+			wantActualLanguage: "fr",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			locale := NewLocaleFS("fr_FR", tt.files)
+			locale.AddDomain("default")
+
+			if got := locale.Get("hello"); got != tt.wantTranslation {
+				t.Errorf("Get(hello) = %q, want %q", got, tt.wantTranslation)
+			}
+			if got := locale.GetActualLanguage("default"); got != tt.wantActualLanguage {
+				t.Errorf("GetActualLanguage(default) = %q, want %q", got, tt.wantActualLanguage)
+			}
+		})
 	}
 }
 
@@ -1223,19 +1272,13 @@ func TestLocaleBinaryEncodingKeepsStateOnDomainDecodeError(t *testing.T) {
 	locale.AddTranslator("old", oldTranslator)
 	locale.SetDomain("old")
 
-	var buff bytes.Buffer
-	encoder := gob.NewEncoder(&buff)
-	err := encoder.Encode(&LocaleEncoding{
+	data := encodeTestGob(t, &LocaleEncoding{
 		Path:          "new/path",
 		Lang:          "new",
 		Domains:       map[string][]byte{"new": []byte("invalid")},
 		DefaultDomain: "new",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := locale.UnmarshalBinary(buff.Bytes()); err == nil {
+	if err := locale.UnmarshalBinary(data); err == nil {
 		t.Fatal("UnmarshalBinary returned nil for an invalid domain")
 	}
 

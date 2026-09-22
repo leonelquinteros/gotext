@@ -183,8 +183,6 @@ func (mo *Mo) Parse(buf []byte) {
 		MsgIDCount   uint32
 		MsgIDOffset  uint32
 		MsgStrOffset uint32
-		HashSize     uint32
-		HashOffset   uint32
 	}
 
 	bufLen := uint64(len(buf))
@@ -193,8 +191,6 @@ func (mo *Mo) Parse(buf []byte) {
 	header.MsgIDCount = bo.Uint32(buf[8:12])
 	header.MsgIDOffset = bo.Uint32(buf[12:16])
 	header.MsgStrOffset = bo.Uint32(buf[16:20])
-	header.HashSize = bo.Uint32(buf[20:24])
-	header.HashOffset = bo.Uint32(buf[24:28])
 
 	if header.MajorVersion != 0 && header.MajorVersion != 1 {
 		return
@@ -255,8 +251,10 @@ func (mo *Mo) addTranslation(msgid, msgstr []byte) {
 	translation := NewTranslation()
 	var msgctxt []byte
 	var msgidPlural []byte
+	hasContext := false
 
 	if eotIndex := bytes.IndexByte(msgid, EotSeparator[0]); eotIndex >= 0 {
+		hasContext = true
 		msgctxt = msgid[:eotIndex]
 		msgid = msgid[eotIndex+len(EotSeparator):]
 	}
@@ -277,8 +275,8 @@ func (mo *Mo) addTranslation(msgid, msgstr []byte) {
 		i++
 	}
 
-	if len(msgctxt) > 0 {
-		// With context...
+	if hasContext {
+		// With context, including an explicitly empty context...
 		if _, ok := mo.domain.contextTranslations[string(msgctxt)]; !ok {
 			mo.domain.contextTranslations[string(msgctxt)] = make(map[string]*Translation)
 		}
