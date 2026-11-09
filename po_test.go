@@ -1156,3 +1156,28 @@ func FuzzPoRejectedRecordDoesNotMutate(f *testing.F) {
 		}
 	})
 }
+
+func TestPoFuzzyEntryIsNotTranslated(t *testing.T) {
+	po := NewPo()
+	po.Parse([]byte(`msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Open"
+msgstr "Offen"
+
+#, fuzzy
+#| msgid "Delete file"
+msgid "Delete folder"
+msgstr "Datei löschen"
+
+msgid "Close"
+msgstr "Schließen"
+`))
+
+	for id, want := range map[string]string{"Open": "Offen", "Delete folder": "Delete folder", "Close": "Schließen"} {
+		if got := po.Get(id); got != want {
+			t.Errorf("Get(%q) = %q, want %q", id, got, want)
+		}
+	}
+}

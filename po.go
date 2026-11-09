@@ -7,6 +7,7 @@ package gotext
 
 import (
 	"io/fs"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -45,6 +46,8 @@ type Po struct {
 
 	parseBufferHasID      bool
 	parseBufferHasPlural  bool
+	parseBufferFuzzy      bool
+	parsePendingFuzzy     bool
 	parseBufferHasContext bool
 }
 
@@ -319,8 +322,19 @@ func (po *Po) Parse(buf []byte) {
 // and saves it on the translations collection
 func (po *Po) saveBuffer() {
 	if !po.parseBufferHasID {
+		// A "#, fuzzy" line belongs to the entry that comes after it.
+		if po.parsePendingFuzzy {
+			po.parseBufferFuzzy, po.parsePendingFuzzy = true, false
+		}
 		return
 	}
+
+	// msgmerge guesses a fuzzy msgstr from a similar string, so gettext never
+	// shows it. The header entry is exempt, as it is with msgfmt.
+	if po.parseBufferFuzzy && po.domain.trBuffer.ID != "" {
+		po.domain.trBuffer.Trs = make(map[int]string)
+	}
+	po.parseBufferFuzzy, po.parsePendingFuzzy = po.parsePendingFuzzy, false
 
 	// Store a completed plural ID after all of its continuation lines have
 	// been decoded.
@@ -361,6 +375,10 @@ func (po *Po) parseComment(l string, state parseState) {
 			case ':':
 				if len(l) > 2 {
 					po.domain.refBuffer = strings.TrimSpace(l[2:])
+				}
+			case ',':
+				if slices.Contains(strings.FieldsFunc(l[2:], func(r rune) bool { return r == ',' || r == ' ' }), "fuzzy") {
+					po.parsePendingFuzzy = true
 				}
 			}
 		}
