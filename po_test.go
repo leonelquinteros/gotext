@@ -12,6 +12,7 @@ import (
 	"path"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -280,6 +281,47 @@ msgstr[2] "TR Plural 2: %s"
 	tr = po.GetN("Singular: %s", "Plural: %s", 1, v)
 	if tr != "TR Singular: Var" {
 		t.Errorf("Expected 'TR Singular: Var' but got '%s'", tr)
+	}
+}
+
+func TestPoParseReferencesStayWithTheirEntry(t *testing.T) {
+	po := NewPo()
+	po.Parse([]byte(`msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: main.go:1
+msgid "a"
+msgstr "A"
+
+msgid "b"
+msgstr "B"
+
+msgctxt "c"
+msgid "d"
+msgstr "D"
+`))
+
+	if got := po.GetRefs("a"); len(got) != 1 || got[0] != "main.go:1" {
+		t.Errorf("GetRefs(a) = %v, want [main.go:1]", got)
+	}
+	if got := po.GetRefs("b"); len(got) != 0 {
+		t.Errorf("GetRefs(b) = %v, want none", got)
+	}
+	trans, ok := po.GetDomain().GetCtxTranslations()["c"]["d"]
+	if !ok {
+		t.Fatal("the context entry c/d is missing")
+	}
+	if len(trans.Refs) != 0 {
+		t.Errorf("the context entry c/d has the references %v, want none", trans.Refs)
+	}
+
+	text, err := po.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(string(text), "#: main.go:1"); n != 1 {
+		t.Errorf("MarshalText writes %d references lines, want 1:\n%s", n, text)
 	}
 }
 
