@@ -347,6 +347,9 @@ func (po *Po) saveBuffer() {
 		po.domain.trBuffer = NewTranslation()
 	} else {
 		po.domain.trBuffer = NewTranslationWithRefs(strings.Split(po.domain.refBuffer, " "))
+		// The references belong to the entry they were written above, so
+		// they must not leak into the entries that follow it.
+		po.domain.refBuffer = ""
 	}
 }
 
